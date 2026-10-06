@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "duree": 30.0,
+  "fps": 30,
+  "mots": [
+    { "id": 0, "texte": "Bonjour", "debut": 0.8, "fin": 1.2 },
+    { "id": 1, "texte": "à", "debut": 1.25, "fin": 1.35 },
+    { "id": 2, "texte": "tous.", "debut": 1.4, "fin": 1.8 },
+    { "id": 3, "texte": "Aujourd'hui,", "debut": 3.0, "fin": 3.6 },
+    { "id": 4, "texte": "le", "debut": 3.65, "fin": 3.75 },
+    { "id": 5, "texte": "SSO.", "debut": 3.8, "fin": 4.3 }
+  ],
+  "detections": [
+    { "id": "d0", "type": "silence", "debut": 0.0, "fin": 0.8 },
+    { "id": "d1", "type": "hesitation", "debut": 1.8, "fin": 3.0 }
+  ],
+  "suggestions": {
+    "chapitres": [
+      { "titre": "Introduction", "debut": 0.8 },
+      { "titre": "Le SSO", "debut": 3.0 }
+    ],
+    "termes": [
+      { "terme": "SSO", "definition": "Authentification unique : un seul identifiant pour plusieurs applications.", "occurrences": [3.8], "origine": "ia" },
+      { "terme": "API", "definition": "Interface qui permet à deux logiciels d'échanger des données.", "occurrences": [], "origine": "glossaire" }
+    ],
+    "longueurs": [
+      { "id": "l0", "debut": 10.0, "fin": 20.0, "raison": "Digression sans lien avec le sujet." }
+    ]
+  },
+  "erreurSuggestions": null
+}
