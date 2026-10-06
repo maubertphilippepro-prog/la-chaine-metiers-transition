@@ -18,11 +18,12 @@ def faux_transcrire(chemin, modele):
     return MOTS
 
 
-def faux_demander(mots, glossaire, modele):
+def faux_demander(mots, glossaire, modele, **kwargs):
+    faux_demander.kwargs = kwargs
     return ReponseIA(chapitres=[ChapitreIA(titre="Intro", premier_mot=0)], termes=[], longueurs=[])
 
 
-def demander_en_erreur(mots, glossaire, modele):
+def demander_en_erreur(mots, glossaire, modele, **kwargs):
     raise ErreurSuggestions("API indisponible")
 
 
@@ -150,3 +151,37 @@ def test_main_dossier_inexistant(tmp_path, capsys):
     dossier = tmp_path / "inexistant"
     assert main(["analyser", str(dossier), "--titre", "T"]) == 1
     assert "Erreur :" in capsys.readouterr().err
+
+
+def test_episode_existant_complete_sans_perte(tournage, tmp_path):
+    (tournage / "episode.json").write_text(
+        json.dumps({"version": 1, "titre": "Ancien", "statut": "valide", "message": None, "episodes": [1]}),
+        encoding="utf-8",
+    )
+    analyser(tournage, "Test", REGLAGES, faux_transcrire, faux_demander, tmp_path / "glossaire.json")
+    episode = json.loads((tournage / "episode.json").read_text(encoding="utf-8"))
+    assert episode["episodes"] == [1]
+    assert (episode["titre"], episode["statut"], episode["message"]) == ("Test", "analyse", None)
+
+
+def test_episode_illisible_remplace(tournage, tmp_path):
+    (tournage / "episode.json").write_text("{pas du json", encoding="utf-8")
+    analyser(tournage, "Test", REGLAGES, faux_transcrire, faux_demander, tmp_path / "glossaire.json")
+    episode = json.loads((tournage / "episode.json").read_text(encoding="utf-8"))
+    assert episode == {"version": 1, "titre": "Test", "statut": "analyse", "message": None}
+
+
+def test_erreur_inattendue_marque_l_episode(tournage, tmp_path):
+    def transcrire_en_panne(chemin, modele):
+        raise RuntimeError("CUDA out of memory")
+
+    with pytest.raises(RuntimeError):
+        analyser(tournage, "Test", REGLAGES, transcrire_en_panne, faux_demander, tmp_path / "glossaire.json")
+    episode = json.loads((tournage / "episode.json").read_text(encoding="utf-8"))
+    assert episode["statut"] == "erreur"
+    assert "CUDA out of memory" in episode["message"]
+
+
+def test_longueur_de_definition_transmise(tournage, tmp_path):
+    analyser(tournage, "Test", REGLAGES, faux_transcrire, faux_demander, tmp_path / "glossaire.json")
+    assert faux_demander.kwargs == {"max_caracteres": REGLAGES["definitionMaxCaracteres"]}

@@ -88,3 +88,9 @@ def test_demander_sortie_invalide():
 def test_appel_reel():
     r = demander(MOTS, GLOSSAIRE, "claude-opus-5-5")
     assert isinstance(r, ReponseIA)
+
+
+def test_prompt_longueur_de_definition_reglable():
+    p = construire_prompt(MOTS, GLOSSAIRE, max_caracteres=120)
+    assert "120" in p
+    assert "160" not in p

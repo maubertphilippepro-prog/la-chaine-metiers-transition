@@ -27,7 +27,15 @@ def ecrire(chemin: Path, donnees) -> None:
 
 
 def ecrire_episode(dossier: Path, titre: str, statut: str, message: str | None) -> None:
-    ecrire(dossier / "episode.json", {"version": 1, "titre": titre, "statut": statut, "message": message})
+    """Met à jour episode.json en conservant les champs ajoutés par ailleurs (studio)."""
+    fichier = dossier / "episode.json"
+    try:
+        episode = lire(fichier) if fichier.exists() else {}
+    except (OSError, ValueError):
+        episode = {}
+    if not isinstance(episode, dict):
+        episode = {}
+    ecrire(fichier, {**episode, "version": 1, "titre": titre, "statut": statut, "message": message})
 
 
 def etape_suggestions(dossier: Path, mots: list[dict], reglages: dict, demander_fn, glossaire_chemin: Path):
@@ -39,7 +47,8 @@ def etape_suggestions(dossier: Path, mots: list[dict], reglages: dict, demander_
     except (ValueError, KeyError, TypeError, AttributeError, OSError) as e:
         return None, f"glossaire.json illisible : {e!r}"
     try:
-        reponse = demander_fn(mots, glossaire, reglages["modeles"]["claude"])
+        reponse = demander_fn(mots, glossaire, reglages["modeles"]["claude"],
+                              max_caracteres=reglages["definitionMaxCaracteres"])
     except ErreurSuggestions as e:
         return None, str(e)
     suggestions = convertir(reponse, mots, glossaire)
@@ -85,6 +94,9 @@ def analyser(dossier: Path, titre: str, reglages: dict, transcrire_fn=transcrire
                    detecter(mots, charger_audio(source), TAUX, duree, reglages["detection"]))
     except ErreurEntree as e:
         ecrire_episode(dossier, titre, "erreur", str(e))
+        raise
+    except Exception as e:
+        ecrire_episode(dossier, titre, "erreur", f"Erreur inattendue pendant l'analyse : {type(e).__name__} : {e}")
         raise
 
     suggestions, erreur = etape_suggestions(dossier, mots, reglages, demander_fn, glossaire_chemin)
