@@ -1,3 +1,9 @@
+import json
+import os
+import shutil
+import subprocess
+from pathlib import Path
+
 import pytest
 
 from mtpipeline.erreurs import ErreurEntree
@@ -39,3 +45,55 @@ def test_preparer_concatene(video_test, tmp_path):
     info = preparer([video_test("a.mp4"), video_test("b.mp4")], tmp_path / "source.mp4")
     assert info["duree"] == pytest.approx(4, abs=0.2)
     assert info["fps"] == pytest.approx(30)
+
+
+def test_preparer_chemin_avec_apostrophe(video_test, tmp_path):
+    dossier = tmp_path / "l'atelier & test"
+    dossier.mkdir()
+    bruts = []
+    for nom in ("a.mp4", "b.mp4"):
+        cible = dossier / nom
+        shutil.move(video_test(nom), cible)
+        bruts.append(cible)
+    info = preparer(bruts, tmp_path / "source.mp4")
+    assert info["duree"] == pytest.approx(4, abs=0.2)
+
+
+def test_sonder_fichier_corrompu(tmp_path):
+    fichier = tmp_path / "corrompu.mp4"
+    fichier.write_bytes(os.urandom(2048))
+    with pytest.raises(ErreurEntree, match="corrompu.mp4"):
+        sonder(fichier)
+
+
+def _fausse_sonde(monkeypatch, donnees):
+    resultat = subprocess.CompletedProcess([], 0, stdout=json.dumps(donnees), stderr="")
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: resultat)
+
+
+def _flux(**extra):
+    return {"codec_type": "video", "width": 1920, "height": 1080,
+            "r_frame_rate": "30/1", "avg_frame_rate": "30/1", **extra}
+
+
+def test_sonder_sans_duree(monkeypatch):
+    _fausse_sonde(monkeypatch, {"streams": [_flux()], "format": {}})
+    with pytest.raises(ErreurEntree, match="x.mp4"):
+        sonder(Path("x.mp4"))
+
+
+def test_sonder_cadence_nulle(monkeypatch):
+    _fausse_sonde(monkeypatch, {"streams": [_flux(r_frame_rate="0/0")], "format": {"duration": "2"}})
+    with pytest.raises(ErreurEntree, match="x.mp4"):
+        sonder(Path("x.mp4"))
+
+
+def test_preparer_ffmpeg_echoue(video_test, tmp_path):
+    inexistant = tmp_path / "absent" / "source.mp4"
+    with pytest.raises(ErreurEntree, match="ffmpeg"):
+        preparer([video_test("a.mp4"), video_test("b.mp4")], inexistant)
+
+
+def test_sonder_nom_accentue(video_test):
+    info = sonder(video_test("é_vidéo àccentuée.mp4"))
+    assert info["largeur"] == 1920
