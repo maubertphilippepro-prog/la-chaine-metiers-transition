@@ -1,0 +1,5 @@
+donnees/tournages/
+node_modules/
+__pycache__/
+.venv/
+.env
