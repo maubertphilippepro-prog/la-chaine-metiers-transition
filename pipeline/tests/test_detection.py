@@ -67,7 +67,22 @@ def test_trous_de_bord_sont_des_silences():
 def test_hesitation_transcrite_longue_seulement():
     mots = [mot(0, "Euh,", 0.0, 0.6), mot(1, "euh", 1.0, 1.2), mot(2, "bon", 1.3, 1.5)]
     assert detecter_hesitations_transcrites(mots, CFG) == [
-        {"type": "hesitation", "debut": 0.0, "fin": 0.6},
+        {"type": "hesitation", "debut": 0.0, "fin": 1.0},
+    ]
+
+
+def test_hesitation_transcrite_entre_deux_mots():
+    mots = [mot(0, "alors", 0.0, 0.5), mot(1, "euh", 0.7, 1.3), mot(2, "bon", 1.5, 1.8)]
+    assert detecter_hesitations_transcrites(mots, CFG) == [
+        {"type": "hesitation", "debut": 0.5, "fin": 1.5},
+    ]
+
+
+def test_hesitation_transcrite_premier_et_dernier_mot():
+    mots = [mot(0, "euh", 0.2, 0.8), mot(1, "bon", 1.0, 1.3), mot(2, "heu", 1.5, 2.0)]
+    assert detecter_hesitations_transcrites(mots, CFG) == [
+        {"type": "hesitation", "debut": 0.2, "fin": 1.0},
+        {"type": "hesitation", "debut": 1.3, "fin": 2.0},
     ]
 
 
@@ -79,6 +94,11 @@ def test_repetition_de_plusieurs_mots():
 
 def test_repetition_legitime_ignoree():
     mots = [mot(0, "nous", 0, .2), mot(1, "nous", .2, .4), mot(2, "sommes", .4, .8)]
+    assert detecter_repetitions(mots, 4) == []
+
+
+def test_ponctuation_seule_jamais_repetee():
+    mots = [mot(0, "…", 0, .2), mot(1, "…", .2, .4), mot(2, "bonjour", .4, .8)]
     assert detecter_repetitions(mots, 4) == []
 
 

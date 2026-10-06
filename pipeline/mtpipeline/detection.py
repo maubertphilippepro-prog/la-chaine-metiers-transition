@@ -44,9 +44,14 @@ def detecter_trous(mots: list[dict], audio: np.ndarray, taux: int, duree: float,
 
 
 def detecter_hesitations_transcrites(mots: list[dict], cfg: dict) -> list[dict]:
+    """Couvre le « euh » et les blancs qui l'entourent, jusqu'aux mots voisins."""
     return [
-        {"type": "hesitation", "debut": m["debut"], "fin": m["fin"]}
-        for m in mots
+        {
+            "type": "hesitation",
+            "debut": mots[i - 1]["fin"] if i > 0 else m["debut"],
+            "fin": mots[i + 1]["debut"] if i + 1 < len(mots) else m["fin"],
+        }
+        for i, m in enumerate(mots)
         if normaliser(m["texte"]) in HESITATIONS and m["fin"] - m["debut"] >= cfg["hesitationMin"]
     ]
 
@@ -59,6 +64,8 @@ def detecter_repetitions(mots: list[dict], max_mots: int) -> list[dict]:
         trouve = 0
         for n in range(max_mots, 0, -1):
             if i + 2 * n > len(mots):
+                continue
+            if "" in textes[i:i + n]:
                 continue
             if textes[i:i + n] == textes[i + n:i + 2 * n]:
                 if n == 1 and textes[i] in REPETITIONS_LEGITIMES:
