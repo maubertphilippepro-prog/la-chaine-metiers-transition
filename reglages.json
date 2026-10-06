@@ -1,0 +1,37 @@
+{
+  "detection": {
+    "silenceMin": 0.7,
+    "hesitationMin": 0.4,
+    "seuilSilenceDb": -40,
+    "proportionVoiseeHesitation": 0.3,
+    "repetitionMaxMots": 4
+  },
+  "coupe": {
+    "silenceConserve": 0.3,
+    "margeMots": 0.06,
+    "dureeMinCoupe": 0.1,
+    "dureeMinSegment": 0.05,
+    "fonduAudio": 0.015
+  },
+  "durees": {
+    "generique": 4,
+    "encart": 6,
+    "intertitre": 2,
+    "cartonFin": 5
+  },
+  "charte": {
+    "rouge": "#E30520",
+    "bleu": "#004C99",
+    "bleuGris": "#9AB2C9",
+    "blanc": "#FFFFFF",
+    "police": "Open Sans",
+    "logoCarre": "assets/identite-visuelle/logo-pole-metiers-transition-carre.png",
+    "logoHorizontal": "assets/identite-visuelle/logo-pole-metiers-transition-horizontal.png",
+    "logoCicad": "assets/identite-visuelle/logo-cicad-couleur.png"
+  },
+  "modeles": {
+    "whisper": "large-v3",
+    "claude": "claude-opus-5-5"
+  },
+  "definitionMaxCaracteres": 160
+}
