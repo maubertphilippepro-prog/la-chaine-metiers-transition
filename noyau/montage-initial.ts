@@ -17,7 +17,7 @@ export function montageInitial(analyse: Analyse, titre: string): Montage {
   const termes: Terme[] = (s?.termes ?? []).map(t => ({
     terme: t.terme,
     definition: t.definition,
-    occurrences: t.occurrences,
+    occurrences: [...t.occurrences],
     statut: t.origine === 'glossaire' ? 'valide' : 'a-valider',
     position: 'bas',
   }));

@@ -85,6 +85,15 @@ export interface Montage {
   termes: Terme[];
 }
 
+export type StatutEpisode = 'analyse' | 'en-validation' | 'valide' | 'rendu' | 'erreur';
+
+export interface Episode {
+  version: 1;
+  titre: string;
+  statut: StatutEpisode;
+  message: string | null;
+}
+
 export interface Segment {
   debut: number;
   fin: number;

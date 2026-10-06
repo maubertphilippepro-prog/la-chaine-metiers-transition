@@ -77,3 +77,21 @@ describe('calculerSegments', () => {
     ]);
   });
 });
+
+describe('calculerSegments aux bords', () => {
+  it('ne garde pas de marge de silence avant le début', () => {
+    const s = calculerSegments(10, [coupe({ type: 'silence', debut: 0, fin: 0.8 })], r);
+    expect(arrondir(s)).toEqual([{ debut: 0.65, fin: 10 }]);
+  });
+  it('ne garde pas de marge de silence après la fin', () => {
+    const s = calculerSegments(10, [coupe({ type: 'silence', debut: 9, fin: 10 })], r);
+    expect(arrondir(s)).toEqual([{ debut: 0, fin: 9.15 }]);
+  });
+  it('ne laisse pas de fragment entre une hésitation et un euh étendu', () => {
+    const s = calculerSegments(10, [
+      coupe({ id: 'h', type: 'hesitation', debut: 1.0, fin: 1.5 }),
+      coupe({ id: 'e', type: 'hesitation', debut: 1.0, fin: 2.0 }),
+    ], r);
+    expect(arrondir(s)).toEqual([{ debut: 0, fin: 1.06 }, { debut: 1.94, fin: 10 }]);
+  });
+});

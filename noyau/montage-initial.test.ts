@@ -34,3 +34,12 @@ describe('montageInitial', () => {
     expect(sans.coupes).toHaveLength(2);
   });
 });
+
+describe('montageInitial et analyse', () => {
+  it('copie les occurrences des termes', () => {
+    const a = structuredClone(analyse);
+    const avant = structuredClone(a.suggestions!.termes[0]!.occurrences);
+    montageInitial(a, 'T').termes[0]!.occurrences.push(999);
+    expect(a.suggestions!.termes[0]!.occurrences).toEqual(avant);
+  });
+});

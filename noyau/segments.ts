@@ -1,11 +1,12 @@
 import type { Coupe, ReglagesCoupe, Segment } from './types';
 
-export function intervalleACouper(coupe: Coupe, r: ReglagesCoupe): Segment | null {
+// Un silence garde sa demi-marge seulement du côté de la parole, pas contre 0 ni contre la durée.
+export function intervalleACouper(coupe: Coupe, r: ReglagesCoupe, duree?: number): Segment | null {
   let debut = coupe.debut;
   let fin = coupe.fin;
   if (coupe.type === 'silence') {
-    debut += r.silenceConserve / 2;
-    fin -= r.silenceConserve / 2;
+    if (debut > 0) debut += r.silenceConserve / 2;
+    if (duree === undefined || fin < duree) fin -= r.silenceConserve / 2;
   } else if (coupe.type === 'hesitation') {
     debut += r.margeMots;
     fin -= r.margeMots;
@@ -17,7 +18,7 @@ export function intervalleACouper(coupe: Coupe, r: ReglagesCoupe): Segment | nul
 export function calculerSegments(duree: number, coupes: Coupe[], r: ReglagesCoupe): Segment[] {
   const intervalles = coupes
     .filter(c => c.active)
-    .map(c => intervalleACouper(c, r))
+    .map(c => intervalleACouper(c, r, duree))
     .filter((i): i is Segment => i !== null)
     .map(i => ({ debut: Math.max(0, i.debut), fin: Math.min(duree, i.fin) }))
     .filter(i => i.fin > i.debut)
