@@ -123,8 +123,30 @@ def test_ecritures_atomiques_sans_fichier_temporaire(tournage, tmp_path):
     assert list(tournage.glob("*.tmp")) == []
 
 
+def test_dossier_inexistant_analyser(tmp_path):
+    dossier = tmp_path / "inexistant"
+    with pytest.raises(ErreurEntree, match="introuvable"):
+        analyser(dossier, "Test", REGLAGES, faux_transcrire, faux_demander, tmp_path / "glossaire.json")
+    # Vérifier que le dossier n'a pas été créé
+    assert not dossier.exists()
+
+
+def test_dossier_inexistant_relancer_suggestions(tmp_path):
+    dossier = tmp_path / "inexistant"
+    with pytest.raises(ErreurEntree, match="introuvable"):
+        relancer_suggestions(dossier, REGLAGES, faux_demander, tmp_path / "glossaire.json")
+    # Vérifier que le dossier n'a pas été créé
+    assert not dossier.exists()
+
+
 def test_main_entree_invalide_retourne_1(tmp_path, capsys):
     dossier = tmp_path / "vide"
     dossier.mkdir()
+    assert main(["analyser", str(dossier), "--titre", "T"]) == 1
+    assert "Erreur :" in capsys.readouterr().err
+
+
+def test_main_dossier_inexistant(tmp_path, capsys):
+    dossier = tmp_path / "inexistant"
     assert main(["analyser", str(dossier), "--titre", "T"]) == 1
     assert "Erreur :" in capsys.readouterr().err

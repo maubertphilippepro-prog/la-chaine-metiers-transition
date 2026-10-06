@@ -64,6 +64,8 @@ def assembler(dossier: Path, suggestions, erreur) -> dict:
 
 def analyser(dossier: Path, titre: str, reglages: dict, transcrire_fn=transcrire, demander_fn=demander,
              glossaire_chemin: Path | None = None) -> dict:
+    if not dossier.is_dir():
+        raise ErreurEntree(f"Dossier de tournage introuvable : {dossier}")
     glossaire_chemin = glossaire_chemin or RACINE / "donnees" / "glossaire.json"
     source = dossier / "source.mp4"
     try:
@@ -93,6 +95,8 @@ def analyser(dossier: Path, titre: str, reglages: dict, transcrire_fn=transcrire
 
 def relancer_suggestions(dossier: Path, reglages: dict, demander_fn=demander,
                          glossaire_chemin: Path | None = None) -> dict:
+    if not dossier.is_dir():
+        raise ErreurEntree(f"Dossier de tournage introuvable : {dossier}")
     glossaire_chemin = glossaire_chemin or RACINE / "donnees" / "glossaire.json"
     if not all((dossier / f).exists() for f in ("preparation.json", "transcription.json", "detections.json")):
         raise ErreurEntree(f"{dossier} : analyse incomplète, lancez d'abord « analyser ».")
