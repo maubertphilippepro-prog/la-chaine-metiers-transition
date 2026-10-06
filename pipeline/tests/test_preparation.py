@@ -97,3 +97,30 @@ def test_preparer_ffmpeg_echoue(video_test, tmp_path):
 def test_sonder_nom_accentue(video_test):
     info = sonder(video_test("é_vidéo àccentuée.mp4"))
     assert info["largeur"] == 1920
+
+
+def test_preparer_mkv_remuxe_en_mp4(video_test, tmp_path):
+    sortie = tmp_path / "source.mp4"
+    info = preparer([video_test("a.mkv")], sortie)
+    format_conteneur = json.loads(subprocess.run(
+        ["ffprobe", "-v", "error", "-print_format", "json", "-show_format", str(sortie)],
+        check=True, capture_output=True, text=True,
+    ).stdout)["format"]["format_name"]
+    assert "mp4" in format_conteneur
+    assert info["duree"] == pytest.approx(2, abs=0.1)
+
+
+def test_ffmpeg_introuvable(monkeypatch):
+    def absent(*a, **k):
+        raise FileNotFoundError("ffprobe")
+    monkeypatch.setattr(subprocess, "run", absent)
+    with pytest.raises(ErreurEntree, match="introuvable"):
+        sonder(Path("x.mp4"))
+
+
+def test_copie_impossible(video_test, tmp_path, monkeypatch):
+    def refus(*a, **k):
+        raise PermissionError("accès refusé")
+    monkeypatch.setattr(shutil, "copyfile", refus)
+    with pytest.raises(ErreurEntree, match="a.mp4"):
+        preparer([video_test("a.mp4")], tmp_path / "source.mp4")
