@@ -3,7 +3,7 @@ import shutil
 
 import pytest
 
-from mtpipeline.cli import analyser, relancer_suggestions
+from mtpipeline.cli import analyser, main, relancer_suggestions
 from mtpipeline.erreurs import ErreurEntree, ErreurSuggestions
 from mtpipeline.reglages import RACINE, charger_reglages
 from mtpipeline.suggestions import ChapitreIA, ReponseIA
@@ -78,3 +78,53 @@ def test_entree_invalide_marque_l_episode_en_erreur(tmp_path, video_test):
     episode = json.loads((dossier / "episode.json").read_text(encoding="utf-8"))
     assert episode["statut"] == "erreur"
     assert "1920x1080" in episode["message"]
+
+
+def test_echec_extraction_audio_marque_l_episode_en_erreur(tournage, tmp_path, monkeypatch):
+    def audio_impossible(chemin):
+        raise ErreurEntree("source.mp4 : extraction audio impossible")
+
+    monkeypatch.setattr("mtpipeline.cli.charger_audio", audio_impossible)
+    with pytest.raises(ErreurEntree):
+        analyser(tournage, "Test", REGLAGES, faux_transcrire, faux_demander, tmp_path / "glossaire.json")
+    episode = json.loads((tournage / "episode.json").read_text(encoding="utf-8"))
+    assert episode["statut"] == "erreur"
+    assert episode["message"] == "source.mp4 : extraction audio impossible"
+
+
+def test_glossaire_illisible_non_bloquant(tournage, tmp_path):
+    glossaire = tmp_path / "glossaire.json"
+    glossaire.write_text("{pas du json", encoding="utf-8")
+    a = analyser(tournage, "Test", REGLAGES, faux_transcrire, faux_demander, glossaire)
+    assert a["suggestions"] is None
+    assert a["erreurSuggestions"].startswith("glossaire.json illisible")
+    assert not (tournage / "suggestions.json").exists()
+
+
+def test_dossier_bruts_absent(tmp_path):
+    dossier = tmp_path / "vide"
+    dossier.mkdir()
+    with pytest.raises(ErreurEntree, match="bruts/ introuvable"):
+        analyser(dossier, "Test", REGLAGES, faux_transcrire, faux_demander, tmp_path / "glossaire.json")
+    episode = json.loads((dossier / "episode.json").read_text(encoding="utf-8"))
+    assert episode["statut"] == "erreur"
+    assert "bruts/ introuvable" in episode["message"]
+
+
+def test_relance_sans_analyse_prealable(tmp_path):
+    dossier = tmp_path / "vide"
+    dossier.mkdir()
+    with pytest.raises(ErreurEntree, match="analyse incomplète"):
+        relancer_suggestions(dossier, REGLAGES, faux_demander, tmp_path / "glossaire.json")
+
+
+def test_ecritures_atomiques_sans_fichier_temporaire(tournage, tmp_path):
+    analyser(tournage, "Test", REGLAGES, faux_transcrire, faux_demander, tmp_path / "glossaire.json")
+    assert list(tournage.glob("*.tmp")) == []
+
+
+def test_main_entree_invalide_retourne_1(tmp_path, capsys):
+    dossier = tmp_path / "vide"
+    dossier.mkdir()
+    assert main(["analyser", str(dossier), "--titre", "T"]) == 1
+    assert "Erreur :" in capsys.readouterr().err

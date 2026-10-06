@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -20,7 +21,9 @@ def lire(chemin: Path):
 
 
 def ecrire(chemin: Path, donnees) -> None:
-    chemin.write_text(json.dumps(donnees, ensure_ascii=False, indent=2), encoding="utf-8")
+    temporaire = chemin.with_suffix(chemin.suffix + ".tmp")
+    temporaire.write_text(json.dumps(donnees, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(temporaire, chemin)
 
 
 def ecrire_episode(dossier: Path, titre: str, statut: str, message: str | None) -> None:
@@ -31,7 +34,10 @@ def etape_suggestions(dossier: Path, mots: list[dict], reglages: dict, demander_
     fichier = dossier / "suggestions.json"
     if fichier.exists():
         return lire(fichier), None
-    glossaire = charger_glossaire(glossaire_chemin)
+    try:
+        glossaire = charger_glossaire(glossaire_chemin)
+    except (ValueError, KeyError, TypeError, AttributeError, OSError) as e:
+        return None, f"glossaire.json illisible : {e!r}"
     try:
         reponse = demander_fn(mots, glossaire, reglages["modeles"]["claude"])
     except ErreurSuggestions as e:
@@ -62,20 +68,22 @@ def analyser(dossier: Path, titre: str, reglages: dict, transcrire_fn=transcrire
     source = dossier / "source.mp4"
     try:
         if not (dossier / "preparation.json").exists():
+            if not (dossier / "bruts").is_dir():
+                raise ErreurEntree(f"Dossier bruts/ introuvable dans {dossier}.")
             bruts = sorted(p for p in (dossier / "bruts").iterdir() if p.suffix.lower() in EXTENSIONS)
             ecrire(dossier / "preparation.json", preparer(bruts, source))
+
+        if not (dossier / "transcription.json").exists():
+            ecrire(dossier / "transcription.json", transcrire_fn(source, reglages["modeles"]["whisper"]))
+        mots = lire(dossier / "transcription.json")
+
+        if not (dossier / "detections.json").exists():
+            duree = lire(dossier / "preparation.json")["duree"]
+            ecrire(dossier / "detections.json",
+                   detecter(mots, charger_audio(source), TAUX, duree, reglages["detection"]))
     except ErreurEntree as e:
         ecrire_episode(dossier, titre, "erreur", str(e))
         raise
-
-    if not (dossier / "transcription.json").exists():
-        ecrire(dossier / "transcription.json", transcrire_fn(source, reglages["modeles"]["whisper"]))
-    mots = lire(dossier / "transcription.json")
-
-    if not (dossier / "detections.json").exists():
-        duree = lire(dossier / "preparation.json")["duree"]
-        ecrire(dossier / "detections.json",
-               detecter(mots, charger_audio(source), TAUX, duree, reglages["detection"]))
 
     suggestions, erreur = etape_suggestions(dossier, mots, reglages, demander_fn, glossaire_chemin)
     analyse = assembler(dossier, suggestions, erreur)
@@ -86,6 +94,8 @@ def analyser(dossier: Path, titre: str, reglages: dict, transcrire_fn=transcrire
 def relancer_suggestions(dossier: Path, reglages: dict, demander_fn=demander,
                          glossaire_chemin: Path | None = None) -> dict:
     glossaire_chemin = glossaire_chemin or RACINE / "donnees" / "glossaire.json"
+    if not all((dossier / f).exists() for f in ("preparation.json", "transcription.json", "detections.json")):
+        raise ErreurEntree(f"{dossier} : analyse incomplète, lancez d'abord « analyser ».")
     (dossier / "suggestions.json").unlink(missing_ok=True)
     mots = lire(dossier / "transcription.json")
     suggestions, erreur = etape_suggestions(dossier, mots, reglages, demander_fn, glossaire_chemin)
