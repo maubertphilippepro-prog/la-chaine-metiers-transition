@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 import pytest
+from pydantic import ValidationError
 
 from mtpipeline.erreurs import ErreurSuggestions
 from mtpipeline.suggestions import (
@@ -60,6 +61,27 @@ def test_demander_refus():
 def test_demander_reponse_vide():
     with pytest.raises(ErreurSuggestions):
         demander(MOTS, {}, "claude-opus-5-5", client=faux_client(parsed=None))
+
+
+def test_demander_sans_cle_api(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+    with pytest.raises(ErreurSuggestions, match="Clé API"):
+        demander(MOTS, {}, "claude-opus-5-5")
+
+
+def test_demander_sortie_invalide():
+    try:
+        ReponseIA.model_validate({})
+    except ValidationError as e:
+        invalide = e
+
+    def parse(**kw):
+        raise invalide
+
+    client = SimpleNamespace(messages=SimpleNamespace(parse=parse))
+    with pytest.raises(ErreurSuggestions, match="inexploitable"):
+        demander(MOTS, {}, "claude-opus-5-5", client=client)
 
 
 @pytest.mark.reseau

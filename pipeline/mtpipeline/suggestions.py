@@ -1,5 +1,7 @@
+import os
+
 import anthropic
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from .erreurs import ErreurSuggestions
 
@@ -55,7 +57,12 @@ Propose :
 
 
 def demander(mots: list[dict], glossaire: dict[str, dict], modele: str, client=None) -> ReponseIA:
-    client = client or anthropic.Anthropic()
+    if client is None:
+        if not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")):
+            raise ErreurSuggestions(
+                "Clé API Claude absente : définissez la variable d'environnement ANTHROPIC_API_KEY."
+            )
+        client = anthropic.Anthropic()
     try:
         reponse = client.messages.parse(
             model=modele,
@@ -72,6 +79,8 @@ def demander(mots: list[dict], glossaire: dict[str, dict], modele: str, client=N
         raise ErreurSuggestions("Limite de requêtes de l'API Claude atteinte, réessayez plus tard.") from e
     except anthropic.APIStatusError as e:
         raise ErreurSuggestions(f"Erreur de l'API Claude ({e.status_code}) : {e.message}") from e
+    except (ValidationError, ValueError) as e:
+        raise ErreurSuggestions(f"Réponse de Claude inexploitable : {e}") from e
     if reponse.stop_reason == "refusal":
         raise ErreurSuggestions("Claude a refusé de traiter cette transcription.")
     if reponse.parsed_output is None:
