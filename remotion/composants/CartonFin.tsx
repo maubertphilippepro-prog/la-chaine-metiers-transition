@@ -21,7 +21,7 @@ export const CartonFin: FC<{ duree: number }> = ({ duree }) => {
         <LogoPMT taille={260} />
       </div>
       <div style={{ opacity: texte, textAlign: 'center' }}>
-        <div style={{ fontSize: 64, fontWeight: 700, color: charte.bleu }}>Merci d'avoir regardé !</div>
+        <div style={{ fontSize: 64, fontWeight: 700, color: charte.bleu }}>Merci d’avoir regardé !</div>
         <div style={{ fontSize: 44, color: charte.rouge, marginTop: 12 }}>
           Abonnez-vous à {charte.nomChaine} pour ne rien manquer
         </div>

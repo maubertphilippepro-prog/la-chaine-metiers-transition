@@ -34,7 +34,7 @@ export const VideoMontee: FC<{ partie: Partie; sourceUrl: string; fondu: number 
         ))}
       </Series>
       {partie.encarts.map(e => (
-        <Sequence key={e.terme} from={e.debut} durationInFrames={e.duree} premountFor={fps}>
+        <Sequence key={`${e.terme}-${e.debut}`} from={e.debut} durationInFrames={e.duree} premountFor={fps}>
           <EncartDefinition terme={e.terme} definition={e.definition} position={e.position} duree={e.duree} />
         </Sequence>
       ))}

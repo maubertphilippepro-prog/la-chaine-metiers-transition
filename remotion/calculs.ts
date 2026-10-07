@@ -5,8 +5,9 @@ export const DECALAGE_LOGO = 300;
 
 // Micro-fondu aux raccords pour éviter les clics : rampe sur `fondu` images à chaque extrémité.
 export function volumeRaccord(image: number, duree: number, fondu: number): number {
-  const entree = (image + 0.5) / fondu;
-  const sortie = (duree - image - 0.5) / fondu;
+  const rampe = Math.max(1, fondu);
+  const entree = (image + 0.5) / rampe;
+  const sortie = (duree - image - 0.5) / rampe;
   return Math.max(0, Math.min(1, entree, sortie));
 }
 

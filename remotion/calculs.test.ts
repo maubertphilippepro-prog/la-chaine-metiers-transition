@@ -13,6 +13,9 @@ describe('volumeRaccord', () => {
     expect(volumeRaccord(1, 30, 2)).toBe(0.75);
     expect(volumeRaccord(2, 30, 2)).toBe(1);
   });
+  it('traite un fondu nul comme une image', () => {
+    expect(volumeRaccord(0, 30, 0)).toBe(0.5);
+  });
 });
 
 describe('decalageLogo', () => {
