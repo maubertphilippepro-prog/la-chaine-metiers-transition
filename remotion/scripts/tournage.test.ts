@@ -37,6 +37,44 @@ describe('chargerTournage', () => {
     expect(t.montage.titre).toBe('Validé');
     expect(t.titre).toBe('2026-10-07-essai');
   });
+  it('signale un JSON illisible', async () => {
+    const d = await tournage({ 'analyse.json': exemple });
+    await writeFile(path.join(d, 'montage.json'), '{ pas du json', 'utf-8');
+    await expect(chargerTournage(d, { brouillon: false })).rejects.toThrow('2026-10-07-essai/montage.json illisible : ');
+  });
+  it('refuse un montage.json invalide', async () => {
+    const valide = { version: 1, titre: 'Validé', coupes: [], chapitres: [], termes: [] };
+    for (const [montage, raison] of [
+      [[], 'objet attendu'],
+      [{ ...valide, version: 2 }, 'version'],
+      [{ ...valide, titre: 3 }, 'titre'],
+      [{ ...valide, coupes: null }, 'coupes'],
+      [{ ...valide, chapitres: {} }, 'chapitres'],
+      [{ ...valide, termes: 'x' }, 'termes'],
+    ] as const) {
+      const d = await tournage({ 'analyse.json': exemple, 'montage.json': montage });
+      await expect(chargerTournage(d, { brouillon: false })).rejects.toThrow(`2026-10-07-essai/montage.json invalide : ${raison}`);
+    }
+  });
+  it('refuse une analyse.json invalide', async () => {
+    for (const [analyse, raison] of [
+      [null, 'objet attendu'],
+      [{ ...exemple, version: 0 }, 'version'],
+      [{ ...exemple, duree: 0 }, 'duree'],
+      [{ ...exemple, fps: '30' }, 'fps'],
+      [{ ...exemple, mots: null }, 'mots'],
+      [{ ...exemple, detections: undefined }, 'detections'],
+    ] as const) {
+      const d = await tournage({ 'analyse.json': analyse });
+      await expect(chargerTournage(d, { brouillon: true })).rejects.toThrow(`2026-10-07-essai/analyse.json invalide : ${raison}`);
+    }
+  });
+  it("ignore un episode.json qui n'est pas un objet", async () => {
+    for (const episode of [null, [1], 'texte']) {
+      const t = await chargerTournage(await tournage({ 'analyse.json': exemple, 'episode.json': episode }), { brouillon: true });
+      expect(t.titre).toBe('2026-10-07-essai');
+    }
+  });
 });
 
 describe('majStatutEpisode', () => {

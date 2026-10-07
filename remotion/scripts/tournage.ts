@@ -16,27 +16,63 @@ export interface Tournage {
   reglages: Reglages;
 }
 
-async function lireJson<T>(chemin: string): Promise<T> {
-  return JSON.parse(await readFile(chemin, 'utf-8')) as T;
+// `libelle` (« <tournage>/<fichier> ») sert aux messages d'erreur.
+async function lireJson(chemin: string, libelle: string): Promise<unknown> {
+  try {
+    return JSON.parse(await readFile(chemin, 'utf-8'));
+  } catch (e) {
+    throw new Error(`${libelle} illisible : ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+function estObjet(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function raisonAnalyse(a: unknown): string | null {
+  if (!estObjet(a)) return 'objet attendu';
+  if (a.version !== 1) return 'version 1 attendue';
+  if (typeof a.duree !== 'number' || !(a.duree > 0)) return 'duree positive attendue';
+  if (typeof a.fps !== 'number' || !(a.fps > 0)) return 'fps positif attendu';
+  if (!Array.isArray(a.mots)) return 'mots doit être une liste';
+  if (!Array.isArray(a.detections)) return 'detections doit être une liste';
+  return null;
+}
+
+function raisonMontage(m: unknown): string | null {
+  if (!estObjet(m)) return 'objet attendu';
+  if (m.version !== 1) return 'version 1 attendue';
+  if (typeof m.titre !== 'string') return 'titre doit être un texte';
+  for (const champ of ['coupes', 'chapitres', 'termes']) {
+    if (!Array.isArray(m[champ])) return `${champ} doit être une liste`;
+  }
+  return null;
+}
+
+async function lireValide<T>(chemin: string, libelle: string, raison: (v: unknown) => string | null): Promise<T> {
+  const valeur = await lireJson(chemin, libelle);
+  const probleme = raison(valeur);
+  if (probleme) throw new Error(`${libelle} invalide : ${probleme}`);
+  return valeur as T;
 }
 
 export async function chargerTournage(dossier: string, options: { brouillon: boolean }): Promise<Tournage> {
   const nom = path.basename(dossier);
   const cheminAnalyse = path.join(dossier, 'analyse.json');
   if (!existsSync(cheminAnalyse)) throw new Error(`${nom} : analyse.json absent, lancez d'abord l'analyse.`);
-  const analyse = await lireJson<Analyse>(cheminAnalyse);
+  const analyse = await lireValide<Analyse>(cheminAnalyse, `${nom}/analyse.json`, raisonAnalyse);
 
   const cheminEpisode = path.join(dossier, 'episode.json');
-  const episode = existsSync(cheminEpisode) ? await lireJson<{ titre?: string }>(cheminEpisode) : {};
-  const titre = episode.titre ?? nom;
+  const episode = existsSync(cheminEpisode) ? await lireJson(cheminEpisode, `${nom}/episode.json`) : null;
+  const titre = estObjet(episode) && typeof episode.titre === 'string' ? episode.titre : nom;
 
   const cheminMontage = path.join(dossier, 'montage.json');
   let montage: Montage;
-  if (existsSync(cheminMontage)) montage = await lireJson<Montage>(cheminMontage);
+  if (existsSync(cheminMontage)) montage = await lireValide<Montage>(cheminMontage, `${nom}/montage.json`, raisonMontage);
   else if (options.brouillon) montage = montageInitial(analyse, titre);
   else throw new Error(`${nom} : montage.json absent. Validez le tournage dans le studio, ou utilisez --brouillon.`);
 
-  const reglages = await lireJson<Reglages>(path.join(RACINE, 'reglages.json'));
+  const reglages = (await lireJson(path.join(RACINE, 'reglages.json'), 'reglages.json')) as Reglages;
   return { dossier, nom, titre, analyse, montage, reglages };
 }
 
