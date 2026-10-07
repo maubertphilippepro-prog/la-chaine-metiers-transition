@@ -8,7 +8,8 @@
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "jsx": "react-jsx",
     "types": ["node"]
   },
-  "include": ["noyau/**/*.ts"]
+  "include": ["noyau/**/*.ts", "remotion/**/*.ts", "remotion/**/*.tsx", "vitest.config.ts", "vitest.rendu.config.ts"]
 }

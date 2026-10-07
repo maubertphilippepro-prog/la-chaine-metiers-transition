@@ -4,10 +4,24 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "studio": "remotion studio remotion/index.ts",
+    "image": "remotion still remotion/index.ts"
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.533",
+    "@remotion/cli": "4.0.533",
+    "@remotion/google-fonts": "4.0.533",
+    "@remotion/media": "4.0.533",
+    "@remotion/renderer": "4.0.533",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "remotion": "4.0.533"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/react": "19.3.0",
+    "tsx": "^4.23.0",
     "typescript": "^5.6.0",
     "vitest": "^3.0.0"
   }
