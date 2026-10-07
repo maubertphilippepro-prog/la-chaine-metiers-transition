@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .audio import TAUX, charger_audio
 from .detection import detecter
+from .environnement import charger_env
 from .erreurs import ErreurEntree, ErreurSuggestions
 from .glossaire import charger_glossaire
 from .preparation import preparer
@@ -119,6 +120,7 @@ def relancer_suggestions(dossier: Path, reglages: dict, demander_fn=demander,
 
 
 def main(argv: list[str] | None = None) -> int:
+    charger_env(RACINE / ".env")
     parser = argparse.ArgumentParser(prog="mtpipeline", description="Analyse d'un tournage.")
     sous = parser.add_subparsers(dest="commande", required=True)
     p_analyser = sous.add_parser("analyser", help="Analyser un dossier de tournage.")
