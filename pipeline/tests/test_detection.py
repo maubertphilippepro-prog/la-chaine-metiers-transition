@@ -1,13 +1,13 @@
 import numpy as np
 
 from mtpipeline.detection import (
-    detecter, detecter_hesitations_transcrites, detecter_repetitions, detecter_trous,
-    normaliser, proportion_voisee,
+    detecter, detecter_hesitations_transcrites, detecter_repetitions, detecter_silences_audio,
+    detecter_trous, normaliser, proportion_voisee,
 )
 
 TAUX = 16000
 CFG = {"silenceMin": 0.7, "hesitationMin": 0.4, "seuilSilenceDb": -40,
-       "proportionVoiseeHesitation": 0.3, "repetitionMaxMots": 4}
+       "proportionVoiseeHesitation": 0.3, "repetitionMaxMots": 4, "hesitationTranscriteMin": 0}
 
 
 def mot(i, texte, debut, fin):
@@ -64,10 +64,18 @@ def test_trous_de_bord_sont_des_silences():
     ]
 
 
-def test_hesitation_transcrite_longue_seulement():
+def test_hesitation_transcrite_seuil_reglable():
+    cfg = {**CFG, "hesitationTranscriteMin": 0.4}
     mots = [mot(0, "Euh,", 0.0, 0.6), mot(1, "euh", 1.0, 1.2), mot(2, "bon", 1.3, 1.5)]
-    assert detecter_hesitations_transcrites(mots, CFG) == [
+    assert detecter_hesitations_transcrites(mots, cfg) == [
         {"type": "hesitation", "debut": 0.0, "fin": 1.0},
+    ]
+
+
+def test_hesitation_transcrite_courte_coupee_par_defaut():
+    mots = [mot(0, "alors", 0.0, 0.5), mot(1, "euh,", 0.6, 0.7), mot(2, "bon", 0.9, 1.2)]
+    assert detecter_hesitations_transcrites(mots, CFG) == [
+        {"type": "hesitation", "debut": 0.5, "fin": 0.9},
     ]
 
 
@@ -112,3 +120,31 @@ def test_detecter_trie_et_numerote():
     audio = audio_avec_voix(2.5, [(0, 1), (2, 2.5)])
     d = detecter(mots, audio, TAUX, 2.5, CFG)
     assert [(x["id"], x["type"]) for x in d] == [("d0", "repetition"), ("d1", "silence")]
+
+
+def test_silences_audio_longs_detectes():
+    audio = audio_avec_voix(3, [(0, 1), (2.5, 3)])
+    d = detecter_silences_audio(audio, TAUX, CFG)
+    assert len(d) == 1 and d[0]["type"] == "silence"
+    assert abs(d[0]["debut"] - 1.0) <= 0.02 and abs(d[0]["fin"] - 2.5) <= 0.02
+
+
+def test_silence_audio_trop_court_ignore():
+    audio = audio_avec_voix(3, [(0, 1), (1.5, 3)])
+    assert detecter_silences_audio(audio, TAUX, CFG) == []
+
+
+def test_silence_a_l_interieur_d_un_mot_etire():
+    mots = [mot(0, "long", 0.0, 3.0)]
+    audio = audio_avec_voix(3, [(0, 1), (2.5, 3)])
+    d = detecter(mots, audio, TAUX, 3.0, CFG)
+    assert len(d) == 1 and d[0]["type"] == "silence"
+    assert abs(d[0]["debut"] - 1.0) <= 0.02 and abs(d[0]["fin"] - 2.5) <= 0.02
+
+
+def test_silences_chevauchants_fusionnes():
+    mots = [mot(0, "a", 0.0, 1.0), mot(1, "b", 2.0, 3.0)]
+    audio = audio_avec_voix(3, [(0, 1), (2, 3)])
+    d = detecter(mots, audio, TAUX, 3.0, CFG)
+    assert len(d) == 1 and d[0]["type"] == "silence"
+    assert abs(d[0]["debut"] - 1.0) <= 0.02 and abs(d[0]["fin"] - 2.0) <= 0.02

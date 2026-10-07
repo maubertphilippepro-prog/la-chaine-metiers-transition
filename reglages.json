@@ -2,6 +2,7 @@
   "detection": {
     "silenceMin": 0.7,
     "hesitationMin": 0.4,
+    "hesitationTranscriteMin": 0,
     "seuilSilenceDb": -40,
     "proportionVoiseeHesitation": 0.3,
     "repetitionMaxMots": 4

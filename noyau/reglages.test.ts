@@ -8,6 +8,7 @@ describe('reglages.json', () => {
     expect(r.detection.silenceMin).toBe(0.7);
     expect(r.coupe.silenceConserve).toBe(0.3);
     expect(r.detection.hesitationMin).toBe(0.4);
+    expect(r.detection.hesitationTranscriteMin).toBe(0);
     expect(r.durees.encart).toBe(6);
     expect(r.definitionMaxCaracteres).toBe(160);
     expect(r.modeles.claude).toBe('claude-opus-5-5');

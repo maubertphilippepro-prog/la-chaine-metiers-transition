@@ -11,16 +11,41 @@ def normaliser(texte: str) -> str:
     return re.sub(r"[^\w']", "", texte.lower())
 
 
-def proportion_voisee(audio: np.ndarray, taux: int, debut: float, fin: float, seuil_db: float) -> float:
-    extrait = audio[int(debut * taux):int(fin * taux)]
+def niveaux_db(audio: np.ndarray, taux: int) -> np.ndarray:
     taille = int(TRAME * taux)
-    nb = len(extrait) // taille
+    nb = len(audio) // taille
     if nb == 0:
-        return 0.0
-    trames = extrait[:nb * taille].reshape(nb, taille)
+        return np.array([])
+    trames = audio[:nb * taille].reshape(nb, taille)
     rms = np.sqrt(np.mean(trames ** 2, axis=1))
-    db = 20 * np.log10(np.maximum(rms, 1e-10))
-    return float(np.mean(db > seuil_db))
+    return 20 * np.log10(np.maximum(rms, 1e-10))
+
+
+def proportion_voisee(audio: np.ndarray, taux: int, debut: float, fin: float, seuil_db: float) -> float:
+    db = niveaux_db(audio[int(debut * taux):int(fin * taux)], taux)
+    return float(np.mean(db > seuil_db)) if len(db) else 0.0
+
+
+def detecter_silences_audio(audio: np.ndarray, taux: int, cfg: dict) -> list[dict]:
+    """Suites de trames sous le seuil, d'au moins silenceMin secondes (indépendamment des mots)."""
+    sous_seuil = niveaux_db(audio, taux) < cfg["seuilSilenceDb"]
+    bornes = np.flatnonzero(np.diff(np.concatenate(([0], sous_seuil.astype(int), [0]))))
+    return [
+        {"type": "silence", "debut": float(d * TRAME), "fin": float(f * TRAME)}
+        for d, f in zip(bornes[::2], bornes[1::2])
+        if (f - d) * TRAME >= cfg["silenceMin"]
+    ]
+
+
+def fusionner_silences(detections: list[dict]) -> list[dict]:
+    """Union des silences qui se chevauchent ou se touchent ; les autres types restent tels quels."""
+    fusion = []
+    for d in sorted((d for d in detections if d["type"] == "silence"), key=lambda d: d["debut"]):
+        if fusion and d["debut"] <= fusion[-1]["fin"]:
+            fusion[-1] = {**fusion[-1], "fin": max(fusion[-1]["fin"], d["fin"])}
+        else:
+            fusion.append(d)
+    return fusion + [d for d in detections if d["type"] != "silence"]
 
 
 def detecter_trous(mots: list[dict], audio: np.ndarray, taux: int, duree: float, cfg: dict) -> list[dict]:
@@ -52,7 +77,7 @@ def detecter_hesitations_transcrites(mots: list[dict], cfg: dict) -> list[dict]:
             "fin": mots[i + 1]["debut"] if i + 1 < len(mots) else m["fin"],
         }
         for i, m in enumerate(mots)
-        if normaliser(m["texte"]) in HESITATIONS and m["fin"] - m["debut"] >= cfg["hesitationMin"]
+        if normaliser(m["texte"]) in HESITATIONS and m["fin"] - m["debut"] >= cfg["hesitationTranscriteMin"]
     ]
 
 
@@ -81,8 +106,9 @@ def detecter_repetitions(mots: list[dict], max_mots: int) -> list[dict]:
 
 
 def detecter(mots: list[dict], audio: np.ndarray, taux: int, duree: float, cfg: dict) -> list[dict]:
-    toutes = (
+    toutes = fusionner_silences(
         detecter_trous(mots, audio, taux, duree, cfg)
+        + detecter_silences_audio(audio, taux, cfg)
         + detecter_hesitations_transcrites(mots, cfg)
         + detecter_repetitions(mots, cfg["repetitionMaxMots"])
     )

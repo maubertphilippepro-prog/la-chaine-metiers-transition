@@ -111,6 +111,7 @@ export interface Reglages {
   detection: {
     silenceMin: number;
     hesitationMin: number;
+    hesitationTranscriteMin: number;
     seuilSilenceDb: number;
     proportionVoiseeHesitation: number;
     repetitionMaxMots: number;
