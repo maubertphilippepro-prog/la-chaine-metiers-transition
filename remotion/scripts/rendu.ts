@@ -1,6 +1,6 @@
 import { bundle } from '@remotion/bundler';
 import { ensureBrowser, renderMedia, selectComposition } from '@remotion/renderer';
-import { appendFile, mkdir } from 'node:fs/promises';
+import { appendFile, mkdir, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { decisionsEpisodes, decisionsVideoComplete } from '../../noyau/decisions';
@@ -43,7 +43,27 @@ interface Travail {
   props: Record<string, unknown>;
 }
 
-export async function rendreTournage(dossier: string, options: { brouillon: boolean; cible: Cible }): Promise<ResultatRendu[]> {
+// Moteur de rendu injectable, pour tester l'enchaînement sans rendre réellement.
+export interface Dependances {
+  renderMedia: typeof renderMedia;
+  selectComposition: typeof selectComposition;
+  bundle: typeof bundle;
+  ensureBrowser: typeof ensureBrowser;
+}
+
+const DEPENDANCES: Dependances = { renderMedia, selectComposition, bundle, ensureBrowser };
+
+export interface OptionsRendu {
+  brouillon: boolean;
+  cible: Cible;
+  onProgression?: (fichier: string, progression: number) => void;
+}
+
+// Chaque rendu passe par un fichier temporaire : un échec laisse intact le rendu précédent.
+export async function rendreTournage(
+  dossier: string, options: OptionsRendu, dependances: Dependances = DEPENDANCES,
+): Promise<ResultatRendu[]> {
+  const { renderMedia, selectComposition, bundle, ensureBrowser } = dependances;
   const t = await chargerTournage(dossier, { brouillon: options.brouillon });
   const sortie = path.join(dossier, 'rendus');
   await mkdir(sortie, { recursive: true });
@@ -73,31 +93,38 @@ export async function rendreTournage(dossier: string, options: { brouillon: bool
     const serveUrl = await bundle({ entryPoint: path.join(RACINE, 'remotion', 'index.ts') });
     for (const travail of travaux) {
       const fichier = path.join(sortie, travail.fichier);
-      await noter(`début ${travail.fichier}${options.brouillon ? ' (brouillon)' : ''}`);
+      const temporaire = fichier.replace(/\.mp4$/, '.tmp.mp4');
       try {
+        await noter(`début ${travail.fichier}${options.brouillon ? ' (brouillon)' : ''}`);
         const composition = await selectComposition({ serveUrl, id: travail.composition, inputProps: travail.props });
         await renderMedia({
           composition,
           serveUrl,
           codec: 'h264',
-          outputLocation: fichier,
+          outputLocation: temporaire,
           inputProps: travail.props,
-          onProgress: ({ progress }) => process.stdout.write(`\r${travail.fichier} : ${Math.round(progress * 100)} %`),
+          onProgress: ({ progress }) => options.onProgression?.(fichier, progress),
         });
-        process.stdout.write('\n');
-        await noter(`ok ${travail.fichier}`);
-        resultats.push({ fichier, ok: true, message: null });
+        await rename(temporaire, fichier);
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
-        await noter(`échec ${travail.fichier} : ${message}`);
+        await rm(temporaire, { force: true });
         resultats.push({ fichier, ok: false, message });
+        await noter(`échec ${travail.fichier} : ${message}`).catch(() => undefined);
+        continue;
       }
+      resultats.push({ fichier, ok: true, message: null });
+      await noter(`ok ${travail.fichier}`).catch(() => undefined);
     }
   } finally {
     await serveur.fermer();
   }
 
-  if (!options.brouillon && options.cible === 'tout' && resultats.every(r => r.ok)) {
+  const echecs = resultats.filter(r => !r.ok);
+  if (!options.brouillon && echecs.length > 0) {
+    const noms = echecs.map(r => path.basename(r.fichier)).join(', ');
+    await majStatutEpisode(dossier, 'erreur', `${echecs.length} rendu(s) en échec : ${noms}`);
+  } else if (!options.brouillon && options.cible === 'tout') {
     await majStatutEpisode(dossier, 'rendu', null);
   }
   return resultats;
@@ -105,7 +132,18 @@ export async function rendreTournage(dossier: string, options: { brouillon: bool
 
 async function main(): Promise<void> {
   const { dossier, brouillon, cible } = lireArguments(process.argv.slice(2));
-  const resultats = await rendreTournage(path.resolve(dossier), { brouillon, cible });
+  let enCours: string | null = null;
+  const onProgression = (fichier: string, progression: number) => {
+    if (enCours !== null && enCours !== fichier) process.stdout.write('\n');
+    enCours = fichier;
+    process.stdout.write(`\r${path.basename(fichier)} : ${Math.round(progression * 100)} %`);
+  };
+  let resultats: ResultatRendu[];
+  try {
+    resultats = await rendreTournage(path.resolve(dossier), { brouillon, cible, onProgression });
+  } finally {
+    if (enCours !== null) process.stdout.write('\n');
+  }
   for (const r of resultats) console.log(`${r.ok ? 'OK    ' : 'ÉCHEC '} ${path.basename(r.fichier)}${r.message ? ` : ${r.message}` : ''}`);
   process.exit(resultats.every(r => r.ok) ? 0 : 1);
 }
