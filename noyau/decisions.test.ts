@@ -36,6 +36,11 @@ describe('construirePartie', () => {
     const p = construirePartie('X', [{ debut: 0, fin: 30 }], [terme({ occurrences: [1] })], 60, FPS);
     expect(p.encarts).toEqual([{ terme: 'API', definition: 'Interface.', position: 'bas', debut: 0, duree: 30 }]);
   });
+  it("signale le second terme quand la partie est plus courte qu'un encart", () => {
+    const p = construirePartie('X', [{ debut: 0, fin: 30 }], [terme({ occurrences: [1] }), terme({ terme: 'SSO', occurrences: [2] })], 60, FPS);
+    expect(p.encarts.map(e => e.terme)).toEqual(['API']);
+    expect(p.encartsRetires).toEqual(['SSO']);
+  });
   it('ignore les termes non validés', () => {
     const p = construirePartie('X', [{ debut: 0, fin: 300 }], [terme({ statut: 'a-valider', occurrences: [1] })], 60, FPS);
     expect(p.encarts).toEqual([]);
@@ -55,6 +60,8 @@ describe('decisionsEpisodes', () => {
     expect(a!.partie.encarts).toEqual([{ terme: 'API', definition: 'Interface.', position: 'bas', debut: 20, duree: 60 }]);
     // B : SSO à 20 ; API (50, décalé à 80, avancé à 40) chevaucherait SSO → retiré.
     expect(b!.partie.encarts.map(e => [e.terme, e.debut])).toEqual([['SSO', 20]]);
+    expect(b!.partie.encartsRetires).toEqual(['API']);
+    expect(a!.partie.encartsRetires).toEqual([]);
   });
   it('reprend titre, source et durée totale', () => {
     expect(a!.titre).toBe('A');

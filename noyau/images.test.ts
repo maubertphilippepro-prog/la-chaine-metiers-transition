@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dureeImages, enImages, segmentsEnImages } from './images';
+import { dureeImages, enImages, segmentsEnImages, versImages } from './images';
 import { nomFichierEpisode, slug } from './nommage';
 
 describe('images', () => {
@@ -7,6 +7,10 @@ describe('images', () => {
     expect(enImages(1.5, 30)).toBe(45);
     expect(enImages(0.016, 30)).toBe(0);
     expect(enImages(0.017, 30)).toBe(1);
+  });
+  it('convertit sans arrondir pour les positions intermédiaires', () => {
+    expect(versImages(1.25, 30)).toBe(37.5);
+    expect(versImages(0.016, 30)).toBeCloseTo(0.48);
   });
   it('convertit les segments et retire ceux de durée nulle', () => {
     expect(segmentsEnImages([{ debut: 0, fin: 2 }, { debut: 3, fin: 3.01 }, { debut: 4, fin: 5.5 }], 30))

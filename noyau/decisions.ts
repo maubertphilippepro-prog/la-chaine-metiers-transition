@@ -1,5 +1,5 @@
 import { decouperSegments, placerEncarts, plagesEpisodes } from './episodes';
-import { dureeImages, enImages, segmentsEnImages, type SegmentImages } from './images';
+import { dureeImages, enImages, segmentsEnImages, versImages, type SegmentImages } from './images';
 import { calculerSegments } from './segments';
 import type { Analyse, Montage, PositionEncart, Reglages, Terme } from './types';
 
@@ -16,6 +16,8 @@ export interface Partie {
   titre: string;
   segments: SegmentImages[];
   encarts: EncartImages[];
+  // Termes validés et conservés dans la partie dont l'encart a été retiré (chevauchement).
+  encartsRetires: string[];
   duree: number;
 }
 
@@ -57,17 +59,21 @@ export function construirePartie(
 ): Partie {
   const duree = dureeImages(segments);
   const longueur = Math.min(dureeEncart, duree);
-  const termesEnImages = termes.map(t => ({ ...t, occurrences: t.occurrences.map(o => o * fps) }));
+  const termesEnImages = termes.map(t => ({ ...t, occurrences: t.occurrences.map(o => versImages(o, fps)) }));
   const encarts: EncartImages[] = [];
+  const encartsRetires: string[] = [];
   if (longueur > 0) {
     for (const e of placerEncarts(termesEnImages, segments, dureeEncart)) {
       const debut = Math.min(Math.round(e.debut), duree - longueur);
       const precedent = encarts[encarts.length - 1];
-      if (precedent && debut < precedent.debut + precedent.duree) continue;
+      if (precedent && debut < precedent.debut + precedent.duree) {
+        encartsRetires.push(e.terme);
+        continue;
+      }
       encarts.push({ terme: e.terme, definition: e.definition, position: e.position, debut, duree: longueur });
     }
   }
-  return { titre, segments, encarts, duree };
+  return { titre, segments, encarts, encartsRetires, duree };
 }
 
 function segmentsParChapitre(analyse: Analyse, montage: Montage, r: Reglages) {

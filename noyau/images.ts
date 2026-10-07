@@ -10,6 +10,11 @@ export function enImages(secondes: number, fps: number): number {
   return Math.round(secondes * fps);
 }
 
+// Conversion sans arrondi, pour les positions intermédiaires (les décisions arrondissent ensuite).
+export function versImages(secondes: number, fps: number): number {
+  return secondes * fps;
+}
+
 export function segmentsEnImages(segments: Segment[], fps: number): SegmentImages[] {
   return segments
     .map(s => ({ debut: enImages(s.debut, fps), fin: enImages(s.fin, fps) }))

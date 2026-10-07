@@ -11,7 +11,7 @@ export const exempleEpisode: DecisionsEpisode = {
   fps: FPS_HABILLAGE,
   sourceUrl: '',
   titre: "Titre de l'épisode",
-  partie: { titre: '', segments: [], encarts: [], duree: 0 },
+  partie: { titre: '', segments: [], encarts: [], encartsRetires: [], duree: 0 },
   durees,
 };
 
