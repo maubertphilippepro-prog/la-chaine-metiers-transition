@@ -148,7 +148,7 @@ Cette logique est écrite une seule fois en TypeScript et partagée entre le stu
 
 ## 7. Gestion des erreurs
 
-- **Entrée invalide** (fichier illisible, résolution différente de 1920×1080, piste audio absente) : arrêt de l'analyse avec un message explicite.
+- **Entrée invalide** (fichier illisible, format différent de 16:9 ou inférieur à 1280×720, piste audio absente) : arrêt de l'analyse avec un message explicite.
 - **Reprise** : chaque étape du pipeline sauvegarde son résultat ; une relance repart de la première étape manquante.
 - **API Claude indisponible** : analyse terminée sans suggestions, signalée dans le studio, relance possible.
 - **Studio** : `montage.json` enregistré à chaque modification ; `analyse.json` jamais modifié.

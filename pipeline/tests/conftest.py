@@ -12,9 +12,13 @@ def video_test(tmp_path: Path):
                "-f", "lavfi", "-i", f"testsrc=size={largeur}x{hauteur}:rate=30:duration={duree}"]
         if audio:
             cmd += ["-f", "lavfi", "-i", f"sine=frequency=440:duration={duree}"]
-        cmd += ["-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p"]
+        webm = chemin.suffix == ".webm"
+        if webm:
+            cmd += ["-c:v", "libvpx-vp9", "-deadline", "realtime", "-cpu-used", "8", "-pix_fmt", "yuv420p"]
+        else:
+            cmd += ["-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p"]
         if audio:
-            cmd += ["-c:a", "aac", "-shortest"]
+            cmd += ["-c:a", "libopus" if webm else "aac", "-shortest"]
         cmd.append(str(chemin))
         subprocess.run(cmd, check=True)
         return chemin

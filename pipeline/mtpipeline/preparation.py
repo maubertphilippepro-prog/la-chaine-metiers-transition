@@ -53,9 +53,9 @@ def _extrait(texte: str | None) -> str:
 
 
 def verifier(info: dict, nom: str) -> None:
-    if (info["largeur"], info["hauteur"]) != (1920, 1080):
+    if info["largeur"] * 9 != info["hauteur"] * 16 or info["hauteur"] < 720:
         raise ErreurEntree(
-            f"{nom} : résolution {info['largeur']}x{info['hauteur']}, 1920x1080 attendu. "
+            f"{nom} : résolution {info['largeur']}x{info['hauteur']}, format 16:9 d'au moins 1280x720 attendu. "
             "Vérifiez la résolution de sortie dans OBS."
         )
     if not info["audio"]:
@@ -64,6 +64,12 @@ def verifier(info: dict, nom: str) -> None:
 
 def est_cadence_variable(info: dict) -> bool:
     return abs(info["fps"] - info["fpsMoyen"]) > 0.01
+
+
+def cadence_cible(info: dict) -> int:
+    if est_cadence_variable(info) and info["fpsMoyen"] > 0:
+        return round(info["fpsMoyen"])
+    return round(info["fps"])
 
 
 def _echapper(chemin: Path) -> str:
@@ -77,7 +83,8 @@ def preparer(bruts: list[Path], sortie: Path) -> dict:
     for b, info in zip(bruts, infos):
         verifier(info, b.name)
 
-    if len(bruts) == 1 and not est_cadence_variable(infos[0]):
+    pleine_hd = (infos[0]["largeur"], infos[0]["hauteur"]) == (1920, 1080)
+    if len(bruts) == 1 and pleine_hd and not est_cadence_variable(infos[0]):
         if bruts[0].suffix.lower() == ".mp4":
             try:
                 shutil.copyfile(bruts[0], sortie)
@@ -87,15 +94,15 @@ def preparer(bruts: list[Path], sortie: Path) -> dict:
             _ffmpeg(["-i", str(bruts[0]), "-c", "copy", "-movflags", "+faststart", str(sortie)])
         return sonder(sortie)
 
-    fps = round(infos[0]["fps"])
+    fps = cadence_cible(infos[0])
     with tempfile.TemporaryDirectory() as dossier:
         liste = Path(dossier) / "liste.txt"
         liste.write_text(
             "".join(f"file '{_echapper(b)}'\n" for b in bruts), encoding="utf-8"
         )
         _ffmpeg(["-f", "concat", "-safe", "0", "-i", str(liste),
-                 "-vf", f"fps={fps}", "-c:v", "libx264", "-preset", "fast", "-crf", "18",
-                 "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", str(sortie)])
+                 "-vf", f"scale=1920:1080:flags=lanczos,fps={fps}", "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+                 "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", str(sortie)])
     return sonder(sortie)
 
 

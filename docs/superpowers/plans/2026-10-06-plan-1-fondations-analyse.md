@@ -14,7 +14,7 @@ Spec de référence : `docs/superpowers/specs/2026-10-06-post-production-design.
 
 - Tout le texte visible et les noms de domaine sont en français (`debut`, `fin`, `mots`, `coupes`…). Clés JSON en camelCase.
 - Les temps sont en **secondes (nombre flottant)**, relatifs au fichier `source.mp4`.
-- Entrée vidéo : 1920×1080 obligatoire, piste audio obligatoire, sinon arrêt avec message explicite.
+- Entrée vidéo : format 16:9 d'au moins 1280×720 (mise à l'échelle en 1920×1080), piste audio obligatoire, sinon arrêt avec message explicite.
 - Les fichiers bruts (`bruts/`) ne sont jamais modifiés ; `analyse.json` n'est jamais modifié par le studio.
 - Seuils par défaut (dans `reglages.json`) : silence > 0,7 s raccourci à 0,3 s ; hésitation > 0,4 s coupée ; marge autour des mots 0,06 s ; fondu audio 0,015 s ; définition ≤ 160 caractères ; encart 6 s.
 - Modèle Claude : `claude-opus-5-5`, effort `medium`, fallbacks serveur `"default"` (beta `server-side-fallback-2026-07-01`). Modèle Whisper : `large-v3`, langue `fr`, GPU CUDA.

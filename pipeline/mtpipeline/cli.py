@@ -13,7 +13,7 @@ from .reglages import RACINE, charger_reglages
 from .suggestions import convertir, demander
 from .transcription import transcrire
 
-EXTENSIONS = {".mp4", ".mkv", ".mov"}
+EXTENSIONS = {".mp4", ".mkv", ".mov", ".webm"}
 
 
 def lire(chemin: Path):

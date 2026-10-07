@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from mtpipeline.erreurs import ErreurEntree
-from mtpipeline.preparation import est_cadence_variable, preparer, sonder, verifier
+from mtpipeline.preparation import cadence_cible, est_cadence_variable, preparer, sonder, verifier
 
 
 def test_sonder(video_test):
@@ -18,10 +18,15 @@ def test_sonder(video_test):
     assert info["audio"] is True
 
 
-def test_refuse_mauvaise_resolution(video_test):
-    info = sonder(video_test("petit.mp4", largeur=1280, hauteur=720))
-    with pytest.raises(ErreurEntree, match="1920x1080"):
+@pytest.mark.parametrize("largeur, hauteur", [(1280, 1024), (640, 360)])
+def test_refuse_mauvaise_resolution(video_test, largeur, hauteur):
+    info = sonder(video_test("petit.mp4", largeur=largeur, hauteur=hauteur))
+    with pytest.raises(ErreurEntree, match=rf"petit.mp4.*{largeur}x{hauteur}.*16:9 d'au moins 1280x720"):
         verifier(info, "petit.mp4")
+
+
+def test_accepte_720p(video_test):
+    verifier(sonder(video_test("hd.mp4", largeur=1280, hauteur=720)), "hd.mp4")
 
 
 def test_refuse_sans_audio(video_test):
@@ -124,3 +129,27 @@ def test_copie_impossible(video_test, tmp_path, monkeypatch):
     monkeypatch.setattr(shutil, "copyfile", refus)
     with pytest.raises(ErreurEntree, match="a.mp4"):
         preparer([video_test("a.mp4")], tmp_path / "source.mp4")
+
+
+def test_preparer_720p_mis_a_l_echelle(video_test, tmp_path):
+    info = preparer([video_test("hd.mp4", largeur=1280, hauteur=720)], tmp_path / "source.mp4")
+    assert (info["largeur"], info["hauteur"]) == (1920, 1080)
+    assert info["duree"] == pytest.approx(2, abs=0.2)
+
+
+def test_preparer_webm(video_test, tmp_path):
+    sortie = tmp_path / "source.mp4"
+    info = preparer([video_test("essai.webm", largeur=1280, hauteur=720)], sortie)
+    format_conteneur = json.loads(subprocess.run(
+        ["ffprobe", "-v", "error", "-print_format", "json", "-show_format", str(sortie)],
+        check=True, capture_output=True, text=True,
+    ).stdout)["format"]["format_name"]
+    assert "mp4" in format_conteneur
+    assert (info["largeur"], info["hauteur"]) == (1920, 1080)
+    assert info["audio"] is True
+
+
+def test_cadence_cible():
+    assert cadence_cible({"fps": 60.0, "fpsMoyen": 30.3}) == 30
+    assert cadence_cible({"fps": 30.0, "fpsMoyen": 30.0}) == 30
+    assert cadence_cible({"fps": 30.0, "fpsMoyen": 0.0}) == 30

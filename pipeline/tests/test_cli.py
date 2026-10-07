@@ -73,12 +73,12 @@ def test_echec_claude_non_bloquant_puis_relance(tournage, tmp_path):
 def test_entree_invalide_marque_l_episode_en_erreur(tmp_path, video_test):
     dossier = tmp_path / "mauvais"
     (dossier / "bruts").mkdir(parents=True)
-    shutil.move(video_test("petit.mp4", largeur=1280, hauteur=720), dossier / "bruts" / "petit.mp4")
+    shutil.move(video_test("petit.mp4", largeur=1280, hauteur=1024), dossier / "bruts" / "petit.mp4")
     with pytest.raises(ErreurEntree):
         analyser(dossier, "Test", REGLAGES, faux_transcrire, faux_demander, tmp_path / "glossaire.json")
     episode = json.loads((dossier / "episode.json").read_text(encoding="utf-8"))
     assert episode["statut"] == "erreur"
-    assert "1920x1080" in episode["message"]
+    assert "16:9 d'au moins 1280x720" in episode["message"]
 
 
 def test_echec_extraction_audio_marque_l_episode_en_erreur(tournage, tmp_path, monkeypatch):
@@ -185,3 +185,14 @@ def test_erreur_inattendue_marque_l_episode(tournage, tmp_path):
 def test_longueur_de_definition_transmise(tournage, tmp_path):
     analyser(tournage, "Test", REGLAGES, faux_transcrire, faux_demander, tmp_path / "glossaire.json")
     assert faux_demander.kwargs == {"max_caracteres": REGLAGES["definitionMaxCaracteres"]}
+
+
+def test_analyse_d_un_webm(tmp_path, video_test):
+    dossier = tmp_path / "essai"
+    (dossier / "bruts").mkdir(parents=True)
+    shutil.move(video_test("essai.webm", largeur=1280, hauteur=720), dossier / "bruts" / "essai.webm")
+    faux_transcrire.appels = 0
+    a = analyser(dossier, "Test", REGLAGES, faux_transcrire, faux_demander, tmp_path / "glossaire.json")
+    assert a["mots"] == MOTS
+    assert (dossier / "source.mp4").exists()
+    assert (dossier / "bruts" / "essai.webm").exists()
