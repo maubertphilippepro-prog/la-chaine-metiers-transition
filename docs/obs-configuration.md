@@ -1,4 +1,4 @@
-# Configuration d'OBS Studio pour la chaîne
+# Configuration d'OBS Studio pour la chaîne PMT
 
 1. Télécharger OBS Studio sur https://obsproject.com (seul site officiel).
 2. Paramètres → Vidéo : résolution de base et de sortie **1920x1080**, **30 images/s** (valeur commune, pas « fractionnelle »).
