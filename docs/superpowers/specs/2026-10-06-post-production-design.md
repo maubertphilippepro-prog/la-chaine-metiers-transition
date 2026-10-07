@@ -1,7 +1,9 @@
 # Post-production automatisée — Conception (sous-projet C, V1)
 
 Date : 2026-10-06
-Projet : chaîne YouTube « Métiers et Transition » (Pôle Métiers & Transition, Cicad)
+Projet : chaîne YouTube personnelle « PMT » (astuces et outils numériques expliqués simplement, public non spécialiste)
+
+> Mise à jour du 2026-10-07 : la chaîne devient un projet personnel nommé PMT. Toute mention d'une organisation est retirée ; Remotion est utilisé sous sa licence gratuite pour usage personnel.
 
 ## 1. Contexte et objectif
 
@@ -32,7 +34,7 @@ Une validation humaine a lieu avant tout rendu final.
 - **Langue :** tout en français (interface, textes générés, transcription).
 - **Pas de voix de synthèse, pas de sous-titrage intégral.**
 - **IA :** API Claude pour les suggestions éditoriales (chapitres, termes, longueurs). Coût de l'ordre de quelques centimes par tournage. La transcription reste locale.
-- **Identité visuelle :** fichiers dans `assets/identite-visuelle/`. Couleurs : rouge `#E30520`, bleu `#004C99`, bleu-gris `#9AB2C9`, blanc. Formes géométriques (bandes, cercles, triangles). Police : Open Sans (gras pour les titres), modifiable dans les réglages.
+- **Identité visuelle :** couleurs rouge `#E30520`, bleu `#004C99`, bleu-gris `#9AB2C9`, blanc. Formes géométriques (bandes, cercles, triangles). Logo : texte « PMT » dessiné dans Remotion (aucun fichier de logo externe). Police : Open Sans (gras pour les titres).
 
 ## 3. Architecture
 
@@ -69,7 +71,7 @@ Toutes les compositions prennent en entrée un objet de **décisions de montage*
 - **`Generique`** : animation d'environ 4 s ; les formes géométriques de la charte se construisent puis laissent place au nom de la chaîne et au titre.
 - **`EncartDefinition`** : carte de définition animée (voir §5).
 - **`Intertitre`** : environ 2 s, titre du chapitre suivant (vidéo complète uniquement).
-- **`CartonFin`** : environ 5 s, logos du Pôle et de Cicad.
+- **`CartonFin`** : environ 5 s, logo PMT et invitation à s'abonner.
 - **`Episode`** et **`VideoComplete`** : assemblages des éléments ci-dessus (voir §5).
 
 ### 3.3 `studio/` — validation
@@ -128,7 +130,7 @@ Valeurs par défaut, toutes réglables dans `reglages.json` :
 
 Cadre 1920×1080 ; la vignette caméra occupe le coin bas-gauche.
 
-- **Logo** : logo carré du Pôle, petit, en haut à droite, en continu.
+- **Logo** : logo texte « PMT », petit, en haut à droite, en continu.
 - **Encart de définition** : en bas à droite ; carte blanche avec bande rouge/bleue ; terme en gras bleu, définition d'une à deux lignes (160 caractères maximum). Apparaît au moment où le terme est prononcé **pour la première fois dans l'épisode**, reste 6 s, entrée et sortie animées. Position déplaçable en haut à droite au cas par cas (le logo se décale alors).
 - Dans la vidéo complète, un terme n'est défini qu'à sa première occurrence dans la vidéo.
 
