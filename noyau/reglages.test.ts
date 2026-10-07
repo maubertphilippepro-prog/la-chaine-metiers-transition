@@ -12,5 +12,7 @@ describe('reglages.json', () => {
     expect(r.durees.encart).toBe(6);
     expect(r.definitionMaxCaracteres).toBe(160);
     expect(r.modeles.claude).toBe('claude-opus-5-5');
+    expect(r.charte.nomChaine).toBe('PMT');
+    expect(Object.keys(r.charte).some(k => k.startsWith('logo'))).toBe(false);
   });
 });

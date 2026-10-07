@@ -94,3 +94,10 @@ def test_prompt_longueur_de_definition_reglable():
     p = construire_prompt(MOTS, GLOSSAIRE, max_caracteres=120)
     assert "120" in p
     assert "160" not in p
+
+
+def test_prompt_presente_la_chaine_pmt():
+    p = construire_prompt(MOTS, GLOSSAIRE)
+    assert "chaîne personnelle « PMT »" in p
+    assert "collaborateurs" not in p
+    assert "entreprise" not in p

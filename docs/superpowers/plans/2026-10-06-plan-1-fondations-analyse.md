@@ -1,5 +1,7 @@
 # Plan 1 — Fondations et analyse : plan de mise en œuvre
 
+> Mise à jour du 2026-10-07 : chaîne renommée PMT (projet personnel), logos remplacés par un logo texte.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Produire, à partir des fichiers OBS d'un tournage, un fichier `analyse.json` (mots horodatés, détections de coupes, suggestions de chapitres/termes/longueurs) et le cœur logique TypeScript qui en déduit les segments conservés, les plages d'épisodes et le placement des encarts.
@@ -65,7 +67,7 @@ pipeline/
 
 ```json
 {
-  "name": "chaine-metiers-transition",
+  "name": "chaine-pmt",
   "private": true,
   "type": "module",
   "scripts": {
@@ -134,9 +136,7 @@ Expected : `node_modules/` créé, aucune erreur.
     "bleuGris": "#9AB2C9",
     "blanc": "#FFFFFF",
     "police": "Open Sans",
-    "logoCarre": "assets/identite-visuelle/logo-pole-metiers-transition-carre.png",
-    "logoHorizontal": "assets/identite-visuelle/logo-pole-metiers-transition-horizontal.png",
-    "logoCicad": "assets/identite-visuelle/logo-cicad-couleur.png"
+    "nomChaine": "PMT"
   },
   "modeles": {
     "whisper": "large-v3",
@@ -265,9 +265,7 @@ export interface Reglages {
     bleuGris: string;
     blanc: string;
     police: string;
-    logoCarre: string;
-    logoHorizontal: string;
-    logoCicad: string;
+    nomChaine: string;
   };
   modeles: { whisper: string; claude: string };
   definitionMaxCaracteres: number;
@@ -1711,7 +1709,7 @@ def texte_numerote(mots: list[dict]) -> str:
 
 def construire_prompt(mots: list[dict], glossaire: dict[str, dict]) -> str:
     connus = ", ".join(sorted(t["terme"] for t in glossaire.values())) or "(aucun)"
-    return f"""Tu prépares le montage d'une vidéo YouTube de la chaîne « Métiers et Transition », consacrée à l'innovation et aux outils numériques en entreprise. La vidéo est un tournage face caméra, non scripté, en français. Chaque chapitre deviendra un épisode autonome publié séparément.
+    return f"""Tu prépares le montage d'une vidéo YouTube de la chaîne personnelle « PMT » : astuces et outils numériques (logiciels, IA, productivité) expliqués simplement à un public non spécialiste. La vidéo est un tournage face caméra, non scripté, en français. Chaque chapitre deviendra un épisode autonome publié séparément.
 
 Voici la transcription. Chaque mot est précédé de son numéro (numéro:mot).
 
@@ -1723,7 +1721,7 @@ Propose :
 
 1. **chapitres** : le découpage en chapitres, aux changements de sujet. Chaque chapitre doit pouvoir être regardé seul ; vise des chapitres de 3 à 8 minutes quand le contenu le permet. Pour chacun : un titre court et accrocheur (60 caractères maximum) et le numéro du premier mot.
 
-2. **termes** : les termes techniques ou anglicismes qu'un public de collaborateurs non spécialistes ne comprendrait pas forcément. Pour chacun : le terme tel qu'il doit s'afficher, une définition claire en une ou deux phrases (160 caractères maximum), et les numéros de tous les mots où il est prononcé. Ces termes sont déjà dans le glossaire, reprends-les s'ils apparaissent (leur définition sera reprise du glossaire) : {connus}.
+2. **termes** : les termes techniques ou anglicismes qu'un public non spécialiste ne comprendrait pas forcément. Pour chacun : le terme tel qu'il doit s'afficher, une définition claire en une ou deux phrases (160 caractères maximum), et les numéros de tous les mots où il est prononcé. Ces termes sont déjà dans le glossaire, reprends-les s'ils apparaissent (leur définition sera reprise du glossaire) : {connus}.
 
 3. **longueurs** : les passages qui pourraient être coupés sans perte (digressions, redites, explications qui tournent en rond). Pour chacun : premier et dernier numéro de mot, et la raison en une phrase. Sois sélectif : ces passages ne sont que des propositions que l'auteur validera.
 """

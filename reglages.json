@@ -26,9 +26,7 @@
     "bleuGris": "#9AB2C9",
     "blanc": "#FFFFFF",
     "police": "Open Sans",
-    "logoCarre": "assets/identite-visuelle/logo-pole-metiers-transition-carre.png",
-    "logoHorizontal": "assets/identite-visuelle/logo-pole-metiers-transition-horizontal.png",
-    "logoCicad": "assets/identite-visuelle/logo-cicad-couleur.png"
+    "nomChaine": "PMT"
   },
   "modeles": {
     "whisper": "large-v3",

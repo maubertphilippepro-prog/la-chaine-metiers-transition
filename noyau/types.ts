@@ -124,9 +124,7 @@ export interface Reglages {
     bleuGris: string;
     blanc: string;
     police: string;
-    logoCarre: string;
-    logoHorizontal: string;
-    logoCicad: string;
+    nomChaine: string;
   };
   modeles: { whisper: string; claude: string };
   definitionMaxCaracteres: number;

@@ -4,7 +4,7 @@
 2. Paramètres → Vidéo : résolution de base et de sortie **1920x1080**, **30 images/s** (valeur commune, pas « fractionnelle »).
 3. Paramètres → Sortie → Enregistrement : format **MP4** (ou MKV avec remuxage automatique en MP4), encodeur **NVIDIA NVENC H.264**, contrôle du débit **CQP 20**.
 4. Paramètres → Audio : micro configuré, échantillonnage 48 kHz.
-5. Scène « Chaîne M&T » :
+5. Scène « PMT » :
    - Source « Capture d'écran » en plein cadre (1920x1080).
    - Source « Périphérique de capture vidéo » (webcam) redimensionnée à environ 480x270, placée **en bas à gauche** avec une marge de 24 px.
    - Verrouiller les deux sources (icône cadenas) pour que la mise en page ne bouge plus.

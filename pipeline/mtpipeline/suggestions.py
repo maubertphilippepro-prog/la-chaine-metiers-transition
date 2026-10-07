@@ -38,7 +38,7 @@ def texte_numerote(mots: list[dict]) -> str:
 
 def construire_prompt(mots: list[dict], glossaire: dict[str, dict], *, max_caracteres: int = 160) -> str:
     connus = ", ".join(sorted(t["terme"] for t in glossaire.values())) or "(aucun)"
-    return f"""Tu prépares le montage d'une vidéo YouTube de la chaîne « Métiers et Transition », consacrée à l'innovation et aux outils numériques en entreprise. La vidéo est un tournage face caméra, non scripté, en français. Chaque chapitre deviendra un épisode autonome publié séparément.
+    return f"""Tu prépares le montage d'une vidéo YouTube de la chaîne personnelle « PMT » : astuces et outils numériques (logiciels, IA, productivité) expliqués simplement à un public non spécialiste. La vidéo est un tournage face caméra, non scripté, en français. Chaque chapitre deviendra un épisode autonome publié séparément.
 
 Voici la transcription. Chaque mot est précédé de son numéro (numéro:mot).
 
@@ -50,7 +50,7 @@ Propose :
 
 1. **chapitres** : le découpage en chapitres, aux changements de sujet. Chaque chapitre doit pouvoir être regardé seul ; vise des chapitres de 3 à 8 minutes quand le contenu le permet. Pour chacun : un titre court et accrocheur (60 caractères maximum) et le numéro du premier mot.
 
-2. **termes** : les termes techniques ou anglicismes qu'un public de collaborateurs non spécialistes ne comprendrait pas forcément. Pour chacun : le terme tel qu'il doit s'afficher, une définition claire en une ou deux phrases ({max_caracteres} caractères maximum), et les numéros de tous les mots où il est prononcé. Ces termes sont déjà dans le glossaire, reprends-les s'ils apparaissent (leur définition sera reprise du glossaire) : {connus}.
+2. **termes** : les termes techniques ou anglicismes qu'un public non spécialiste ne comprendrait pas forcément. Pour chacun : le terme tel qu'il doit s'afficher, une définition claire en une ou deux phrases ({max_caracteres} caractères maximum), et les numéros de tous les mots où il est prononcé. Ces termes sont déjà dans le glossaire, reprends-les s'ils apparaissent (leur définition sera reprise du glossaire) : {connus}.
 
 3. **longueurs** : les passages qui pourraient être coupés sans perte (digressions, redites, explications qui tournent en rond). Pour chacun : premier et dernier numéro de mot, et la raison en une phrase. Sois sélectif : ces passages ne sont que des propositions que l'auteur validera.
 """
