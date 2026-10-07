@@ -6,7 +6,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "studio": "remotion studio remotion/index.ts",
-    "image": "remotion still remotion/index.ts"
+    "image": "remotion still remotion/index.ts",
+    "apercu": "tsx remotion/scripts/apercu.ts"
   },
   "dependencies": {
     "@remotion/bundler": "4.0.533",
