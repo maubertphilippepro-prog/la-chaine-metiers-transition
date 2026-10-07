@@ -24,7 +24,7 @@ export const EncartDefinition: FC<Proprietes> = ({ terme, definition, position, 
           fontFamily: police, opacity: visible, transform: `translateX(${(1 - visible) * 120}px)`,
         }}
       >
-        <div style={{ width: 14, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ width: 14, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
           <div style={{ flex: 1, backgroundColor: charte.rouge }} />
           <div style={{ flex: 1, backgroundColor: charte.bleu }} />
         </div>
