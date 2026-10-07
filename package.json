@@ -7,7 +7,9 @@
     "typecheck": "tsc --noEmit",
     "studio": "remotion studio remotion/index.ts",
     "image": "remotion still remotion/index.ts",
-    "apercu": "tsx remotion/scripts/apercu.ts"
+    "apercu": "tsx remotion/scripts/apercu.ts",
+    "rendu": "tsx remotion/scripts/rendu.ts",
+    "test:rendu": "vitest run --config vitest.rendu.config.ts"
   },
   "dependencies": {
     "@remotion/bundler": "4.0.533",
