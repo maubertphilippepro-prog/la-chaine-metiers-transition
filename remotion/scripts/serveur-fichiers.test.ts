@@ -1,4 +1,5 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import http from 'node:http';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -25,15 +26,31 @@ describe('lirePlage', () => {
 
 describe('demarrerServeur', () => {
   let serveur: ServeurFichiers;
+  let racine: string;
   const contenu = Buffer.from(Array.from({ length: 1000 }, (_, i) => i % 256));
 
   beforeAll(async () => {
-    const racine = await mkdtemp(path.join(os.tmpdir(), 'pmt-serveur-'));
+    racine = await mkdtemp(path.join(os.tmpdir(), 'pmt-serveur-'));
     await mkdir(path.join(racine, 'a b'));
     await writeFile(path.join(racine, 'a b', 'video.mp4'), contenu);
+    await writeFile(path.join(racine, 'gros.bin'), Buffer.alloc(5 * 1024 * 1024));
     serveur = await demarrerServeur(racine);
   });
-  afterAll(() => serveur.fermer());
+  afterAll(async () => {
+    await serveur.fermer();
+    await rm(racine, { recursive: true, force: true });
+  });
+
+  const requeteBrute = (options: http.RequestOptions) =>
+    new Promise<number | undefined>((resolve, reject) => {
+      const { port } = new URL(serveur.url);
+      const req = http.request({ host: '127.0.0.1', port, ...options }, res => {
+        res.resume();
+        resolve(res.statusCode);
+      });
+      req.on('error', reject);
+      req.end();
+    });
 
   it('sert un fichier entier avec CORS', async () => {
     const r = await fetch(`${serveur.url}/a%20b/video.mp4`);
@@ -58,5 +75,32 @@ describe('demarrerServeur', () => {
     expect(h.status).toBe(200);
     expect(h.headers.get('content-length')).toBe('1000');
     expect((await h.arrayBuffer()).byteLength).toBe(0);
+  });
+  it('survit à un client qui coupe la connexion en cours de lecture', async () => {
+    const abandon = new AbortController();
+    const r = await fetch(`${serveur.url}/gros.bin`, { signal: abandon.signal });
+    expect(r.status).toBe(200);
+    abandon.abort();
+    await new Promise(fini => setTimeout(fini, 100));
+    expect((await fetch(`${serveur.url}/a%20b/video.mp4`)).status).toBe(200);
+  });
+  it('répond 404 pour un fichier supprimé et reste disponible', async () => {
+    const ephemere = path.join(racine, 'ephemere.mp4');
+    await writeFile(ephemere, contenu);
+    expect((await fetch(`${serveur.url}/ephemere.mp4`)).status).toBe(200);
+    await rm(ephemere);
+    expect((await fetch(`${serveur.url}/ephemere.mp4`)).status).toBe(404);
+    expect((await fetch(`${serveur.url}/a%20b/video.mp4`)).status).toBe(200);
+  });
+  it('refuse un en-tête Host étranger (DNS rebinding)', async () => {
+    expect(await requeteBrute({ path: '/a%20b/video.mp4', headers: { Host: 'evil.example' } })).toBe(403);
+    expect((await fetch(`${serveur.url}/a%20b/video.mp4`)).status).toBe(200);
+  });
+  it('gère traversée de chemin, OPTIONS et méthodes interdites', async () => {
+    expect(await requeteBrute({ path: '/..%2f..%2fsecret' })).toBe(404);
+    const o = await fetch(`${serveur.url}/a%20b/video.mp4`, { method: 'OPTIONS' });
+    expect(o.status).toBe(204);
+    expect(o.headers.get('access-control-allow-origin')).toBe('*');
+    expect((await fetch(`${serveur.url}/a%20b/video.mp4`, { method: 'POST' })).status).toBe(405);
   });
 });

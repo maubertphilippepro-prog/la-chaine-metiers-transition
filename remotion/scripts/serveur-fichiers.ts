@@ -3,6 +3,7 @@ import { stat } from 'node:fs/promises';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
+import { pipeline } from 'node:stream';
 
 // Sert source.mp4 au lecteur Remotion (Studio et rendu) : plages HTTP pour la lecture vidéo, CORS pour le Studio.
 export interface ServeurFichiers {
@@ -53,6 +54,11 @@ export function lirePlage(entete: string | undefined, taille: number): { debut: 
 
 export function demarrerServeur(racine: string, port = 0): Promise<ServeurFichiers> {
   const serveur = http.createServer(async (req, res) => {
+    const { port: reel } = serveur.address() as AddressInfo;
+    if (req.headers.host !== `127.0.0.1:${reel}` && req.headers.host !== `localhost:${reel}`) {
+      res.writeHead(403).end();
+      return;
+    }
     if (req.method === 'OPTIONS') {
       res.writeHead(204, CORS).end();
       return;
@@ -84,15 +90,15 @@ export function demarrerServeur(racine: string, port = 0): Promise<ServeurFichie
       res.end();
       return;
     }
-    createReadStream(chemin, { start: debut, end: fin }).pipe(res);
+    // Les coupures client (déplacement dans la vidéo) sont normales : pipeline ferme le fichier, l'erreur est ignorée.
+    pipeline(createReadStream(chemin, { start: debut, end: fin }), res, () => {});
   });
 
   return new Promise((resolve, reject) => {
     serveur.once('error', reject);
     serveur.listen(port, '127.0.0.1', () => {
-      const { port: reel } = serveur.address() as AddressInfo;
       resolve({
-        url: `http://127.0.0.1:${reel}`,
+        url: `http://127.0.0.1:${(serveur.address() as AddressInfo).port}`,
         fermer: () =>
           new Promise<void>(fini => {
             serveur.closeAllConnections();
