@@ -1,18 +1,33 @@
 import type { FC } from 'react';
-import { Composition, Folder, Still } from 'remotion';
+import { type CalculateMetadataFunction, Composition, Folder, Still } from 'remotion';
+import { dureeEpisode, dureeVideoComplete } from '../noyau/decisions';
 import { enImages } from '../noyau/images';
 import { ApercuEncart, ApercuLogo } from './apercus';
 import { durees, FPS_HABILLAGE, HAUTEUR, LARGEUR } from './charte';
 import { CartonFin } from './composants/CartonFin';
 import { Generique } from './composants/Generique';
 import { Intertitre } from './composants/Intertitre';
+import { Episode, type ProprietesEpisode } from './compositions/Episode';
+import { VideoComplete, type ProprietesVideoComplete } from './compositions/VideoComplete';
+import { exempleEpisode, exempleVideoComplete } from './exemple';
 
 const generique = enImages(durees.generique, FPS_HABILLAGE);
 const intertitre = enImages(durees.intertitre, FPS_HABILLAGE);
 const cartonFin = enImages(durees.cartonFin, FPS_HABILLAGE);
 const encart = enImages(durees.encart, FPS_HABILLAGE);
 
+const metaEpisode: CalculateMetadataFunction<ProprietesEpisode> = ({ props }) => ({
+  durationInFrames: Math.max(1, dureeEpisode(props.decisions)),
+  fps: props.decisions.fps,
+});
+
+const metaVideoComplete: CalculateMetadataFunction<ProprietesVideoComplete> = ({ props }) => ({
+  durationInFrames: Math.max(1, dureeVideoComplete(props.decisions)),
+  fps: props.decisions.fps,
+});
+
 export const RemotionRoot: FC = () => (
+  <>
   <Folder name="Habillage">
     <Still id="Logo" component={ApercuLogo} width={600} height={600} />
     <Composition
@@ -37,4 +52,15 @@ export const RemotionRoot: FC = () => (
       }}
     />
   </Folder>
+    <Folder name="Rendus">
+      <Composition
+        id="Episode" component={Episode} durationInFrames={1} fps={FPS_HABILLAGE} width={LARGEUR} height={HAUTEUR}
+        defaultProps={{ decisions: exempleEpisode }} calculateMetadata={metaEpisode}
+      />
+      <Composition
+        id="VideoComplete" component={VideoComplete} durationInFrames={1} fps={FPS_HABILLAGE} width={LARGEUR} height={HAUTEUR}
+        defaultProps={{ decisions: exempleVideoComplete }} calculateMetadata={metaVideoComplete}
+      />
+    </Folder>
+  </>
 );
