@@ -4,6 +4,12 @@ from pathlib import Path
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def env_reel_neutralise(monkeypatch):
+    """Empêche cli.main() de charger le vrai .env dans os.environ pendant les tests."""
+    monkeypatch.setattr("mtpipeline.cli.charger_env", lambda chemin: None)
+
+
 @pytest.fixture
 def video_test(tmp_path: Path):
     def creer(nom: str, largeur: int = 1920, hauteur: int = 1080, duree: float = 2, audio: bool = True) -> Path:
