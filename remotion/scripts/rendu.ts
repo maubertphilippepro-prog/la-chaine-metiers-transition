@@ -1,5 +1,6 @@
 import { bundle } from '@remotion/bundler';
 import { ensureBrowser, renderMedia, selectComposition } from '@remotion/renderer';
+import { existsSync } from 'node:fs';
 import { appendFile, mkdir, rename, rm } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import path from 'node:path';
@@ -85,22 +86,22 @@ export async function rendreTournage(
 
   const serveur = await demarrerServeur(path.dirname(dossier));
   const resultats: ResultatRendu[] = [];
+  let attendus: string[] = [];
   try {
     const source = urlSource(serveur.url, t.nom);
     const episodes = decisionsEpisodes(t.analyse, t.montage, t.reglages, source);
-    const travaux: Travail[] = [];
-    episodes.forEach((decisions, i) => {
-      if (options.cible === 'tout' || options.cible === i + 1) {
-        travaux.push({ fichier: nomFichierEpisode(i, decisions.titre), composition: 'Episode', props: { decisions } });
-      }
+    // Tous les rendus d'un tournage, dans l'ordre ; la cible n'en retient qu'une partie.
+    const tous: (Travail & { cibles: Cible[] })[] = episodes.map((decisions, i) => ({
+      fichier: nomFichierEpisode(i, decisions.titre), composition: 'Episode' as const, props: { decisions }, cibles: [i + 1],
+    }));
+    tous.push({
+      fichier: 'video-complete.mp4',
+      composition: 'VideoComplete',
+      props: { decisions: decisionsVideoComplete(t.analyse, t.montage, t.reglages, source) },
+      cibles: ['complete'],
     });
-    if (options.cible === 'tout' || options.cible === 'complete') {
-      travaux.push({
-        fichier: 'video-complete.mp4',
-        composition: 'VideoComplete',
-        props: { decisions: decisionsVideoComplete(t.analyse, t.montage, t.reglages, source) },
-      });
-    }
+    attendus = tous.map(w => w.fichier);
+    const travaux = tous.filter(w => options.cible === 'tout' || w.cibles.includes(options.cible));
     if (travaux.length === 0) throw new Error(`Rien à rendre pour « ${options.cible} » : ${episodes.length} épisode(s).`);
 
     await ensureBrowser();
@@ -140,7 +141,8 @@ export async function rendreTournage(
   if (!options.brouillon && echecs.length > 0) {
     const noms = echecs.map(r => path.basename(r.fichier)).join(', ');
     await majStatutEpisode(dossier, 'erreur', `${echecs.length} rendu(s) en échec : ${noms}`);
-  } else if (!options.brouillon && options.cible === 'tout') {
+  } else if (!options.brouillon && (options.cible === 'tout' || attendus.every(f => existsSync(path.join(sortie, f))))) {
+    // Rendu partiel réussi : le tournage est « rendu » si tous les fichiers attendus existent.
     await majStatutEpisode(dossier, 'rendu', null);
   }
   return resultats;

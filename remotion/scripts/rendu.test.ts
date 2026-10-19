@@ -78,6 +78,20 @@ describe('rendreTournage', () => {
     await rendreTournage(d, { brouillon: false, cible: 'tout' }, dependances('video-complete'));
     expect(await statut(d)).toMatchObject({ statut: 'erreur', message: '1 rendu(s) en échec : video-complete.mp4' });
   });
+  it('passe le statut à « rendu » après un rendu partiel si tous les fichiers existent', async () => {
+    const d = await tournage(true);
+    await rendreTournage(d, { brouillon: false, cible: 'tout' }, dependances('video-complete'));
+    expect((await statut(d)).statut).toBe('erreur');
+    const resultats = await rendreTournage(d, { brouillon: false, cible: 'complete' }, dependances(null));
+    expect(resultats.map(r => path.basename(r.fichier))).toEqual(['video-complete.mp4']);
+    expect(await statut(d)).toMatchObject({ statut: 'rendu', message: null });
+  });
+  it('laisse le statut inchangé après un rendu partiel si un fichier manque', async () => {
+    const d = await tournage(true);
+    await writeFile(path.join(d, 'episode.json'), JSON.stringify({ version: 1, titre: 'Essai', statut: 'valide', message: null }), 'utf-8');
+    await rendreTournage(d, { brouillon: false, cible: 'complete' }, dependances(null));
+    expect(await statut(d)).toMatchObject({ statut: 'valide', message: null });
+  });
   it('ne touche pas au statut en brouillon', async () => {
     const d = await tournage(false);
     await rendreTournage(d, { brouillon: true, cible: 'tout' }, dependances('video-complete'));
