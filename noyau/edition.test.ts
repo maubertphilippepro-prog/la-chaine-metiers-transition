@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ajouterChapitre, basculerCoupe, couperPassage, deciderLongueur, deplacerLimite, fusionnerChapitre, modifierTerme,
-  renommerChapitre,
+  ajouterChapitre, ajouterTerme, basculerCoupe, changerTitre, couperPassage, deciderLongueur, deplacerLimite,
+  fusionnerChapitre, modifierTerme, renommerChapitre,
 } from './edition';
 import type { Montage } from './types';
 
@@ -74,5 +74,20 @@ describe('chapitres', () => {
     expect(ajouterChapitre(base, 8, 'Nouveau').chapitres.map(c => c.debut)).toEqual([0, 5, 8, 12]);
     expect(ajouterChapitre(base, 5, 'Doublon')).toBe(base);
     expect(ajouterChapitre(base, 0, 'Début')).toBe(base);
+  });
+});
+
+describe('ajouts des consignes', () => {
+  it('ajoute un terme à valider, encart en bas, occurrences triées sans doublon', () => {
+    expect(ajouterTerme(base, 'prompt', 'Consigne donnée à une IA.', [5, 1.2, 5]).termes[1]).toEqual({
+      terme: 'prompt', definition: 'Consigne donnée à une IA.', occurrences: [1.2, 5], statut: 'a-valider', position: 'bas',
+    });
+  });
+  it('ignore un terme déjà présent, sans tenir compte de la casse', () => {
+    expect(ajouterTerme(base, 'sso', 'Autre.', [1])).toBe(base);
+  });
+  it('change le titre de la vidéo', () => {
+    expect(changerTitre(base, 'Nouveau').titre).toBe('Nouveau');
+    expect(changerTitre(base, 'Essai')).toBe(base);
   });
 });

@@ -33,6 +33,13 @@ export function modifierTerme(m: Montage, terme: string, changement: ChangementT
   return { ...m, termes: m.termes.map(t => (t.terme === terme ? { ...t, ...changement } : t)) };
 }
 
+// Terme ajouté par une consigne : à valider, encart en bas ; ignoré s'il existe déjà (sans tenir compte de la casse).
+export function ajouterTerme(m: Montage, terme: string, definition: string, occurrences: number[]): Montage {
+  if (m.termes.some(t => t.terme.toLowerCase() === terme.toLowerCase())) return m;
+  const triees = [...new Set(occurrences)].sort((a, b) => a - b);
+  return { ...m, termes: [...m.termes, { terme, definition, occurrences: triees, statut: 'a-valider', position: 'bas' }] };
+}
+
 // Les chapitres sont triés par début et le premier commence à 0.
 export function renommerChapitre(m: Montage, index: number, titre: string): Montage {
   if (!m.chapitres[index]) return m;
@@ -57,4 +64,8 @@ export function fusionnerChapitre(m: Montage, index: number): Montage {
 export function ajouterChapitre(m: Montage, debut: number, titre: string): Montage {
   if (debut <= 0 || m.chapitres.some(c => c.debut === debut)) return m;
   return { ...m, chapitres: [...m.chapitres, { titre, debut }].sort((a, b) => a.debut - b.debut) };
+}
+
+export function changerTitre(m: Montage, titre: string): Montage {
+  return titre === m.titre ? m : { ...m, titre };
 }
