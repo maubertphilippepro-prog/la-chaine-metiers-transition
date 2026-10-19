@@ -12,7 +12,7 @@ export function useEcoute(sourceUrl: string | null): { ecouter: (debut: number, 
     if (!a) return;
     arret.current = fin + MARGE;
     a.currentTime = Math.max(0, debut - MARGE);
-    void a.play();
+    a.play().catch(() => {});
   }, []);
 
   const audio = sourceUrl ? (

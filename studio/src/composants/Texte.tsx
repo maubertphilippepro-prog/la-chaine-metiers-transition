@@ -130,7 +130,7 @@ export const Texte: FC<Props> = ({ analyse, montage, modifier, ecouter, lireDans
           </>
         )}
       </div>
-      <div onMouseUp={choisir}>
+      <div>
         {blocs.map(b => (
           <section key={b.index}>
             <div className="chapitre">
@@ -153,7 +153,7 @@ export const Texte: FC<Props> = ({ analyse, montage, modifier, ecouter, lireDans
                 </>
               )}
             </div>
-            <p>{b.elements.map(rendreElement)}</p>
+            <p onMouseUp={choisir}>{b.elements.map(rendreElement)}</p>
           </section>
         ))}
       </div>
