@@ -5,6 +5,7 @@ import { rendreTournage } from '../../remotion/scripts/rendu';
 import { demarrerServeur } from '../../remotion/scripts/serveur-fichiers';
 import { RACINE } from '../../remotion/scripts/tournage';
 import { creerApi } from './api';
+import { requeteAutorisee } from './origine';
 import { relancerSuggestions } from './suggestions';
 import { SuiviRendu } from './suivi-rendu';
 
@@ -29,8 +30,8 @@ async function main(): Promise<void> {
     appType: 'spa',
   });
   serveur.on('request', async (req, res) => {
-    // Refuse une page d'un autre site qui viserait le studio par un nom de domaine pointant vers 127.0.0.1.
-    if (req.headers.host !== `127.0.0.1:${PORT}` && req.headers.host !== `localhost:${PORT}`) {
+    // Refuse une page d'un autre site qui viserait le studio, par un nom de domaine pointant vers 127.0.0.1 (Host) ou par une requête inter-sites (Origin).
+    if (!requeteAutorisee(req.headers.host, req.headers.origin, PORT)) {
       res.writeHead(403).end();
       return;
     }

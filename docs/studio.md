@@ -17,7 +17,7 @@ Le studio sert à relire un tournage analysé, corriger les décisions de montag
 - **Longueurs proposées** : rien n'est coupé tant que la suggestion n'est pas acceptée (« Couper ») ou refusée (« Garder »).
 - **Termes** : valider, écarter, corriger la définition (160 caractères au plus), placer l'encart en haut.
 
-Chaque modification est enregistrée dans `montage.json` ; `analyse.json` n'est jamais modifié.
+Chaque modification est enregistrée dans `montage.json` ; `analyse.json` n’est jamais modifié par le studio : seul « Relancer les suggestions » (dans le bandeau) fait réécrire ce fichier par le pipeline.
 
 ## Rendu
 

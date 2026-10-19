@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { existsSync, statSync } from 'node:fs';
 import { readdir, readFile, rename, writeFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -51,7 +52,7 @@ async function lireCorps(req: IncomingMessage): Promise<unknown> {
 }
 
 async function ecrireJson(chemin: string, valeur: unknown): Promise<void> {
-  const temporaire = `${chemin}.tmp`;
+  const temporaire = `${chemin}.${randomUUID()}.tmp`;
   await writeFile(temporaire, JSON.stringify(valeur, null, 2), 'utf-8');
   await rename(temporaire, chemin);
 }
