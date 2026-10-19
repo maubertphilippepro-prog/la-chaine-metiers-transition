@@ -11,5 +11,8 @@
     "jsx": "react-jsx",
     "types": ["node"]
   },
-  "include": ["noyau/**/*.ts", "remotion/**/*.ts", "remotion/**/*.tsx", "vitest.config.ts", "vitest.rendu.config.ts"]
+  "include": [
+    "noyau/**/*.ts", "remotion/**/*.ts", "remotion/**/*.tsx", "studio/**/*.ts", "studio/**/*.tsx",
+    "vitest.config.ts", "vitest.rendu.config.ts"
+  ]
 }
