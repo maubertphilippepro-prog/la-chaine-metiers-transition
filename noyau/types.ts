@@ -61,6 +61,8 @@ export interface Coupe {
   debut: number;
   fin: number;
   active: boolean;
+  // Suggestion de longueur pas encore acceptée ni refusée.
+  enAttente?: boolean;
 }
 
 export interface Chapitre {

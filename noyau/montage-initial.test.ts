@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import exemple from '../fixtures/analyse-exemple.json';
-import { montageInitial } from './montage-initial';
+import { integrerSuggestions, montageInitial } from './montage-initial';
 import type { Analyse } from './types';
 
 const analyse = exemple as Analyse;
@@ -12,7 +12,7 @@ describe('montageInitial', () => {
     expect(m.coupes).toEqual([
       { id: 'd0', type: 'silence', debut: 0, fin: 0.8, active: true },
       { id: 'd1', type: 'hesitation', debut: 1.8, fin: 3, active: true },
-      { id: 'l0', type: 'longueur', debut: 10, fin: 20, active: false },
+      { id: 'l0', type: 'longueur', debut: 10, fin: 20, active: false, enAttente: true },
     ]);
   });
   it('désactive une hésitation où la réécoute a entendu des mots', () => {
@@ -50,5 +50,29 @@ describe('montageInitial et analyse', () => {
     const avant = structuredClone(a.suggestions!.termes[0]!.occurrences);
     montageInitial(a, 'T').termes[0]!.occurrences.push(999);
     expect(a.suggestions!.termes[0]!.occurrences).toEqual(avant);
+  });
+});
+
+describe('integrerSuggestions', () => {
+  it('ajoute longueurs, termes et chapitres à un montage fait sans suggestions', () => {
+    const sans = montageInitial({ ...analyse, suggestions: null }, 'Titre');
+    const decide = { ...sans, coupes: sans.coupes.map(c => ({ ...c, active: false })) };
+    const r = integrerSuggestions(decide, analyse);
+    expect(r.coupes.map(c => [c.id, c.active])).toEqual([['d0', false], ['d1', false], ['l0', false]]);
+    expect(r.coupes[2]!.enAttente).toBe(true);
+    expect(r.chapitres).toEqual([{ titre: 'Introduction', debut: 0 }, { titre: 'Le SSO', debut: 3 }]);
+    expect(r.termes.map(t => t.terme)).toEqual(['SSO', 'API']);
+  });
+  it('garde les décisions déjà prises', () => {
+    const m = montageInitial(analyse, 'T');
+    const modifie = {
+      ...m,
+      chapitres: [{ titre: 'A', debut: 0 }, { titre: 'B', debut: 2 }],
+      termes: [{ ...m.termes[0]!, statut: 'ecarte' as const }],
+    };
+    const r = integrerSuggestions(modifie, analyse);
+    expect(r.chapitres).toEqual(modifie.chapitres);
+    expect(r.coupes).toHaveLength(3);
+    expect(r.termes.map(t => [t.terme, t.statut])).toEqual([['SSO', 'ecarte'], ['API', 'valide']]);
   });
 });
