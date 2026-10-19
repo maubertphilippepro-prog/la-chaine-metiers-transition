@@ -161,6 +161,16 @@ describe('rendu', () => {
     await vi.waitFor(() => expect(finir).toBeTypeOf('function'));
     finir();
   });
+  it('accepte un seul rendu parmi deux demandes simultanées', async () => {
+    let finir!: () => void;
+    vi.mocked(config.rendre).mockImplementationOnce(() => new Promise(r => { finir = () => r([]); }));
+    await tournage('a', { 'analyse.json': exemple, 'montage.json': MONTAGE_PRET });
+    const statuts = (await Promise.all([demanderRendu('a', 'tout'), demanderRendu('a', 'tout')])).map(r => r.status);
+    expect(statuts.sort()).toEqual([202, 409]);
+    expect(config.rendre).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(finir).toBeTypeOf('function'));
+    finir();
+  });
 });
 
 describe('relance des suggestions', () => {

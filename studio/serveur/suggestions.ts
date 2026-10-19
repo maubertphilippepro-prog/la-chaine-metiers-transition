@@ -14,6 +14,6 @@ export function relancerSuggestions(dossier: string): Promise<void> {
     let erreurs = '';
     processus.stderr.on('data', (d: Buffer) => { erreurs += d.toString('utf-8'); });
     processus.on('error', rejeter);
-    processus.on('exit', code => (code === 0 ? resoudre() : rejeter(new Error(erreurs.trim() || `code de sortie ${code}`))));
+    processus.on('close', code => (code === 0 ? resoudre() : rejeter(new Error(erreurs.trim() || `code de sortie ${code}`))));
   });
 }

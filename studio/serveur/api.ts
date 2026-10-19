@@ -132,12 +132,21 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
     };
   }
 
-  async function enregistrerMontage(req: IncomingMessage, dossier: string): Promise<void> {
+  // Tournage dont le rendu est en préparation (entre la demande et suivi.lancer).
+  let enPreparation: string | null = null;
+
+  function verifierMontageModifiable(dossier: string): void {
+    const nom = path.basename(dossier);
     const etat = c.suivi.etat();
-    if (etat.enCours && etat.nom === path.basename(dossier)) {
+    if ((etat.enCours && etat.nom === nom) || enPreparation === nom) {
       throw new ErreurHttp(409, 'Rendu en cours : le montage ne peut pas être modifié.');
     }
+  }
+
+  async function enregistrerMontage(req: IncomingMessage, dossier: string): Promise<void> {
+    verifierMontageModifiable(dossier);
     const montage = await lireCorps(req);
+    verifierMontageModifiable(dossier);
     const probleme = raisonMontage(montage);
     if (probleme) throw new ErreurHttp(400, `montage invalide : ${probleme}`);
     await ecrireJson(path.join(dossier, 'montage.json'), montage);
@@ -146,14 +155,19 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
 
   async function lancerRendu(req: IncomingMessage, dossier: string): Promise<EtatRendu> {
     const cible = lireCible(await lireCorps(req));
-    if (c.suivi.etat().enCours) throw new ErreurHttp(409, 'Un rendu est déjà en cours.');
-    const t = await charger(dossier, false);
-    const problemes = verifierAvantRendu(t.montage, t.reglages.definitionMaxCaracteres);
-    if (problemes.length > 0) throw new ErreurHttp(422, 'Le montage n’est pas prêt pour le rendu.', problemes);
-    await ecrireJson(c.cheminGlossaire, majGlossaire(await lireGlossaire(c.cheminGlossaire), t.montage.termes));
-    await majStatutEpisode(dossier, 'valide', null);
-    c.suivi.lancer(t.nom, onProgression => c.rendre(dossier, cible, onProgression));
-    return c.suivi.etat();
+    if (c.suivi.etat().enCours || enPreparation) throw new ErreurHttp(409, 'Un rendu est déjà en cours.');
+    enPreparation = path.basename(dossier);
+    try {
+      const t = await charger(dossier, false);
+      const problemes = verifierAvantRendu(t.montage, t.reglages.definitionMaxCaracteres);
+      if (problemes.length > 0) throw new ErreurHttp(422, 'Le montage n’est pas prêt pour le rendu.', problemes);
+      await ecrireJson(c.cheminGlossaire, majGlossaire(await lireGlossaire(c.cheminGlossaire), t.montage.termes));
+      await majStatutEpisode(dossier, 'valide', null);
+      c.suivi.lancer(t.nom, onProgression => c.rendre(dossier, cible, onProgression));
+      return c.suivi.etat();
+    } finally {
+      enPreparation = null;
+    }
   }
 
   return async function traiter(req, res) {
