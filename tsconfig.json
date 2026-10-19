@@ -9,7 +9,7 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "jsx": "react-jsx",
-    "types": ["node"]
+    "types": ["node", "vite/client"]
   },
   "include": [
     "noyau/**/*.ts", "remotion/**/*.ts", "remotion/**/*.tsx", "studio/**/*.ts", "studio/**/*.tsx",
