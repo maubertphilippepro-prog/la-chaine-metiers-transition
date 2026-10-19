@@ -4,7 +4,7 @@ export function montageInitial(analyse: Analyse, titre: string): Montage {
   const s = analyse.suggestions;
 
   const coupes: Coupe[] = [
-    ...analyse.detections.map(d => ({ id: d.id, type: d.type, debut: d.debut, fin: d.fin, active: true })),
+    ...analyse.detections.map(d => ({ id: d.id, type: d.type, debut: d.debut, fin: d.fin, active: !d.paroles })),
     ...(s?.longueurs ?? []).map(l => ({
       id: l.id, type: 'longueur' as const, debut: l.debut, fin: l.fin, active: false,
     })),

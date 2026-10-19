@@ -1,9 +1,12 @@
 import re
+from difflib import SequenceMatcher
 
 import numpy as np
 
 HESITATIONS = {"euh", "heu", "hum", "hmm", "euhm"}
 REPETITIONS_LEGITIMES = {"nous", "vous", "très", "tout", "si", "bien", "non", "oui"}
+# Mots qu'on peut couper avec une hésitation sans perdre de sens.
+MOTS_ANODINS = HESITATIONS | {"bon", "ben", "alors", "donc", "là", "et", "voilà", "ok", "hop"}
 TRAME = 0.02
 
 
@@ -114,3 +117,36 @@ def detecter(mots: list[dict], audio: np.ndarray, taux: int, duree: float, cfg: 
     )
     toutes.sort(key=lambda d: d["debut"])
     return [{"id": f"d{i}", **d} for i, d in enumerate(toutes)]
+
+
+def mots_perdus(avec: str, sans: str) -> str:
+    """Mots porteurs de sens entendus dans « avec » (contexte + coupe) et absents de « sans »
+    (contexte seul). Les bords sont ignorés : Whisper y perd des mots même sans coupe. Un passage
+    seulement reconnu autrement (« NIA préféré » / « nid à préférence ») n'est pas une perte."""
+    a, b = avec.split(), sans.split()
+    na, nb = [normaliser(m) for m in a], [normaliser(m) for m in b]
+    perdus = []
+    for op, i1, i2, j1, j2 in SequenceMatcher(None, na, nb, autojunk=False).get_opcodes():
+        if op not in ("delete", "replace") or i1 == 0 or i2 == len(a):
+            continue
+        utiles = [i for i in range(i1, i2) if na[i] and na[i] not in MOTS_ANODINS]
+        remplacants = "".join(n for n in nb[j1:j2] if n not in MOTS_ANODINS)
+        perdu = "".join(na[i] for i in utiles)
+        if utiles and SequenceMatcher(None, perdu, remplacants).ratio() < 0.6:
+            perdus += [a[i] for i in utiles]
+    return " ".join(perdus)
+
+
+def paroles_significatives(texte: str) -> bool:
+    return any(n not in MOTS_ANODINS for n in map(normaliser, texte.split()) if n)
+
+
+def marquer_paroles(detections: list[dict], transcrire_extraits) -> list[dict]:
+    """Réécoute chaque hésitation : si sa coupe ferait perdre de vrais mots (oubliés par la
+    transcription), ils sont notés dans « paroles » et la coupe ne sera pas active par défaut."""
+    hesitations = [d for d in detections if d["type"] == "hesitation"]
+    if not hesitations:
+        return detections
+    textes = transcrire_extraits([(d["debut"], d["fin"]) for d in hesitations])
+    paroles = {d["id"]: t for d, t in zip(hesitations, textes) if paroles_significatives(t)}
+    return [{**d, "paroles": paroles[d["id"]]} if d["id"] in paroles else d for d in detections]

@@ -15,6 +15,15 @@ describe('montageInitial', () => {
       { id: 'l0', type: 'longueur', debut: 10, fin: 20, active: false },
     ]);
   });
+  it('désactive une hésitation où la réécoute a entendu des mots', () => {
+    const avecParoles: Analyse = {
+      ...analyse,
+      detections: analyse.detections.map(d => (d.id === 'd1' ? { ...d, paroles: 'il y a' } : d)),
+    };
+    expect(montageInitial(avecParoles, 'x').coupes.map(c => [c.id, c.active])).toEqual([
+      ['d0', true], ['d1', false], ['l0', false],
+    ]);
+  });
   it('force le premier chapitre à 0', () => {
     expect(m.chapitres).toEqual([
       { titre: 'Introduction', debut: 0 },

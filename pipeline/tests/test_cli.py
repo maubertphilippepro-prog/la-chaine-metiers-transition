@@ -27,6 +27,12 @@ def demander_en_erreur(mots, glossaire, modele, **kwargs):
     raise ErreurSuggestions("API indisponible")
 
 
+@pytest.fixture(autouse=True)
+def sans_whisper(monkeypatch):
+    """Les hésitations ne sont jamais réécoutées par le vrai Whisper dans ces tests."""
+    monkeypatch.setattr("mtpipeline.cli.transcrire_extraits", lambda audio, intervalles, modele: [""] * len(intervalles))
+
+
 @pytest.fixture
 def tournage(tmp_path, video_test):
     dossier = tmp_path / "2026-10-06-test"
@@ -196,3 +202,18 @@ def test_analyse_d_un_webm(tmp_path, video_test):
     assert a["mots"] == MOTS
     assert (dossier / "source.mp4").exists()
     assert (dossier / "bruts" / "essai.webm").exists()
+
+
+def test_hesitation_reecoutee_avec_des_mots_signalee(tournage, tmp_path):
+    # Entre « Bonjour » et « tous », la vidéo de test a du son : c'est une hésitation.
+    reecoutes = []
+
+    def extraits(audio, intervalles, modele):
+        reecoutes.extend(intervalles)
+        return ["il y a"] * len(intervalles)
+
+    a = analyser(tournage, "Test", REGLAGES, faux_transcrire, faux_demander, tmp_path / "glossaire.json",
+                 extraits_fn=extraits)
+    hesitations = [d for d in a["detections"] if d["type"] == "hesitation"]
+    assert reecoutes == [(d["debut"], d["fin"]) for d in hesitations]
+    assert all(d["paroles"] == "il y a" for d in hesitations)

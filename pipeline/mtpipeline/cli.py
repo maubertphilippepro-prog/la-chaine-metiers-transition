@@ -5,14 +5,14 @@ import sys
 from pathlib import Path
 
 from .audio import TAUX, charger_audio
-from .detection import detecter
+from .detection import detecter, marquer_paroles
 from .environnement import charger_env
 from .erreurs import ErreurEntree, ErreurSuggestions
 from .glossaire import charger_glossaire
 from .preparation import preparer
 from .reglages import RACINE, charger_reglages
 from .suggestions import convertir, demander
-from .transcription import transcrire
+from .transcription import transcrire, transcrire_extraits
 
 EXTENSIONS = {".mp4", ".mkv", ".mov", ".webm"}
 
@@ -73,7 +73,7 @@ def assembler(dossier: Path, suggestions, erreur) -> dict:
 
 
 def analyser(dossier: Path, titre: str, reglages: dict, transcrire_fn=transcrire, demander_fn=demander,
-             glossaire_chemin: Path | None = None) -> dict:
+             glossaire_chemin: Path | None = None, extraits_fn=None) -> dict:
     if not dossier.is_dir():
         raise ErreurEntree(f"Dossier de tournage introuvable : {dossier}")
     glossaire_chemin = glossaire_chemin or RACINE / "donnees" / "glossaire.json"
@@ -91,8 +91,13 @@ def analyser(dossier: Path, titre: str, reglages: dict, transcrire_fn=transcrire
 
         if not (dossier / "detections.json").exists():
             duree = lire(dossier / "preparation.json")["duree"]
-            ecrire(dossier / "detections.json",
-                   detecter(mots, charger_audio(source), TAUX, duree, reglages["detection"]))
+            audio = charger_audio(source)
+            extraits_fn = extraits_fn or transcrire_extraits
+            detections = marquer_paroles(
+                detecter(mots, audio, TAUX, duree, reglages["detection"]),
+                lambda intervalles: extraits_fn(audio, intervalles, reglages["modeles"]["whisper"]),
+            )
+            ecrire(dossier / "detections.json", detections)
     except ErreurEntree as e:
         ecrire_episode(dossier, titre, "erreur", str(e))
         raise

@@ -16,6 +16,8 @@ export interface Detection {
   type: TypeDetection;
   debut: number;
   fin: number;
+  // Mots entendus à la réécoute d'une hésitation : la coupe n'est pas active par défaut.
+  paroles?: string;
 }
 
 export interface SuggestionChapitre {
@@ -126,6 +128,8 @@ export interface Reglages {
     police: string;
     nomChaine: string;
   };
+  // Fichiers relatifs au dossier public/, volumes entre 0 et 1.
+  audio: { jingle: string; tapis: string; volumeJingle: number; volumeTapis: number };
   modeles: { whisper: string; claude: string };
   definitionMaxCaracteres: number;
 }

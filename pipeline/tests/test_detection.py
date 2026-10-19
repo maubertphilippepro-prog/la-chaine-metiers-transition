@@ -1,7 +1,8 @@
+import pytest
 import numpy as np
 
 from mtpipeline.detection import (
-    detecter, detecter_hesitations_transcrites, detecter_repetitions, detecter_silences_audio,
+    detecter, detecter_hesitations_transcrites, marquer_paroles, mots_perdus, paroles_significatives, detecter_repetitions, detecter_silences_audio,
     detecter_trous, normaliser, proportion_voisee,
 )
 
@@ -148,3 +149,46 @@ def test_silences_chevauchants_fusionnes():
     d = detecter(mots, audio, TAUX, 3.0, CFG)
     assert len(d) == 1 and d[0]["type"] == "silence"
     assert abs(d[0]["debut"] - 1.0) <= 0.02 and abs(d[0]["fin"] - 2.0) <= 0.02
+
+
+def test_paroles_significatives():
+    assert not paroles_significatives("")
+    assert not paroles_significatives("Euh... hum, bon, et, là, là.")
+    assert paroles_significatives("C'est CTRL V.")
+    assert paroles_significatives("Alors, je")
+
+
+def test_marquer_paroles_ne_reecoute_que_les_hesitations():
+    detections = [
+        {"id": "d0", "type": "silence", "debut": 0.0, "fin": 1.0},
+        {"id": "d1", "type": "hesitation", "debut": 2.0, "fin": 3.0},
+        {"id": "d2", "type": "hesitation", "debut": 4.0, "fin": 5.0},
+    ]
+    demandes = []
+
+    def extraits(intervalles):
+        demandes.append(intervalles)
+        return ["Euh...", "il y a"]
+
+    assert marquer_paroles(detections, extraits) == [
+        detections[0],
+        detections[1],
+        {**detections[2], "paroles": "il y a"},
+    ]
+    assert demandes == [[(2.0, 3.0), (4.0, 5.0)]]
+
+
+def test_marquer_paroles_sans_hesitation_ne_charge_rien():
+    detections = [{"id": "d0", "type": "silence", "debut": 0.0, "fin": 1.0}]
+    assert marquer_paroles(detections, lambda i: pytest.fail("rien à réécouter")) == detections
+
+
+def test_mots_perdus_trouve_les_mots_supprimes_au_milieu():
+    assert mots_perdus("Si, euh, copier-coller ou CTRL-C, CTRL-V qui permettent de coller.",
+                       "Si, euh, copier-coller ou contrôle qui permettent de coller.") == "CTRL-C, CTRL-V"
+    assert mots_perdus("Je vais copier-coller, euh, le texte.", "Je vais copier-coller le texte.") == ""
+
+
+def test_mots_perdus_ignore_les_bords_et_les_variantes_de_reconnaissance():
+    assert mots_perdus("Le texte de la vision 2027. Hum, sauf que, euh, parfois", "Sauf que, euh, parfois") == ""
+    assert mots_perdus("dans, euh, son, euh, NIA préféré. Voilà", "dans son, euh, nid à préférence. Voilà") == ""
