@@ -11,3 +11,12 @@
 6. Chemin d'enregistrement : `donnees/tournages/<AAAA-MM-JJ>-<sujet>/bruts/` (créer le dossier avant de tourner).
 
 Le pipeline accepte aussi d'autres enregistreurs (par exemple une capture d'écran en .webm) : formats .mp4, .mkv, .mov ou .webm, en 16:9 d'au moins 1280x720 (mise à l'échelle en 1080p), avec une piste microphone. Les réglages ci-dessus restent les réglages recommandés.
+
+## Tourner plusieurs prises dans un seul fichier
+
+Tout s'enregistre d'un bloc ; le montage retire les prises ratées grâce à deux mots-clés dits à voix haute :
+
+- **« Action ! »** au début de chaque prise, détaché par une courte pause avant et après (sinon il est pris pour le mot d'une phrase). Il est toujours retiré du montage.
+- **« Coupez ! »** dès qu'une prise est ratée, suivi d'une pause. La prise est retirée depuis son « action » (ou, à défaut, depuis la fin de la prise ratée précédente) jusqu'à la reprise.
+
+Exemple : « Action ! — Bonjour, aujourd'hui je vais vous pr… Coupez ! — Action ! — Bonjour, aujourd'hui je vais vous présenter… ». Seule la seconde prise reste. Les prises retirées apparaissent comme des coupes de type « prise », désactivables si un mot-clé a été mal compris.

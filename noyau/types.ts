@@ -8,7 +8,7 @@ export interface Mot {
   fin: number;
 }
 
-export type TypeDetection = 'silence' | 'hesitation' | 'repetition';
+export type TypeDetection = 'silence' | 'hesitation' | 'repetition' | 'prise';
 export type TypeCoupe = TypeDetection | 'longueur' | 'manuelle';
 
 export interface Detection {
@@ -117,6 +117,8 @@ export interface Reglages {
     seuilSilenceDb: number;
     proportionVoiseeHesitation: number;
     repetitionMaxMots: number;
+    prolongementMotMax: number;
+    pauseMotCle: number;
   };
   coupe: ReglagesCoupe;
   durees: { generique: number; encart: number; intertitre: number; cartonFin: number };

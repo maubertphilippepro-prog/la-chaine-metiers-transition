@@ -31,6 +31,14 @@ describe('intervalleACouper', () => {
     expect(intervalleACouper(coupe({ type: 'repetition', debut: 1, fin: 1.8 }), r))
       .toEqual({ debut: 1, fin: 1.8 });
   });
+  it('garde une marge avant une prise ratée et une respiration avant la reprise', () => {
+    const i = intervalleACouper(coupe({ type: 'prise', debut: 2, fin: 6 }), r, 10)!;
+    expect(+i.debut.toFixed(3)).toBe(1.94);
+    expect(+i.fin.toFixed(3)).toBe(5.85);
+  });
+  it("coupe une prise ratée jusqu'au bout de la vidéo", () => {
+    expect(intervalleACouper(coupe({ type: 'prise', debut: 8, fin: 10 }), r, 10)!.fin).toBe(10);
+  });
   it('ignore une coupe devenue trop courte', () => {
     expect(intervalleACouper(coupe({ type: 'silence', debut: 2, fin: 2.35 }), r)).toBeNull();
   });

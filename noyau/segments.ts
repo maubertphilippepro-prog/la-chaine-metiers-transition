@@ -1,11 +1,15 @@
 import type { Coupe, ReglagesCoupe, Segment } from './types';
 
 // Un silence garde sa demi-marge seulement du côté de la parole, pas contre 0 ni contre la durée.
+// Une prise ratée part un peu avant son « action » et laisse une respiration avant la reprise.
 export function intervalleACouper(coupe: Coupe, r: ReglagesCoupe, duree?: number): Segment | null {
   let debut = coupe.debut;
   let fin = coupe.fin;
   if (coupe.type === 'silence') {
     if (debut > 0) debut += r.silenceConserve / 2;
+    if (duree === undefined || fin < duree) fin -= r.silenceConserve / 2;
+  } else if (coupe.type === 'prise') {
+    debut -= r.margeMots;
     if (duree === undefined || fin < duree) fin -= r.silenceConserve / 2;
   } else if (coupe.type === 'hesitation') {
     debut += r.margeMots;

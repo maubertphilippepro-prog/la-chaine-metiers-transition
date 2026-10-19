@@ -8,6 +8,13 @@ REPETITIONS_LEGITIMES = {"nous", "vous", "très", "tout", "si", "bien", "non", "
 # Mots qu'on peut couper avec une hésitation sans perdre de sens.
 MOTS_ANODINS = HESITATIONS | {"bon", "ben", "alors", "donc", "là", "et", "voilà", "ok", "hop"}
 TRAME = 0.02
+# Creux de voix toléré à l'intérieur d'un mot dont on prolonge la fin : la tenue d'une consonne
+# comme le « t » final de « sept » dure environ 0,12 s avant son explosion.
+CREUX_DANS_MOT = 0.15
+# Mots-clés de tournage : « action » ouvre une prise, « coupez » la déclare ratée
+# (Whisper l'écrit parfois comme le participe).
+ACTION = {"action"}
+COUPEZ = {"coupez", "coupé", "coupée", "couper"}
 
 
 def normaliser(texte: str) -> str:
@@ -49,6 +56,26 @@ def fusionner_silences(detections: list[dict]) -> list[dict]:
         else:
             fusion.append(d)
     return fusion + [d for d in detections if d["type"] != "silence"]
+
+
+def prolonger_mots(mots: list[dict], audio: np.ndarray, taux: int, cfg: dict) -> list[dict]:
+    """L'alignement tronque parfois la fin d'un mot (les nombres surtout : « 2027 » calé sur 0,1 s).
+    La fin est repoussée tant que la voix continue, sans dépasser le mot suivant ni prolongementMotMax."""
+    voise = niveaux_db(audio, taux) > cfg["seuilSilenceDb"]
+    creux_max = round(CREUX_DANS_MOT / TRAME)
+    resultats = []
+    for i, m in enumerate(mots):
+        suivant = mots[i + 1]["debut"] if i + 1 < len(mots) else len(voise) * TRAME
+        limite = min(suivant, m["fin"] + cfg["prolongementMotMax"])
+        fin, creux, t = m["fin"], 0, int(m["fin"] / TRAME)
+        while t < len(voise) and t * TRAME < limite and creux < creux_max:
+            if voise[t]:
+                fin, creux = (t + 1) * TRAME, 0
+            else:
+                creux += 1
+            t += 1
+        resultats.append({**m, "fin": max(m["fin"], min(fin, limite))})
+    return resultats
 
 
 def detecter_trous(mots: list[dict], audio: np.ndarray, taux: int, duree: float, cfg: dict) -> list[dict]:
@@ -108,12 +135,40 @@ def detecter_repetitions(mots: list[dict], max_mots: int) -> list[dict]:
     return resultats
 
 
+def detecter_prises(mots: list[dict], duree: float, cfg: dict) -> list[dict]:
+    """Chaque « action » est retiré, et une prise ratée (« coupez ») l'est depuis son « action », ou
+    à défaut depuis la fin de la prise ratée précédente (ou le début), jusqu'au mot qui suit « coupez ».
+    « action » ne compte que prononcé isolé, « coupez » que suivi d'une pause."""
+    pause = cfg["pauseMotCle"]
+
+    def suite(i: int) -> float:
+        return mots[i + 1]["debut"] if i + 1 < len(mots) else duree
+
+    resultats: list[dict] = []
+    debut_prise = 0.0
+    for i, m in enumerate(mots):
+        n = normaliser(m["texte"])
+        pause_avant = m["debut"] - (mots[i - 1]["fin"] if i > 0 else 0.0)
+        pause_apres = suite(i) - m["fin"]
+        if n in ACTION and pause_avant >= pause and pause_apres >= pause:
+            debut_prise = m["debut"]
+            resultats.append({"type": "prise", "debut": m["debut"], "fin": suite(i)})
+        elif n in COUPEZ and pause_apres >= pause:
+            if resultats and resultats[-1]["debut"] == debut_prise:
+                resultats.pop()
+            resultats.append({"type": "prise", "debut": debut_prise, "fin": suite(i)})
+            debut_prise = suite(i)
+    return resultats
+
+
 def detecter(mots: list[dict], audio: np.ndarray, taux: int, duree: float, cfg: dict) -> list[dict]:
+    mots = prolonger_mots(mots, audio, taux, cfg)
     toutes = fusionner_silences(
         detecter_trous(mots, audio, taux, duree, cfg)
         + detecter_silences_audio(audio, taux, cfg)
         + detecter_hesitations_transcrites(mots, cfg)
         + detecter_repetitions(mots, cfg["repetitionMaxMots"])
+        + detecter_prises(mots, duree, cfg)
     )
     toutes.sort(key=lambda d: d["debut"])
     return [{"id": f"d{i}", **d} for i, d in enumerate(toutes)]

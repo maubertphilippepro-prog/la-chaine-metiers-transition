@@ -5,7 +5,9 @@
     "hesitationTranscriteMin": 0,
     "seuilSilenceDb": -40,
     "proportionVoiseeHesitation": 0.3,
-    "repetitionMaxMots": 4
+    "repetitionMaxMots": 4,
+    "prolongementMotMax": 1.5,
+    "pauseMotCle": 0.3
   },
   "coupe": {
     "silenceConserve": 0.3,

@@ -54,7 +54,9 @@ def test_analyse_complete(tournage, tmp_path):
 
 
 def test_format_conforme_a_la_fixture(tournage, tmp_path):
-    a = analyser(tournage, "Test", REGLAGES, faux_transcrire, faux_demander, tmp_path / "glossaire.json")
+    # Le son de test est un bip continu : sans prolongement, le trou entre les mots reste une hésitation.
+    reglages = {**REGLAGES, "detection": {**REGLAGES["detection"], "prolongementMotMax": 0}}
+    a = analyser(tournage, "Test", reglages, faux_transcrire, faux_demander, tmp_path / "glossaire.json")
     fixture = json.loads((RACINE / "fixtures" / "analyse-exemple.json").read_text(encoding="utf-8"))
     assert set(a) == set(fixture)
     assert set(a["suggestions"]) == set(fixture["suggestions"])

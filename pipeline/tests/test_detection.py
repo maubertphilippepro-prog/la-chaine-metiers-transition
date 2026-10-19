@@ -2,13 +2,14 @@ import pytest
 import numpy as np
 
 from mtpipeline.detection import (
-    detecter, detecter_hesitations_transcrites, marquer_paroles, mots_perdus, paroles_significatives, detecter_repetitions, detecter_silences_audio,
+    detecter, detecter_hesitations_transcrites, detecter_prises, marquer_paroles, prolonger_mots, mots_perdus, paroles_significatives, detecter_repetitions, detecter_silences_audio,
     detecter_trous, normaliser, proportion_voisee,
 )
 
 TAUX = 16000
 CFG = {"silenceMin": 0.7, "hesitationMin": 0.4, "seuilSilenceDb": -40,
-       "proportionVoiseeHesitation": 0.3, "repetitionMaxMots": 4, "hesitationTranscriteMin": 0}
+       "proportionVoiseeHesitation": 0.3, "repetitionMaxMots": 4, "hesitationTranscriteMin": 0,
+       "prolongementMotMax": 1.5, "pauseMotCle": 0.3}
 
 
 def mot(i, texte, debut, fin):
@@ -192,3 +193,61 @@ def test_mots_perdus_trouve_les_mots_supprimes_au_milieu():
 def test_mots_perdus_ignore_les_bords_et_les_variantes_de_reconnaissance():
     assert mots_perdus("Le texte de la vision 2027. Hum, sauf que, euh, parfois", "Sauf que, euh, parfois") == ""
     assert mots_perdus("dans, euh, son, euh, NIA préféré. Voilà", "dans son, euh, nid à préférence. Voilà") == ""
+
+
+def test_fin_de_mot_tronquee_prolongee_tant_que_la_voix_continue():
+    # « 2027 » calé sur 0,1 s alors que la voix dure jusqu'à 1,8 s (micro-creux de 0,04 s toléré).
+    mots = [mot(0, "2027.", 1.0, 1.1), mot(1, "Sauf", 3.0, 3.5)]
+    audio = audio_avec_voix(3.5, [(1.0, 1.4), (1.44, 1.8), (3.0, 3.5)])
+    p = prolonger_mots(mots, audio, TAUX, CFG)
+    assert abs(p[0]["fin"] - 1.8) <= 0.02 and p[1] == mots[1]
+
+
+def test_prolongement_traverse_la_tenue_d_une_consonne_finale():
+    mots = [mot(0, "2027.", 1.0, 1.1), mot(1, "Sauf", 3.0, 3.5)]
+    audio = audio_avec_voix(3.5, [(1.0, 1.6), (1.72, 1.8), (3.0, 3.5)])
+    assert abs(prolonger_mots(mots, audio, TAUX, CFG)[0]["fin"] - 1.8) <= 0.02
+
+
+def test_prolongement_borne_par_le_mot_suivant_et_le_maximum():
+    mots = [mot(0, "a", 0.0, 0.5), mot(1, "b", 1.0, 1.2), mot(2, "c", 1.3, 1.5)]
+    audio = audio_avec_voix(5, [(0, 5)])
+    p = prolonger_mots(mots, audio, TAUX, CFG)
+    assert p[0]["fin"] == 1.0
+    assert abs(p[2]["fin"] - 3.0) <= 0.02
+
+
+def test_fin_de_mot_tronquee_non_coupee_en_hesitation():
+    mots = [mot(0, "vision", 0.5, 0.9), mot(1, "2027.", 0.9, 1.0), mot(2, "Sauf", 3.6, 4.0)]
+    audio = audio_avec_voix(4.0, [(0.5, 1.9), (2.7, 3.3), (3.6, 4.0)])
+    hesitations = [x for x in detecter(mots, audio, TAUX, 4.0, CFG) if x["type"] == "hesitation"]
+    assert len(hesitations) == 1 and abs(hesitations[0]["debut"] - 1.9) <= 0.02
+
+
+def test_prise_ratee_retiree_depuis_son_action():
+    mots = [mot(0, "Action.", 0.5, 0.9), mot(1, "Bonjour", 1.5, 2.0), mot(2, "à", 2.0, 2.1),
+            mot(3, "Coupez.", 2.6, 3.0), mot(4, "Action.", 4.0, 4.4), mot(5, "Bonjour", 5.0, 5.5)]
+    assert detecter_prises(mots, 6.0, CFG) == [
+        {"type": "prise", "debut": 0.5, "fin": 4.0},
+        {"type": "prise", "debut": 4.0, "fin": 5.0},
+    ]
+
+
+def test_coupez_sans_action_retire_depuis_le_debut_ou_la_prise_precedente():
+    mots = [mot(0, "Bonjour", 0.5, 1.0), mot(1, "coupez", 1.5, 1.9), mot(2, "Salut", 2.5, 3.0),
+            mot(3, "coupez !", 3.5, 3.9), mot(4, "Bonsoir", 4.5, 5.0)]
+    assert detecter_prises(mots, 5.0, CFG) == [
+        {"type": "prise", "debut": 0.0, "fin": 2.5},
+        {"type": "prise", "debut": 2.5, "fin": 4.5},
+    ]
+
+
+def test_action_dans_une_phrase_ignoree():
+    mots = [mot(0, "une", 0.0, 0.2), mot(1, "action", 0.2, 0.6), mot(2, "simple", 0.6, 1.0)]
+    assert detecter_prises(mots, 1.0, CFG) == []
+
+
+def test_detecter_inclut_les_prises():
+    mots = [mot(0, "Action.", 0.5, 0.9), mot(1, "Bonjour", 1.5, 2.0)]
+    audio = audio_avec_voix(2.0, [(0.5, 0.9), (1.5, 2.0)])
+    assert [x["type"] for x in detecter(mots, audio, TAUX, 2.0, CFG)] == ["prise"]
