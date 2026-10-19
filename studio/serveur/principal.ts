@@ -5,6 +5,7 @@ import { rendreTournage } from '../../remotion/scripts/rendu';
 import { demarrerServeur } from '../../remotion/scripts/serveur-fichiers';
 import { RACINE } from '../../remotion/scripts/tournage';
 import { creerApi } from './api';
+import { interpreterConsigne } from './interpretation';
 import { requeteAutorisee } from './origine';
 import { relancerSuggestions } from './suggestions';
 import { SuiviRendu } from './suivi-rendu';
@@ -21,7 +22,7 @@ async function main(): Promise<void> {
     suivi: new SuiviRendu(),
     rendre: (dossier, cible, onProgression) => rendreTournage(dossier, { brouillon: false, cible, onProgression }),
     relancerSuggestions,
-    interpreterConsigne: async () => { throw new Error('Interprétation des consignes pas encore branchée.'); },
+    interpreterConsigne: d => interpreterConsigne(d),
   });
 
   const serveur = http.createServer();
