@@ -5,7 +5,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import exemple from '../../fixtures/analyse-exemple.json';
+import type { FichierConsignes, ReponseConsigne } from '../../noyau/consignes';
 import { creerApi, type ConfigApi } from './api';
+import { ErreurInterpretation } from './consignes';
 import { SuiviRendu } from './suivi-rendu';
 
 const MONTAGE_PRET = {
@@ -16,6 +18,26 @@ const MONTAGE_PRET = {
   termes: [{ terme: 'SSO', definition: 'Authentification unique.', occurrences: [3.8], statut: 'valide', position: 'bas' }],
 };
 const EN_VALIDATION = { version: 1, titre: 'A', statut: 'en-validation', message: null };
+const REPONSE: ReponseConsigne = {
+  reformulation: 'Couper la salutation.',
+  operations: [
+    { type: 'couper', premierMot: 0, dernierMot: 2, explication: 'Coupe « Bonjour à tous. ».' },
+    { type: 'renommerChapitre', premierMotChapitre: 4, titre: 'X', explication: 'Renomme un chapitre.' },
+  ],
+  nonRealisable: ['Ajouter une musique : aucune opération ne le permet.'],
+};
+const EN_ATTENTE: FichierConsignes = {
+  version: 1,
+  consignes: [{
+    id: 'c1',
+    date: '2026-10-19T10:00:00.000Z',
+    texte: 'Coupe la salutation',
+    ancrage: null,
+    reformulation: 'Couper la salutation.',
+    nonRealisable: [],
+    propositions: [{ operation: { type: 'couper', premierMot: 0, dernierMot: 2 }, explication: 'Coupe.', etat: 'en-attente' }],
+  }],
+};
 
 let racine: string;
 let url: string;
@@ -37,6 +59,10 @@ const envoyerMontage = (nom: string, montage: unknown) =>
   fetch(`${url}/api/tournages/${nom}/montage`, { method: 'PUT', headers: json, body: JSON.stringify(montage) });
 const demanderRendu = (nom: string, cible: unknown) =>
   fetch(`${url}/api/tournages/${nom}/rendu`, { method: 'POST', headers: json, body: JSON.stringify({ cible }) });
+const donnerConsigne = (nom: string, corps: unknown) =>
+  fetch(`${url}/api/tournages/${nom}/consignes`, { method: 'POST', headers: json, body: JSON.stringify(corps) });
+const envoyerConsignes = (nom: string, fichier: unknown) =>
+  fetch(`${url}/api/tournages/${nom}/consignes`, { method: 'PUT', headers: json, body: JSON.stringify(fichier) });
 
 beforeEach(async () => {
   racine = await mkdtemp(path.join(os.tmpdir(), 'pmt-studio-'));
@@ -50,6 +76,7 @@ beforeEach(async () => {
       { fichier: path.join(dossier, 'rendus', 'video-complete.mp4'), ok: true, message: null },
     ]),
     relancerSuggestions: vi.fn<ConfigApi['relancerSuggestions']>(async () => undefined),
+    interpreterConsigne: vi.fn<ConfigApi['interpreterConsigne']>(async () => REPONSE),
   };
   const api = creerApi(config);
   serveur = http.createServer(async (req, res) => {
@@ -87,6 +114,21 @@ describe('détail d’un tournage', () => {
     expect(d.analyse.mots).toHaveLength(6);
     expect(d.sourceUrl).toBe('http://127.0.0.1:9999/a/source.mp4');
     expect(d.reglages.definitionMaxCaracteres).toBe(160);
+    expect(d.consignes).toEqual({ version: 1, consignes: [] });
+  });
+  it('renvoie les consignes enregistrées', async () => {
+    await tournage('a', { 'analyse.json': exemple, 'consignes.json': EN_ATTENTE });
+    expect((await (await fetch(`${url}/api/tournages/a`)).json()).consignes).toEqual(EN_ATTENTE);
+  });
+  it('signale un consignes.json illisible sans le réécrire', async () => {
+    const d = await tournage('a', { 'analyse.json': exemple });
+    await writeFile(path.join(d, 'consignes.json'), '{ pas du json', 'utf-8');
+    const r = await fetch(`${url}/api/tournages/a`);
+    expect(r.status).toBe(409);
+    expect((await r.json()).erreur).toContain('a/consignes.json illisible');
+    expect((await donnerConsigne('a', { texte: 'Coupe', ancrage: null })).status).toBe(409);
+    expect(config.interpreterConsigne).not.toHaveBeenCalled();
+    expect(await readFile(path.join(d, 'consignes.json'), 'utf-8')).toBe('{ pas du json');
   });
   it('refuse un tournage inconnu ou un nom qui sort du dossier', async () => {
     expect((await fetch(`${url}/api/tournages/inconnu`)).status).toBe(404);
@@ -117,6 +159,12 @@ describe('enregistrement du montage', () => {
 });
 
 describe('rendu', () => {
+  it('refuse le rendu tant qu’une proposition de consigne est en attente', async () => {
+    await tournage('a', { 'analyse.json': exemple, 'montage.json': MONTAGE_PRET, 'consignes.json': EN_ATTENTE });
+    const r = await demanderRendu('a', 'tout');
+    expect(r.status).toBe(422);
+    expect((await r.json()).problemes).toEqual(['Consigne : 1 proposition(s) en attente.']);
+  });
   it('exige un montage enregistré', async () => {
     await tournage('a', { 'analyse.json': exemple });
     const r = await demanderRendu('a', 'tout');
@@ -190,5 +238,90 @@ describe('relance des suggestions', () => {
     const r = await fetch(`${url}/api/tournages/a/suggestions`, { method: 'POST' });
     expect(r.status).toBe(500);
     expect((await r.json()).erreur).toContain('python introuvable');
+  });
+});
+
+describe('consignes', () => {
+  it('interprète une consigne, vérifie les propositions et l’enregistre', async () => {
+    const d = await tournage('a', { 'analyse.json': exemple });
+    const r = await donnerConsigne('a', { texte: '  Coupe la salutation ', ancrage: { premierMot: 0, dernierMot: 2 } });
+    expect(r.status).toBe(200);
+    const consigne = await r.json();
+    expect(consigne).toMatchObject({
+      texte: 'Coupe la salutation',
+      ancrage: { premierMot: 0, dernierMot: 2 },
+      reformulation: 'Couper la salutation.',
+      nonRealisable: ['Ajouter une musique : aucune opération ne le permet.'],
+      propositions: [
+        { operation: { type: 'couper', premierMot: 0, dernierMot: 2 }, explication: 'Coupe « Bonjour à tous. ».', etat: 'en-attente' },
+        {
+          operation: { type: 'renommerChapitre', premierMotChapitre: 4, titre: 'X' },
+          explication: 'Renomme un chapitre.',
+          etat: 'invalide',
+          probleme: 'Aucun chapitre ne commence au mot 4.',
+        },
+      ],
+    });
+    expect(typeof consigne.id).toBe('string');
+    expect(Number.isNaN(Date.parse(consigne.date))).toBe(false);
+    expect(await lire(path.join(d, 'consignes.json'))).toEqual({ version: 1, consignes: [consigne] });
+    expect(config.interpreterConsigne).toHaveBeenCalledWith(expect.objectContaining({
+      texte: 'Coupe la salutation',
+      ancrage: { premierMot: 0, dernierMot: 2 },
+      definitionMax: 160,
+      modele: 'claude-opus-5-5',
+    }));
+    const demande = vi.mocked(config.interpreterConsigne).mock.calls[0]![0];
+    expect(demande.analyse.mots).toHaveLength(6);
+    expect(demande.montage.chapitres[0]).toEqual({ titre: 'Introduction', debut: 0 });
+  });
+  it('ajoute la consigne à celles déjà enregistrées', async () => {
+    const d = await tournage('a', { 'analyse.json': exemple, 'consignes.json': EN_ATTENTE });
+    expect((await donnerConsigne('a', { texte: 'Coupe', ancrage: null })).status).toBe(200);
+    expect((await lire(path.join(d, 'consignes.json'))).consignes.map((c: { texte: string }) => c.texte)).toEqual([
+      'Coupe la salutation', 'Coupe',
+    ]);
+  });
+  it('refuse une consigne vide ou un ancrage hors de la transcription', async () => {
+    await tournage('a', { 'analyse.json': exemple });
+    expect((await donnerConsigne('a', { texte: '  ', ancrage: null })).status).toBe(400);
+    const r = await donnerConsigne('a', { texte: 'Coupe', ancrage: { premierMot: 0, dernierMot: 99 } });
+    expect(r.status).toBe(400);
+    expect((await r.json()).erreur).toContain('Le mot 99 n’existe pas');
+    expect((await donnerConsigne('a', { texte: 'Coupe', ancrage: { premierMot: 'a' } })).status).toBe(400);
+    expect(config.interpreterConsigne).not.toHaveBeenCalled();
+  });
+  it('signale l’échec de Claude sans rien enregistrer', async () => {
+    const d = await tournage('a', { 'analyse.json': exemple });
+    vi.mocked(config.interpreterConsigne).mockRejectedValueOnce(
+      new ErreurInterpretation(503, 'Limite de requêtes de l’API Claude atteinte, réessayez plus tard.'),
+    );
+    const r = await donnerConsigne('a', { texte: 'Coupe', ancrage: null });
+    expect(r.status).toBe(503);
+    expect((await r.json()).erreur).toBe('Limite de requêtes de l’API Claude atteinte, réessayez plus tard.');
+    vi.mocked(config.interpreterConsigne).mockRejectedValueOnce(new Error('panne'));
+    const r2 = await donnerConsigne('a', { texte: 'Coupe', ancrage: null });
+    expect(r2.status).toBe(500);
+    expect((await r2.json()).erreur).toContain('panne');
+    await expect(readFile(path.join(d, 'consignes.json'), 'utf-8')).rejects.toThrow();
+  });
+  it('enregistre les consignes après une acceptation ou un refus', async () => {
+    const d = await tournage('a', { 'analyse.json': exemple });
+    expect((await envoyerConsignes('a', EN_ATTENTE)).status).toBe(200);
+    expect(await lire(path.join(d, 'consignes.json'))).toEqual(EN_ATTENTE);
+    const r = await envoyerConsignes('a', { version: 1 });
+    expect(r.status).toBe(400);
+    expect((await r.json()).erreur).toContain('consignes doit être une liste');
+  });
+  it('refuse les consignes pendant un rendu', async () => {
+    let finir!: () => void;
+    vi.mocked(config.rendre).mockImplementationOnce(() => new Promise(r => { finir = () => r([]); }));
+    await tournage('a', { 'analyse.json': exemple, 'montage.json': MONTAGE_PRET });
+    expect((await demanderRendu('a', 'tout')).status).toBe(202);
+    expect((await donnerConsigne('a', { texte: 'Coupe', ancrage: null })).status).toBe(409);
+    expect((await envoyerConsignes('a', EN_ATTENTE)).status).toBe(409);
+    expect(config.interpreterConsigne).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(finir).toBeTypeOf('function'));
+    finir();
   });
 });

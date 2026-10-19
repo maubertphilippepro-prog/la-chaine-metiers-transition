@@ -1,3 +1,4 @@
+import type { FichierConsignes } from '../noyau/consignes';
 import type { Analyse, Montage, Reglages, StatutEpisode } from '../noyau/types';
 import type { ResultatRendu } from '../remotion/scripts/rendu';
 
@@ -16,6 +17,8 @@ export interface DetailTournage extends ResumeTournage {
   // montage.json, ou le montage par défaut tant qu'il n'a jamais été enregistré.
   montage: Montage;
   montageEnregistre: boolean;
+  // consignes.json, ou aucune consigne tant qu'il n'existe pas.
+  consignes: FichierConsignes;
   reglages: Reglages;
   sourceUrl: string;
 }

@@ -3,12 +3,14 @@ import { existsSync, statSync } from 'node:fs';
 import { readdir, readFile, rename, writeFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import path from 'node:path';
+import { passageEnTemps, proposer, raisonFichierConsignes, type Ancrage, type Consigne, type FichierConsignes, type ReponseConsigne } from '../../noyau/consignes';
 import { majGlossaire, type Glossaire } from '../../noyau/glossaire';
 import type { StatutEpisode } from '../../noyau/types';
 import { verifierAvantRendu } from '../../noyau/verifications';
 import type { Cible, ResultatRendu } from '../../remotion/scripts/rendu';
 import { chargerTournage, majStatutEpisode, raisonMontage, urlSource, type Tournage } from '../../remotion/scripts/tournage';
 import type { DetailTournage, EtatRendu, ResumeTournage } from '../commun';
+import { ErreurInterpretation, lireConsignes, type InterpreterConsigne } from './consignes';
 import type { SuiviRendu } from './suivi-rendu';
 
 export interface ConfigApi {
@@ -19,6 +21,8 @@ export interface ConfigApi {
   suivi: SuiviRendu;
   rendre: (dossier: string, cible: Cible, onProgression: (fichier: string, progression: number) => void) => Promise<ResultatRendu[]>;
   relancerSuggestions: (dossier: string) => Promise<void>;
+  // Appel à Claude, injecté pour les tests.
+  interpreterConsigne: InterpreterConsigne;
 }
 
 class ErreurHttp extends Error {
@@ -98,6 +102,18 @@ function lireCible(corps: unknown): Cible {
   throw new ErreurHttp(400, 'cible attendue : « tout », « complete » ou un numéro d’épisode.');
 }
 
+function lireDemandeConsigne(corps: unknown): { texte: string; ancrage: Ancrage | null } {
+  const c = corps && typeof corps === 'object' ? (corps as Record<string, unknown>) : {};
+  const texte = typeof c.texte === 'string' ? c.texte.trim() : '';
+  if (!texte) throw new ErreurHttp(400, 'La consigne est vide.');
+  if (c.ancrage === null || c.ancrage === undefined) return { texte, ancrage: null };
+  const a = typeof c.ancrage === 'object' ? (c.ancrage as Record<string, unknown>) : {};
+  if (!Number.isInteger(a.premierMot) || !Number.isInteger(a.dernierMot)) {
+    throw new ErreurHttp(400, 'ancrage attendu : { premierMot, dernierMot } ou null.');
+  }
+  return { texte, ancrage: { premierMot: a.premierMot as number, dernierMot: a.dernierMot as number } };
+}
+
 export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerResponse) => Promise<boolean> {
   function dossierDe(nomEncode: string): string {
     let nom: string;
@@ -121,6 +137,14 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
     }
   }
 
+  async function consignesDe(dossier: string): Promise<FichierConsignes> {
+    try {
+      return await lireConsignes(dossier);
+    } catch (e) {
+      throw new ErreurHttp(409, message(e));
+    }
+  }
+
   async function detail(dossier: string): Promise<DetailTournage> {
     const t = await charger(dossier, true);
     return {
@@ -128,6 +152,7 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
       analyse: t.analyse,
       montage: t.montage,
       montageEnregistre: existsSync(path.join(dossier, 'montage.json')),
+      consignes: await consignesDe(dossier),
       reglages: t.reglages,
       sourceUrl: urlSource(c.urlFichiers, t.nom),
     };
@@ -154,13 +179,63 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
     if ((await lireEpisode(dossier)).statut !== 'en-validation') await majStatutEpisode(dossier, 'en-validation', null);
   }
 
+  // Claude traduit la consigne ; les propositions sont vérifiées en chaîne sur le montage enregistré.
+  async function donnerConsigne(req: IncomingMessage, dossier: string): Promise<Consigne> {
+    verifierMontageModifiable(dossier);
+    const { texte, ancrage } = lireDemandeConsigne(await lireCorps(req));
+    const t = await charger(dossier, true);
+    if (ancrage) {
+      const passage = passageEnTemps(t.analyse, ancrage.premierMot, ancrage.dernierMot);
+      if (typeof passage === 'string') throw new ErreurHttp(400, `ancrage invalide : ${passage}`);
+    }
+    await consignesDe(dossier);
+    let reponse: ReponseConsigne;
+    try {
+      reponse = await c.interpreterConsigne({
+        analyse: t.analyse,
+        montage: t.montage,
+        texte,
+        ancrage,
+        definitionMax: t.reglages.definitionMaxCaracteres,
+        modele: t.reglages.modeles.claude,
+      });
+    } catch (e) {
+      if (e instanceof ErreurInterpretation) throw new ErreurHttp(e.statut, e.message);
+      throw new ErreurHttp(500, `Interprétation de la consigne impossible : ${message(e)}`);
+    }
+    verifierMontageModifiable(dossier);
+    const consigne: Consigne = {
+      id: randomUUID(),
+      date: new Date().toISOString(),
+      texte,
+      ancrage,
+      reformulation: reponse.reformulation,
+      nonRealisable: reponse.nonRealisable,
+      propositions: proposer(t.analyse, t.montage, reponse.operations, t.reglages),
+    };
+    // Relu après l'appel : une acceptation a pu être enregistrée entre-temps.
+    const fichier = await consignesDe(dossier);
+    await ecrireJson(path.join(dossier, 'consignes.json'), { ...fichier, consignes: [...fichier.consignes, consigne] });
+    return consigne;
+  }
+
+  async function enregistrerConsignes(req: IncomingMessage, dossier: string): Promise<void> {
+    verifierMontageModifiable(dossier);
+    const fichier = await lireCorps(req);
+    verifierMontageModifiable(dossier);
+    const probleme = raisonFichierConsignes(fichier);
+    if (probleme) throw new ErreurHttp(400, `consignes invalides : ${probleme}`);
+    await ecrireJson(path.join(dossier, 'consignes.json'), fichier);
+  }
+
   async function lancerRendu(req: IncomingMessage, dossier: string): Promise<EtatRendu> {
     const cible = lireCible(await lireCorps(req));
     if (c.suivi.etat().enCours || enPreparation) throw new ErreurHttp(409, 'Un rendu est déjà en cours.');
     enPreparation = path.basename(dossier);
     try {
       const t = await charger(dossier, false);
-      const problemes = verifierAvantRendu(t.montage, t.reglages.definitionMaxCaracteres);
+      const { consignes } = await consignesDe(dossier);
+      const problemes = verifierAvantRendu(t.montage, t.reglages.definitionMaxCaracteres, consignes);
       if (problemes.length > 0) throw new ErreurHttp(422, 'Le montage n’est pas prêt pour le rendu.', problemes);
       await ecrireJson(c.cheminGlossaire, majGlossaire(await lireGlossaire(c.cheminGlossaire), t.montage.termes));
       await majStatutEpisode(dossier, 'valide', null);
@@ -175,7 +250,7 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
     const chemin = new URL(req.url ?? '/', 'http://local').pathname;
     if (!chemin.startsWith('/api/')) return false;
     try {
-      const route = /^\/api\/tournages\/([^/]+)(?:\/(montage|rendu|suggestions))?$/.exec(chemin);
+      const route = /^\/api\/tournages\/([^/]+)(?:\/(montage|rendu|suggestions|consignes))?$/.exec(chemin);
       const nom = route?.[1];
       const action = route?.[2];
       if (chemin === '/api/tournages' && req.method === 'GET') {
@@ -188,6 +263,11 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
         repondre(res, 200, await detail(dossierDe(nom)));
       } else if (nom && action === 'montage' && req.method === 'PUT') {
         await enregistrerMontage(req, dossierDe(nom));
+        repondre(res, 200, { ok: true });
+      } else if (nom && action === 'consignes' && req.method === 'POST') {
+        repondre(res, 200, await donnerConsigne(req, dossierDe(nom)));
+      } else if (nom && action === 'consignes' && req.method === 'PUT') {
+        await enregistrerConsignes(req, dossierDe(nom));
         repondre(res, 200, { ok: true });
       } else if (nom && action === 'rendu' && req.method === 'POST') {
         repondre(res, 202, await lancerRendu(req, dossierDe(nom)));

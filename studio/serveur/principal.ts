@@ -21,6 +21,7 @@ async function main(): Promise<void> {
     suivi: new SuiviRendu(),
     rendre: (dossier, cible, onProgression) => rendreTournage(dossier, { brouillon: false, cible, onProgression }),
     relancerSuggestions,
+    interpreterConsigne: async () => { throw new Error('Interprétation des consignes pas encore branchée.'); },
   });
 
   const serveur = http.createServer();
