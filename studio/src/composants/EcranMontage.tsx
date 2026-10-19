@@ -6,6 +6,7 @@ import { type EtatEnregistrement, useMontage } from '../useMontage';
 import { Apercu, type DemandeLecture, type Vue } from './Apercu';
 import { BandeauSuggestions } from './BandeauSuggestions';
 import { PanneauLongueurs } from './PanneauLongueurs';
+import { PanneauRendu } from './PanneauRendu';
 import { PanneauTermes } from './PanneauTermes';
 import { Texte } from './Texte';
 
@@ -74,6 +75,12 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
           <BandeauSuggestions nom={nom} erreur={detail.analyse.erreurSuggestions} onRelance={remplacerDetail} />
         )}
         <Apercu episodes={decisions.episodes} complete={decisions.complete} vue={vue} onVue={setVue} demande={demande} />
+        <PanneauRendu
+          nom={nom}
+          montage={montage}
+          definitionMax={detail.reglages.definitionMaxCaracteres}
+          enregistrement={enregistrement}
+        />
         <PanneauLongueurs
           coupes={montage.coupes}
           suggestions={detail.analyse.suggestions?.longueurs ?? []}
