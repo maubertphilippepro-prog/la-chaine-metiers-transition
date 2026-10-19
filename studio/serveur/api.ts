@@ -215,6 +215,7 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
     };
     // Relu après l'appel : une acceptation a pu être enregistrée entre-temps.
     const fichier = await consignesDe(dossier);
+    verifierMontageModifiable(dossier);
     await ecrireJson(path.join(dossier, 'consignes.json'), { ...fichier, consignes: [...fichier.consignes, consigne] });
     return consigne;
   }

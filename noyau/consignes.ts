@@ -67,6 +67,8 @@ export interface ReglagesConsignes {
 export type Verification = { montage: Montage } | { probleme: string };
 
 const TITRE_VIDE = 'Le titre est vide.';
+const TITRE_MAX_CARACTERES = 60;
+const TITRE_TROP_LONG = `Le titre dépasse ${TITRE_MAX_CARACTERES} caractères.`;
 const SANS_EFFET = 'Cette opération ne changerait rien au montage.';
 const motInconnu = (id: number) => `Le mot ${id} n’existe pas dans la transcription.`;
 const coupeInconnue = (id: string) => `La coupe ${id} n’existe pas.`;
@@ -142,11 +144,13 @@ function appliquer(analyse: Analyse, m: Montage, op: Operation, r: ReglagesConsi
     }
     case 'renommerChapitre': {
       if (!op.titre.trim()) return TITRE_VIDE;
+      if (op.titre.length > TITRE_MAX_CARACTERES) return TITRE_TROP_LONG;
       const i = indexChapitre(analyse, m, op.premierMotChapitre);
       return i < 0 ? aucunChapitre(op.premierMotChapitre) : renommerChapitre(m, i, op.titre);
     }
     case 'ajouterChapitre': {
       if (!op.titre.trim()) return TITRE_VIDE;
+      if (op.titre.length > TITRE_MAX_CARACTERES) return TITRE_TROP_LONG;
       const mot = motDe(analyse, op.premierMot);
       if (!mot) return motInconnu(op.premierMot);
       if (indexChapitre(analyse, m, op.premierMot) >= 0) return `Un chapitre commence déjà au mot ${op.premierMot}.`;
@@ -259,19 +263,43 @@ export function propositionsEnAttente(consignes: Consigne[]): number {
   return consignes.reduce((total, c) => total + indicesEnAttente(c).length, 0);
 }
 
-const TYPES_OPERATION: Record<TypeOperation, true> = {
-  couper: true,
-  basculerCoupe: true,
-  deciderLongueur: true,
-  renommerChapitre: true,
-  ajouterChapitre: true,
-  deplacerChapitre: true,
-  fusionnerChapitre: true,
-  modifierTerme: true,
-  ajouterTerme: true,
-  titreVideo: true,
+type GenreChamp = 'entier' | 'texte' | 'booleen' | 'entiers' | readonly string[];
+interface ChampOperation { genre: GenreChamp; facultatif?: true }
+
+const STATUTS_TERME: readonly string[] = ['a-valider', 'valide', 'ecarte'];
+const POSITIONS_ENCART: readonly string[] = ['bas', 'haut'];
+
+// Champs de chaque opération ; la table reste exhaustive sur TypeOperation à la compilation.
+const CHAMPS_OPERATION: Record<TypeOperation, Record<string, ChampOperation>> = {
+  couper: { premierMot: { genre: 'entier' }, dernierMot: { genre: 'entier' } },
+  basculerCoupe: { idCoupe: { genre: 'texte' } },
+  deciderLongueur: { idCoupe: { genre: 'texte' }, accepter: { genre: 'booleen' } },
+  renommerChapitre: { premierMotChapitre: { genre: 'entier' }, titre: { genre: 'texte' } },
+  ajouterChapitre: { premierMot: { genre: 'entier' }, titre: { genre: 'texte' } },
+  deplacerChapitre: { premierMotChapitre: { genre: 'entier' }, nouveauPremierMot: { genre: 'entier' } },
+  fusionnerChapitre: { premierMotChapitre: { genre: 'entier' } },
+  modifierTerme: {
+    terme: { genre: 'texte' },
+    definition: { genre: 'texte', facultatif: true },
+    statut: { genre: STATUTS_TERME, facultatif: true },
+    position: { genre: POSITIONS_ENCART, facultatif: true },
+  },
+  ajouterTerme: { terme: { genre: 'texte' }, definition: { genre: 'texte' }, mots: { genre: 'entiers' } },
+  titreVideo: { titre: { genre: 'texte' } },
 };
 const ETATS: EtatProposition[] = ['en-attente', 'acceptee', 'refusee', 'invalide'];
+
+const estEntier = (v: unknown): boolean => typeof v === 'number' && Number.isInteger(v);
+
+function valeurConforme(v: unknown, genre: GenreChamp): boolean {
+  if (typeof genre !== 'string') return typeof v === 'string' && genre.includes(v);
+  switch (genre) {
+    case 'entier': return estEntier(v);
+    case 'texte': return typeof v === 'string';
+    case 'booleen': return typeof v === 'boolean';
+    case 'entiers': return Array.isArray(v) && v.every(estEntier);
+  }
+}
 
 function estObjet(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -286,11 +314,25 @@ export function raisonFichierConsignes(v: unknown): string | null {
     if (!estObjet(c) || typeof c.id !== 'string' || typeof c.texte !== 'string' || !Array.isArray(c.propositions)) {
       return 'chaque consigne doit avoir un id, un texte et des propositions';
     }
+    if (typeof c.date !== 'string' || typeof c.reformulation !== 'string') return `date ou reformulation invalide dans la consigne ${c.id}`;
+    if (!Array.isArray(c.nonRealisable) || !c.nonRealisable.every(n => typeof n === 'string')) {
+      return `non réalisable invalide dans la consigne ${c.id}`;
+    }
+    if (c.ancrage !== null && !(estObjet(c.ancrage) && estEntier(c.ancrage.premierMot) && estEntier(c.ancrage.dernierMot))) {
+      return `ancrage invalide dans la consigne ${c.id}`;
+    }
     for (const p of c.propositions) {
-      const type = estObjet(p) && estObjet(p.operation) ? p.operation.type : undefined;
-      if (typeof type !== 'string' || !Object.hasOwn(TYPES_OPERATION, type)) return `opération inconnue dans la consigne ${c.id}`;
-      if (!ETATS.includes((p as Record<string, unknown>).etat as EtatProposition)) {
-        return `état de proposition inconnu dans la consigne ${c.id}`;
+      const operation = estObjet(p) && estObjet(p.operation) ? p.operation : undefined;
+      const type = operation?.type;
+      if (!operation || typeof type !== 'string' || !Object.hasOwn(CHAMPS_OPERATION, type)) return `opération inconnue dans la consigne ${c.id}`;
+      const proposition = p as Record<string, unknown>;
+      if (!ETATS.includes(proposition.etat as EtatProposition)) return `état de proposition inconnu dans la consigne ${c.id}`;
+      if (typeof proposition.explication !== 'string') return `explication manquante dans la consigne ${c.id}`;
+      if (proposition.probleme !== undefined && typeof proposition.probleme !== 'string') return `problème invalide dans la consigne ${c.id}`;
+      for (const [nom, champ] of Object.entries(CHAMPS_OPERATION[type as TypeOperation])) {
+        const v = operation[nom];
+        if (v === undefined && champ.facultatif) continue;
+        if (!valeurConforme(v, champ.genre)) return `champ ${nom} invalide dans la consigne ${c.id}`;
       }
     }
   }

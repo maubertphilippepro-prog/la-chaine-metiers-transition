@@ -251,4 +251,39 @@ describe('forme de consignes.json', () => {
     const etat = { ...c, propositions: [{ ...c.propositions[0]!, etat: 'peut-etre' }] };
     expect(raisonFichierConsignes({ version: 1, consignes: [etat] })).toBe('état de proposition inconnu dans la consigne c1');
   });
+  it('contrôle la forme complète des consignes, propositions et opérations', () => {
+    const c = consigneDe(OPERATIONS);
+    const raison = (consigne: unknown) => raisonFichierConsignes({ version: 1, consignes: [consigne] });
+    const { nonRealisable: _n, ...sansNonRealisable } = c;
+    expect(raison(sansNonRealisable)).toBe('non réalisable invalide dans la consigne c1');
+    expect(raison({ ...c, date: 3 })).toBe('date ou reformulation invalide dans la consigne c1');
+    expect(raison({ ...c, ancrage: { premierMot: 1 } })).toBe('ancrage invalide dans la consigne c1');
+    expect(raison({ ...c, ancrage: { premierMot: 1, dernierMot: 2 } })).toBeNull();
+    const { explication: _e, ...sansExplication } = c.propositions[0]!;
+    expect(raison({ ...c, propositions: [sansExplication] })).toBe('explication manquante dans la consigne c1');
+    expect(raison({ ...c, propositions: [{ ...c.propositions[0]!, probleme: 4 }] })).toBe('problème invalide dans la consigne c1');
+    const avecOperation = (operation: unknown) => raison({ ...c, propositions: [{ ...c.propositions[0]!, operation }] });
+    expect(avecOperation({ type: 'couper', premierMot: 1 })).toBe('champ dernierMot invalide dans la consigne c1');
+    expect(avecOperation({ type: 'couper', premierMot: '1', dernierMot: 2 })).toBe('champ premierMot invalide dans la consigne c1');
+    expect(avecOperation({ type: 'titreVideo' })).toBe('champ titre invalide dans la consigne c1');
+    expect(avecOperation({ type: 'ajouterTerme', terme: 'a', definition: 'b', mots: [1, 'x'] })).toBe('champ mots invalide dans la consigne c1');
+    expect(avecOperation({ type: 'deciderLongueur', idCoupe: 'l0', accepter: 'oui' })).toBe('champ accepter invalide dans la consigne c1');
+    expect(avecOperation({ type: 'modifierTerme', terme: 'SSO', statut: 'peut-etre' })).toBe('champ statut invalide dans la consigne c1');
+    expect(avecOperation({ type: 'modifierTerme', terme: 'SSO', position: 'milieu' })).toBe('champ position invalide dans la consigne c1');
+    expect(avecOperation({ type: 'modifierTerme', terme: 'SSO', statut: 'valide', position: 'haut', definition: 'x' })).toBeNull();
+    expect(avecOperation({ type: 'modifierTerme', terme: 'SSO' })).toBeNull();
+  });
+});
+
+describe('longueur des titres de chapitre', () => {
+  const long = 'x'.repeat(61);
+  it('refuse un titre de plus de 60 caractères', () => {
+    const msg = 'Le titre dépasse 60 caractères.';
+    expect(probleme({ type: 'renommerChapitre', premierMotChapitre: 3, titre: long })).toBe(msg);
+    expect(probleme({ type: 'ajouterChapitre', premierMot: 5, titre: long })).toBe(msg);
+  });
+  it('accepte un titre de 60 caractères', () => {
+    expect(probleme({ type: 'renommerChapitre', premierMotChapitre: 3, titre: 'x'.repeat(60) })).toBeNull();
+    expect(probleme({ type: 'ajouterChapitre', premierMot: 5, titre: 'x'.repeat(60) })).toBeNull();
+  });
 });

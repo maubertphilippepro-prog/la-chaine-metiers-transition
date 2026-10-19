@@ -6,13 +6,22 @@ import { api } from './api';
 // chaque acceptation ou refus réenregistre consignes.json, dans l'ordre des décisions.
 export function useConsignes(nom: string, initial: FichierConsignes | null) {
   const [fichier, setFichier] = useState<FichierConsignes | null>(initial);
+  // Le premier fichier reçu pour ce tournage fait foi ; les suivants (rechargement du détail) sont ignorés.
+  const repris = useRef<string | null>(initial ? nom : null);
   const [erreur, setErreur] = useState<string | null>(null);
   const file = useRef<Promise<unknown>>(Promise.resolve());
 
   useEffect(() => {
-    setFichier(initial);
-    setErreur(null);
-  }, [initial]);
+    if (repris.current !== nom) {
+      repris.current = null;
+      setFichier(null);
+      setErreur(null);
+    }
+    if (repris.current === null && initial) {
+      repris.current = nom;
+      setFichier(initial);
+    }
+  }, [nom, initial]);
 
   const ajouter = useCallback((c: Consigne) => {
     setFichier(f => (f ? { ...f, consignes: [...f.consignes, c] } : f));
