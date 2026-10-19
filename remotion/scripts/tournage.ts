@@ -39,7 +39,7 @@ function raisonAnalyse(a: unknown): string | null {
   return null;
 }
 
-function raisonMontage(m: unknown): string | null {
+export function raisonMontage(m: unknown): string | null {
   if (!estObjet(m)) return 'objet attendu';
   if (m.version !== 1) return 'version 1 attendue';
   if (typeof m.titre !== 'string') return 'titre doit être un texte';
