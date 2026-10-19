@@ -11,7 +11,7 @@ Le studio sert à relire un tournage analysé, corriger les décisions de montag
 
 - **Texte** (à gauche) : les passages coupés sont barrés, avec une couleur par type (silence, hésitation, répétition, prise ratée, longueur, coupe manuelle). Les termes à définir sont surlignés en jaune, les longueurs proposées sur fond rose.
   - Cliquer un passage coupé : le rétablir (ou le recouper), l'écouter seul, le retrouver dans l'aperçu.
-  - Cliquer un mot ou sélectionner un passage à la souris : le couper, l'écouter, le lire dans l'aperçu, y commencer un nouveau chapitre.
+  - Cliquer un mot ou sélectionner un passage à la souris : le couper, l'écouter, le lire dans l'aperçu, y commencer un nouveau chapitre, y donner une consigne.
   - Chaque chapitre a son titre modifiable, « Commencer ici » (déplace son début sur le passage choisi) et « Fusionner avec le précédent ».
 - **Aperçu** (à droite) : la vidéo complète ou chaque épisode, avec habillage, recalculés à chaque modification.
 - **Longueurs proposées** : rien n'est coupé tant que la suggestion n'est pas acceptée (« Couper ») ou refusée (« Garder »).
@@ -19,6 +19,17 @@ Le studio sert à relire un tournage analysé, corriger les décisions de montag
 
 Chaque modification est enregistrée dans `montage.json` ; `analyse.json` n’est jamais modifié par le studio : seul « Relancer les suggestions » (dans le bandeau) fait réécrire ce fichier par le pipeline.
 
+## Consignes
+
+Le panneau **Consignes** (sous l’aperçu) accepte une consigne écrite librement : « coupe tout le passage sur Excel », « renomme le chapitre 2 en … », « ajoute une définition pour prompt ». Pour viser un passage, le sélectionner dans le texte puis choisir « Donner une consigne sur ce passage ».
+
+- « Envoyer » (ou Ctrl+Entrée) : Claude reformule la consigne (« J’ai compris : … ») et la traduit en opérations du studio (couper, rétablir une coupe, décider d’une longueur, renommer, ajouter, déplacer ou fusionner un chapitre, modifier ou ajouter un terme, changer le titre). Ce qu’aucune opération ne permet est listé dans « Pas réalisable ».
+- Rien ne change tant qu’une proposition n’est pas acceptée. Chacune peut être acceptée ou refusée, écoutée et vue dans l’aperçu quand elle porte sur un passage ; « Tout accepter » et « Tout refuser » traitent toutes celles en attente.
+- Une proposition qui ne s’applique plus au montage (par exemple parce qu’une autre a été refusée) passe « invalide » avec la raison ; elle ne bloque pas le rendu. Une proposition en attente bloque « Valider et lancer le rendu ».
+- Les consignes précédentes restent consultables (pastille rouge : propositions encore en attente).
+
+Les consignes sont enregistrées dans `consignes.json`, à côté de `montage.json`. L’appel à Claude demande la variable d’environnement `ANTHROPIC_API_KEY`, comme l’analyse ; le modèle est celui de `reglages.json` (`modeles.claude`).
+
 ## Rendu
 
-« Valider et lancer le rendu » est disponible quand la vidéo et chaque chapitre ont un titre, chaque terme est validé ou écarté et aucune longueur n'est en attente. Le studio ajoute alors les définitions validées à `donnees/glossaire.json`, passe le tournage au statut « Validé » et rend la vidéo complète et chaque épisode dans `rendus/`. Un rendu en échec peut être relancé seul ; le détail est dans `rendus/journal.txt`.
+« Valider et lancer le rendu » est disponible quand la vidéo et chaque chapitre ont un titre, chaque terme est validé ou écarté et aucune longueur n'est en attente et aucune proposition de consigne n'attend de décision. Le studio ajoute alors les définitions validées à `donnees/glossaire.json`, passe le tournage au statut « Validé » et rend la vidéo complète et chaque épisode dans `rendus/`. Un rendu en échec peut être relancé seul ; le détail est dans `rendus/journal.txt`.

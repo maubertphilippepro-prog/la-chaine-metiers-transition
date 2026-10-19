@@ -2,6 +2,7 @@ import { type FC, type MouseEvent, useMemo, useState } from 'react';
 import {
   ajouterChapitre, basculerCoupe, couperPassage, deplacerLimite, fusionnerChapitre, renommerChapitre,
 } from '../../../noyau/edition';
+import type { Ancrage } from '../../../noyau/consignes';
 import type { Analyse, Coupe, Montage, TypeCoupe } from '../../../noyau/types';
 import { duree, horodatage } from '../logique/format';
 import { construireTexte, type ElementTexte } from '../logique/texte';
@@ -14,6 +15,7 @@ interface Props {
   modifier: (f: (m: Montage) => Montage) => void;
   ecouter: (debut: number, fin: number) => void;
   lireDansApercu: (t: number) => void;
+  consignerPassage: (a: Ancrage) => void;
 }
 
 export const LIBELLES_COUPE: Record<TypeCoupe, string> = {
@@ -31,7 +33,7 @@ function classeCoupe(c: Coupe | null): string {
 }
 
 // Texte horodaté : clic sur un mot ou un trou pour le choisir, glisser pour choisir un passage.
-export const Texte: FC<Props> = ({ analyse, montage, modifier, ecouter, lireDansApercu }) => {
+export const Texte: FC<Props> = ({ analyse, montage, modifier, ecouter, lireDansApercu, consignerPassage }) => {
   const blocs = useMemo(() => construireTexte(analyse, montage), [analyse, montage]);
   const rangs = useMemo(() => new Map(analyse.mots.map((m, i) => [m.id, i])), [analyse]);
   const coupesDesMots = useMemo(() => {
@@ -116,6 +118,15 @@ export const Texte: FC<Props> = ({ analyse, montage, modifier, ecouter, lireDans
             <button onClick={() => ecouter(choix.debut, choix.fin)}>Écouter</button>
             <button onClick={() => lireDansApercu(choix.debut)}>Lire dans l’aperçu</button>
             <button onClick={() => modifier(m => ajouterChapitre(m, choix.debut, 'Nouveau chapitre'))}>Nouveau chapitre ici</button>
+            <button
+              onClick={() => {
+                const premier = analyse.mots[choix.rangs[0]];
+                const dernier = analyse.mots[choix.rangs[1]];
+                if (premier && dernier) consignerPassage({ premierMot: premier.id, dernierMot: dernier.id });
+              }}
+            >
+              Donner une consigne sur ce passage
+            </button>
           </>
         )}
         {coupe && (

@@ -1,10 +1,13 @@
 import { type FC, useMemo, useState } from 'react';
 import { decisionsEpisodes, decisionsVideoComplete } from '../../../noyau/decisions';
+import type { Ancrage } from '../../../noyau/consignes';
 import { useEcoute } from '../ecoute';
 import { imageEpisode, imageVideoComplete, positionDansParties } from '../logique/apercu';
+import { useConsignes } from '../useConsignes';
 import { type EtatEnregistrement, useMontage } from '../useMontage';
 import { Apercu, type DemandeLecture, type Vue } from './Apercu';
 import { BandeauSuggestions } from './BandeauSuggestions';
+import { PanneauConsignes } from './PanneauConsignes';
 import { PanneauLongueurs } from './PanneauLongueurs';
 import { PanneauRendu } from './PanneauRendu';
 import { PanneauTermes } from './PanneauTermes';
@@ -21,6 +24,8 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
   const { ecouter, audio } = useEcoute(detail?.sourceUrl ?? null);
   const [vue, setVue] = useState<Vue>('complete');
   const [demande, setDemande] = useState<DemandeLecture | null>(null);
+  const consignes = useConsignes(nom, detail?.consignes ?? null);
+  const [ancrage, setAncrage] = useState<Ancrage | null>(null);
   const decisions = useMemo(
     () => (detail && montage
       ? {
@@ -39,7 +44,7 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
       </div>
     );
   }
-  if (!detail || !montage || !decisions) return <div className="page">Chargement…</div>;
+  if (!detail || !montage || !decisions || !consignes.fichier) return <div className="page">Chargement…</div>;
 
   const lireDansApercu = (t: number) => {
     const fps = detail.analyse.fps;
@@ -68,17 +73,34 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
         <span className="discret">{LIBELLES_ENREGISTREMENT[enregistrement]}</span>
       </header>
       <main className="texte">
-        <Texte analyse={detail.analyse} montage={montage} modifier={modifier} ecouter={ecouter} lireDansApercu={lireDansApercu} />
+        <Texte analyse={detail.analyse} montage={montage} modifier={modifier} ecouter={ecouter} lireDansApercu={lireDansApercu} consignerPassage={setAncrage} />
       </main>
       <aside className="cote">
         {detail.analyse.erreurSuggestions && (
           <BandeauSuggestions nom={nom} erreur={detail.analyse.erreurSuggestions} onRelance={remplacerDetail} />
         )}
         <Apercu episodes={decisions.episodes} complete={decisions.complete} vue={vue} onVue={setVue} demande={demande} />
+        <PanneauConsignes
+          nom={nom}
+          analyse={detail.analyse}
+          montage={montage}
+          reglages={detail.reglages}
+          enregistrement={enregistrement}
+          fichier={consignes.fichier}
+          erreurEnregistrement={consignes.erreur}
+          ajouter={consignes.ajouter}
+          enregistrer={consignes.enregistrer}
+          ancrage={ancrage}
+          onAncrage={setAncrage}
+          modifier={modifier}
+          ecouter={ecouter}
+          lireDansApercu={lireDansApercu}
+        />
         <PanneauRendu
           nom={nom}
           montage={montage}
           definitionMax={detail.reglages.definitionMaxCaracteres}
+          consignes={consignes.fichier.consignes}
           enregistrement={enregistrement}
         />
         <PanneauLongueurs

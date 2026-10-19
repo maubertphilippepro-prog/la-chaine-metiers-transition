@@ -1,4 +1,5 @@
 import { type FC, useEffect, useMemo, useState } from 'react';
+import type { Consigne } from '../../../noyau/consignes';
 import type { Montage } from '../../../noyau/types';
 import { verifierAvantRendu } from '../../../noyau/verifications';
 import type { Cible } from '../../../remotion/scripts/rendu';
@@ -11,17 +12,21 @@ interface Props {
   nom: string;
   montage: Montage;
   definitionMax: number;
+  consignes: Consigne[];
   enregistrement: EtatEnregistrement;
 }
 
 const INTERVALLE_SUIVI = 1000;
 
 // Vérifications, puis rendu de la vidéo complète et de chaque épisode avec suivi ; relance d'un rendu en échec.
-export const PanneauRendu: FC<Props> = ({ nom, montage, definitionMax, enregistrement }) => {
+export const PanneauRendu: FC<Props> = ({ nom, montage, definitionMax, consignes, enregistrement }) => {
   const [etat, setEtat] = useState<EtatRendu | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [problemesServeur, setProblemesServeur] = useState<string[]>([]);
-  const problemes = useMemo(() => verifierAvantRendu(montage, definitionMax), [montage, definitionMax]);
+  const problemes = useMemo(
+    () => verifierAvantRendu(montage, definitionMax, consignes),
+    [montage, definitionMax, consignes],
+  );
   const enCours = etat?.enCours ?? false;
 
   useEffect(() => {
