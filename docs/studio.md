@@ -28,7 +28,7 @@ Le panneau **Consignes** (sous l’aperçu) accepte une consigne écrite libreme
 - Une proposition qui ne s’applique plus au montage (par exemple parce qu’une autre a été refusée) passe « invalide » avec la raison ; elle ne bloque pas le rendu. Une proposition en attente bloque « Valider et lancer le rendu ».
 - Les consignes précédentes restent consultables (pastille rouge : propositions encore en attente).
 
-Les consignes sont enregistrées dans `consignes.json`, à côté de `montage.json`. L’appel à Claude demande la variable d’environnement `ANTHROPIC_API_KEY`, comme l’analyse ; le modèle est celui de `reglages.json` (`modeles.claude`).
+Les consignes sont enregistrées dans `consignes.json`, à côté de `montage.json`. L’appel à Claude demande la clé `ANTHROPIC_API_KEY`, lue comme pour l’analyse dans la variable d’environnement ou dans le fichier `.env` à la racine du projet ; le modèle est celui de `reglages.json` (`modeles.claude`).
 
 ## Rendu
 

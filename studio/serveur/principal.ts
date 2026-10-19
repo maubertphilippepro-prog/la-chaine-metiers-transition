@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { createServer as creerVite } from 'vite';
@@ -13,6 +14,9 @@ import { SuiviRendu } from './suivi-rendu';
 const PORT = 5180;
 
 async function main(): Promise<void> {
+  // Clé de l'API Claude dans .env, comme pour le pipeline ; une variable déjà définie garde sa valeur.
+  const cheminEnv = path.join(RACINE, '.env');
+  if (existsSync(cheminEnv)) process.loadEnvFile(cheminEnv);
   const racineTournages = path.join(RACINE, 'donnees', 'tournages');
   const fichiers = await demarrerServeur(racineTournages);
   const api = creerApi({
