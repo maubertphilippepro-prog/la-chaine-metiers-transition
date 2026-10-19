@@ -1,3 +1,4 @@
+import type { Ancrage, Consigne, FichierConsignes } from '../../noyau/consignes';
 import type { Montage } from '../../noyau/types';
 import type { Cible } from '../../remotion/scripts/rendu';
 import type { DetailTournage, EtatRendu, ResumeTournage } from '../commun';
@@ -33,6 +34,11 @@ export const api = {
     await appeler<{ ok: true }>(`${chemin(nom)}/montage`, enJson('PUT', montage));
   },
   relancerSuggestions: (nom: string) => appeler<DetailTournage>(`${chemin(nom)}/suggestions`, { method: 'POST' }),
+  donnerConsigne: (nom: string, texte: string, ancrage: Ancrage | null) =>
+    appeler<Consigne>(`${chemin(nom)}/consignes`, enJson('POST', { texte, ancrage })),
+  enregistrerConsignes: async (nom: string, fichier: FichierConsignes) => {
+    await appeler<{ ok: true }>(`${chemin(nom)}/consignes`, enJson('PUT', fichier));
+  },
   rendre: (nom: string, cible: Cible) => appeler<EtatRendu>(`${chemin(nom)}/rendu`, enJson('POST', { cible })),
   etatRendu: () => appeler<EtatRendu>('/api/rendu'),
 };
