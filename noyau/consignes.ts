@@ -209,3 +209,90 @@ export function verifierOperation(analyse: Analyse, montage: Montage, operation:
   if (JSON.stringify(resultat) === JSON.stringify(montage)) return { probleme: SANS_EFFET };
   return { montage: resultat };
 }
+
+// À la réception : chaque opération est vérifiée sur le montage laissé par les précédentes valides.
+export function proposer(
+  analyse: Analyse, montage: Montage, operations: OperationExpliquee[], reglages: ReglagesConsignes,
+): Proposition[] {
+  let courant = montage;
+  return operations.map(({ explication, ...reste }): Proposition => {
+    const operation = reste as Operation;
+    const v = verifierOperation(analyse, courant, operation, reglages);
+    if ('probleme' in v) return { operation, explication, etat: 'invalide', probleme: v.probleme };
+    courant = v.montage;
+    return { operation, explication, etat: 'en-attente' };
+  });
+}
+
+// Applique les propositions désignées, dans l'ordre, en revérifiant chacune sur le montage du moment.
+export function accepterPropositions(
+  analyse: Analyse, montage: Montage, consigne: Consigne, indices: number[], reglages: ReglagesConsignes,
+): { montage: Montage; consigne: Consigne } {
+  let courant = montage;
+  const propositions = [...consigne.propositions];
+  for (const i of indices) {
+    const p = propositions[i];
+    if (!p || p.etat !== 'en-attente') continue;
+    const v = verifierOperation(analyse, courant, p.operation, reglages);
+    if ('probleme' in v) {
+      propositions[i] = { ...p, etat: 'invalide', probleme: v.probleme };
+    } else {
+      courant = v.montage;
+      propositions[i] = { ...p, etat: 'acceptee' };
+    }
+  }
+  return { montage: courant, consigne: { ...consigne, propositions } };
+}
+
+export function refuserPropositions(consigne: Consigne, indices: number[]): Consigne {
+  return {
+    ...consigne,
+    propositions: consigne.propositions.map((p, i): Proposition => (indices.includes(i) && p.etat === 'en-attente' ? { ...p, etat: 'refusee' } : p)),
+  };
+}
+
+export function indicesEnAttente(consigne: Consigne): number[] {
+  return consigne.propositions.flatMap((p, i) => (p.etat === 'en-attente' ? [i] : []));
+}
+
+export function propositionsEnAttente(consignes: Consigne[]): number {
+  return consignes.reduce((total, c) => total + indicesEnAttente(c).length, 0);
+}
+
+const TYPES_OPERATION: Record<TypeOperation, true> = {
+  couper: true,
+  basculerCoupe: true,
+  deciderLongueur: true,
+  renommerChapitre: true,
+  ajouterChapitre: true,
+  deplacerChapitre: true,
+  fusionnerChapitre: true,
+  modifierTerme: true,
+  ajouterTerme: true,
+  titreVideo: true,
+};
+const ETATS: EtatProposition[] = ['en-attente', 'acceptee', 'refusee', 'invalide'];
+
+function estObjet(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+// Contrôle de forme de consignes.json (lecture et enregistrement depuis le studio).
+export function raisonFichierConsignes(v: unknown): string | null {
+  if (!estObjet(v)) return 'objet attendu';
+  if (v.version !== 1) return 'version 1 attendue';
+  if (!Array.isArray(v.consignes)) return 'consignes doit être une liste';
+  for (const c of v.consignes) {
+    if (!estObjet(c) || typeof c.id !== 'string' || typeof c.texte !== 'string' || !Array.isArray(c.propositions)) {
+      return 'chaque consigne doit avoir un id, un texte et des propositions';
+    }
+    for (const p of c.propositions) {
+      const type = estObjet(p) && estObjet(p.operation) ? p.operation.type : undefined;
+      if (typeof type !== 'string' || !Object.hasOwn(TYPES_OPERATION, type)) return `opération inconnue dans la consigne ${c.id}`;
+      if (!ETATS.includes((p as Record<string, unknown>).etat as EtatProposition)) {
+        return `état de proposition inconnu dans la consigne ${c.id}`;
+      }
+    }
+  }
+  return null;
+}

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import exemple from '../fixtures/analyse-exemple.json';
 import {
-  extraitPassage, motsRecouverts, passageEnTemps, premierMotDuChapitre, verifierOperation, type Operation,
+  accepterPropositions, extraitPassage, indicesEnAttente, motsRecouverts, passageEnTemps, premierMotDuChapitre,
+  propositionsEnAttente, proposer, raisonFichierConsignes, refuserPropositions, verifierOperation,
+  type Consigne, type Operation, type OperationExpliquee,
 } from './consignes';
 import type { Analyse, Montage } from './types';
 
@@ -163,5 +165,90 @@ describe('termes et titre', () => {
   it('ne modifie pas le montage d’origine', () => {
     montageDe({ type: 'couper', premierMot: 1, dernierMot: 2 });
     expect(base.coupes).toHaveLength(2);
+  });
+});
+
+const OPERATIONS: OperationExpliquee[] = [
+  { type: 'couper', premierMot: 1, dernierMot: 2, explication: 'Coupe « à tous ».' },
+  { type: 'basculerCoupe', idCoupe: 'm0', explication: 'Rétablit la coupe qui vient d’être faite.' },
+  { type: 'renommerChapitre', premierMotChapitre: 4, titre: 'X', explication: 'Renomme un chapitre.' },
+];
+
+const consigneDe = (operations: OperationExpliquee[]): Consigne => ({
+  id: 'c1',
+  date: '2026-10-19T10:00:00.000Z',
+  texte: 'Coupe « à tous »',
+  ancrage: null,
+  reformulation: 'Couper « à tous ».',
+  nonRealisable: [],
+  propositions: proposer(analyse, base, operations, reglages),
+});
+
+describe('propositions', () => {
+  it('vérifie les opérations en chaîne, chacune après les précédentes', () => {
+    expect(proposer(analyse, base, OPERATIONS, reglages)).toEqual([
+      { operation: { type: 'couper', premierMot: 1, dernierMot: 2 }, explication: 'Coupe « à tous ».', etat: 'en-attente' },
+      { operation: { type: 'basculerCoupe', idCoupe: 'm0' }, explication: 'Rétablit la coupe qui vient d’être faite.', etat: 'en-attente' },
+      {
+        operation: { type: 'renommerChapitre', premierMotChapitre: 4, titre: 'X' },
+        explication: 'Renomme un chapitre.',
+        etat: 'invalide',
+        probleme: 'Aucun chapitre ne commence au mot 4.',
+      },
+    ]);
+  });
+  it('n’enchaîne pas sur une opération invalide', () => {
+    const p = proposer(analyse, base, [
+      { type: 'ajouterChapitre', premierMot: 9, titre: 'X', explication: 'a' },
+      { type: 'ajouterChapitre', premierMot: 5, titre: 'Fin', explication: 'b' },
+    ], reglages);
+    expect(p.map(x => x.etat)).toEqual(['invalide', 'en-attente']);
+  });
+  it('liste les propositions en attente', () => {
+    const c = consigneDe(OPERATIONS);
+    expect(indicesEnAttente(c)).toEqual([0, 1]);
+    expect(propositionsEnAttente([c, c])).toBe(4);
+  });
+});
+
+describe('acceptation et refus', () => {
+  it('accepte en revérifiant sur le montage du moment', () => {
+    const c = consigneDe(OPERATIONS);
+    const seule = accepterPropositions(analyse, base, c, [1], reglages);
+    expect(seule.montage).toBe(base);
+    expect(seule.consigne.propositions[1]).toMatchObject({ etat: 'invalide', probleme: 'La coupe m0 n’existe pas.' });
+
+    const r = accepterPropositions(analyse, base, c, [0], reglages);
+    expect(r.montage.coupes.map(x => x.id)).toEqual(['d1', 'l0', 'm0']);
+    expect(r.consigne.propositions.map(p => p.etat)).toEqual(['acceptee', 'en-attente', 'invalide']);
+    expect(c.propositions[0]!.etat).toBe('en-attente');
+  });
+  it('accepte tout dans l’ordre', () => {
+    const c = consigneDe(OPERATIONS);
+    const r = accepterPropositions(analyse, base, c, indicesEnAttente(c), reglages);
+    expect(r.montage.coupes.map(x => x.id)).toEqual(['d1', 'l0']);
+    expect(r.consigne.propositions.map(p => p.etat)).toEqual(['acceptee', 'acceptee', 'invalide']);
+  });
+  it('refuse seulement les propositions en attente', () => {
+    const c = consigneDe(OPERATIONS);
+    expect(refuserPropositions(c, [0, 2]).propositions.map(p => p.etat)).toEqual(['refusee', 'en-attente', 'invalide']);
+  });
+});
+
+describe('forme de consignes.json', () => {
+  it('accepte un fichier valide', () => {
+    expect(raisonFichierConsignes({ version: 1, consignes: [consigneDe(OPERATIONS)] })).toBeNull();
+    expect(raisonFichierConsignes({ version: 1, consignes: [] })).toBeNull();
+  });
+  it('explique ce qui ne va pas', () => {
+    expect(raisonFichierConsignes([])).toBe('objet attendu');
+    expect(raisonFichierConsignes({ version: 2, consignes: [] })).toBe('version 1 attendue');
+    expect(raisonFichierConsignes({ version: 1 })).toBe('consignes doit être une liste');
+    expect(raisonFichierConsignes({ version: 1, consignes: [{ id: 'c1' }] })).toBe('chaque consigne doit avoir un id, un texte et des propositions');
+    const c = consigneDe(OPERATIONS);
+    const autre = { ...c, propositions: [{ ...c.propositions[0]!, operation: { type: 'supprimer' } }] };
+    expect(raisonFichierConsignes({ version: 1, consignes: [autre] })).toBe('opération inconnue dans la consigne c1');
+    const etat = { ...c, propositions: [{ ...c.propositions[0]!, etat: 'peut-etre' }] };
+    expect(raisonFichierConsignes({ version: 1, consignes: [etat] })).toBe('état de proposition inconnu dans la consigne c1');
   });
 });

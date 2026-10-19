@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { Consigne } from './consignes';
 import type { Montage } from './types';
 import { verifierAvantRendu } from './verifications';
 
@@ -38,5 +39,22 @@ describe('verifierAvantRendu', () => {
       'Le terme « Web » n’est ni validé ni écarté.',
       '1 suggestion(s) de longueur en attente.',
     ]);
+  });
+  it('bloque sur une proposition de consigne en attente, pas sur une invalide', () => {
+    const consigne: Consigne = {
+      id: 'c1',
+      date: '2026-10-19T10:00:00.000Z',
+      texte: 'Renomme',
+      ancrage: null,
+      reformulation: 'Renommer.',
+      nonRealisable: [],
+      propositions: [
+        { operation: { type: 'titreVideo', titre: 'A' }, explication: 'a', etat: 'en-attente' },
+        { operation: { type: 'titreVideo', titre: 'B' }, explication: 'b', etat: 'invalide', probleme: 'p' },
+        { operation: { type: 'titreVideo', titre: 'C' }, explication: 'c', etat: 'acceptee' },
+      ],
+    };
+    expect(verifierAvantRendu(pret, 160, [consigne])).toEqual(['Consigne : 1 proposition(s) en attente.']);
+    expect(verifierAvantRendu(pret, 160, [{ ...consigne, propositions: consigne.propositions.slice(1) }])).toEqual([]);
   });
 });

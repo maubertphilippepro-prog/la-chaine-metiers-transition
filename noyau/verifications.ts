@@ -1,7 +1,8 @@
+import { propositionsEnAttente, type Consigne } from './consignes';
 import type { Montage } from './types';
 
 // Conditions du rendu final (spec §7) : chaque problème est une phrase affichée telle quelle.
-export function verifierAvantRendu(m: Montage, definitionMax: number): string[] {
+export function verifierAvantRendu(m: Montage, definitionMax: number, consignes: Consigne[] = []): string[] {
   const problemes: string[] = [];
   if (!m.titre.trim()) problemes.push('La vidéo complète n’a pas de titre.');
   m.chapitres.forEach((c, i) => {
@@ -16,5 +17,7 @@ export function verifierAvantRendu(m: Montage, definitionMax: number): string[] 
   }
   const enAttente = m.coupes.filter(c => c.enAttente).length;
   if (enAttente > 0) problemes.push(`${enAttente} suggestion(s) de longueur en attente.`);
+  const propositions = propositionsEnAttente(consignes);
+  if (propositions > 0) problemes.push(`Consigne : ${propositions} proposition(s) en attente.`);
   return problemes;
 }
