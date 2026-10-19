@@ -33,7 +33,7 @@ export const Generique: FC<{ titre: string; duree: number }> = ({ titre, duree }
           opacity: texte, transform: `translateY(${(1 - texte) * 40}px)`,
         }}
       >
-        <LogoPMT taille={140} />
+        <LogoPMT hauteur={120} />
         <div style={{ fontSize: 76, fontWeight: 700, color: charte.bleu, lineHeight: 1.15 }}>{titre}</div>
       </div>
     </AbsoluteFill>

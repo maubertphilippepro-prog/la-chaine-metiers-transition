@@ -32,5 +32,11 @@
     "whisper": "large-v3",
     "claude": "claude-opus-5-5"
   },
-  "definitionMaxCaracteres": 160
+  "definitionMaxCaracteres": 160,
+  "audio": {
+    "jingle": "audio/jingle.mp3",
+    "tapis": "audio/tapis.mp3",
+    "volumeJingle": 1,
+    "volumeTapis": 0.01
+  }
 }

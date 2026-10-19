@@ -18,7 +18,7 @@ export const CartonFin: FC<{ duree: number }> = ({ duree }) => {
       <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 24, backgroundColor: charte.rouge }} />
       <div style={{ position: 'absolute', left: 0, right: 0, bottom: 24, height: 12, backgroundColor: charte.bleu }} />
       <div style={{ transform: `scale(${logo})` }}>
-        <LogoPMT taille={260} />
+        <LogoPMT hauteur={200} />
       </div>
       <div style={{ opacity: texte, textAlign: 'center' }}>
         <div style={{ fontSize: 64, fontWeight: 700, color: charte.bleu }}>Merci d’avoir regardé !</div>

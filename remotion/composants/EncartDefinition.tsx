@@ -1,7 +1,7 @@
 import type { FC } from 'react';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { PositionEncart } from '../../noyau/types';
-import { charte, NOIR_TEXTE } from '../charte';
+import { charte, HAUTEUR_LOGO_VIDEO, NOIR_TEXTE } from '../charte';
 import { police } from '../police';
 
 type Proprietes = { terme: string; definition: string; position: PositionEncart; duree: number };
@@ -12,7 +12,8 @@ export const EncartDefinition: FC<Proprietes> = ({ terme, definition, position, 
   const entree = spring({ frame, fps, config: { damping: 200 }, durationInFrames: 15 });
   const sortie = interpolate(frame, [duree - 12, duree], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   const visible = Math.min(entree, sortie);
-  const ancrage = position === 'haut' ? { top: 48 } : { bottom: 48 };
+  // En bas, l'encart se pose au-dessus du logo.
+  const ancrage = position === 'haut' ? { top: 48 } : { bottom: HAUTEUR_LOGO_VIDEO + 24 };
 
   return (
     <AbsoluteFill style={{ pointerEvents: 'none' }}>

@@ -1,6 +1,7 @@
 import { bundle } from '@remotion/bundler';
 import { ensureBrowser, renderMedia, selectComposition } from '@remotion/renderer';
 import { appendFile, mkdir, rename, rm } from 'node:fs/promises';
+import { createServer } from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { decisionsEpisodes, decisionsVideoComplete } from '../../noyau/decisions';
@@ -59,6 +60,19 @@ export interface OptionsRendu {
   onProgression?: (fichier: string, progression: number) => void;
 }
 
+// Port libre en IPv4 comme en IPv6 : Remotion ne vérifie que l'IPv4 et, si un Studio écoute déjà
+// en IPv6 sur le même port, le navigateur de rendu tombe sur le Studio au lieu du projet.
+export function portLibre(): Promise<number> {
+  return new Promise((resoudre, rejeter) => {
+    const serveur = createServer();
+    serveur.once('error', rejeter);
+    serveur.listen({ port: 0, host: '::' }, () => {
+      const adresse = serveur.address();
+      serveur.close(() => (typeof adresse === 'object' && adresse ? resoudre(adresse.port) : rejeter(new Error('Aucun port libre.'))));
+    });
+  });
+}
+
 // Chaque rendu passe par un fichier temporaire : un échec laisse intact le rendu précédent.
 export async function rendreTournage(
   dossier: string, options: OptionsRendu, dependances: Dependances = DEPENDANCES,
@@ -90,16 +104,18 @@ export async function rendreTournage(
     if (travaux.length === 0) throw new Error(`Rien à rendre pour « ${options.cible} » : ${episodes.length} épisode(s).`);
 
     await ensureBrowser();
-    const serveUrl = await bundle({ entryPoint: path.join(RACINE, 'remotion', 'index.ts') });
+    const port = await portLibre();
+    const serveUrl = await bundle({ entryPoint: path.join(RACINE, 'remotion', 'index.ts'), publicDir: path.join(RACINE, 'public') });
     for (const travail of travaux) {
       const fichier = path.join(sortie, travail.fichier);
       const temporaire = fichier.replace(/\.mp4$/, '.tmp.mp4');
       try {
         await noter(`début ${travail.fichier}${options.brouillon ? ' (brouillon)' : ''}`);
-        const composition = await selectComposition({ serveUrl, id: travail.composition, inputProps: travail.props });
+        const composition = await selectComposition({ serveUrl, port, id: travail.composition, inputProps: travail.props });
         await renderMedia({
           composition,
           serveUrl,
+          port,
           codec: 'h264',
           outputLocation: temporaire,
           inputProps: travail.props,

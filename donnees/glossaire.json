@@ -1,0 +1,12 @@
+{
+  "termes": [
+    {
+      "terme": "There",
+      "definition": "Logiciel de documents accessible depuis le navigateur ; chaque document peut aussi s'afficher en texte brut au format Markdown."
+    },
+    {
+      "terme": "Windows + V",
+      "definition": "Raccourci clavier qui ouvre l'historique du presse-papier : on y retrouve les derniers éléments copiés pour les coller à nouveau."
+    }
+  ]
+}

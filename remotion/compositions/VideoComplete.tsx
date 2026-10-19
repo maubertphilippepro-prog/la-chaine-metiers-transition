@@ -1,5 +1,7 @@
 import type { FC } from 'react';
-import type { DecisionsVideoComplete } from '../../noyau/decisions';
+import { AbsoluteFill } from 'remotion';
+import { dureeVideoComplete, type DecisionsVideoComplete } from '../../noyau/decisions';
+import { BandeSon } from '../composants/BandeSon';
 import { CartonFin } from '../composants/CartonFin';
 import { Generique } from '../composants/Generique';
 import { Intertitre } from '../composants/Intertitre';
@@ -26,5 +28,10 @@ export const VideoComplete: FC<ProprietesVideoComplete> = ({ decisions: d }) => 
     });
   });
   morceaux.push({ cle: 'carton', duree: d.durees.cartonFin, contenu: <CartonFin duree={d.durees.cartonFin} /> });
-  return <Enchainement morceaux={morceaux} premount={d.fps} />;
+  return (
+    <AbsoluteFill>
+      <Enchainement morceaux={morceaux} premount={d.fps} />
+      <BandeSon duree={dureeVideoComplete(d)} generique={d.durees.generique} />
+    </AbsoluteFill>
+  );
 };

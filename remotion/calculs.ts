@@ -1,8 +1,3 @@
-import type { EncartImages } from '../noyau/decisions';
-
-export const TRANSITION_LOGO = 10;
-export const DECALAGE_LOGO = 300;
-
 // Micro-fondu aux raccords pour éviter les clics : rampe sur `fondu` images à chaque extrémité.
 export function volumeRaccord(image: number, duree: number, fondu: number): number {
   const rampe = Math.max(1, fondu);
@@ -11,14 +6,9 @@ export function volumeRaccord(image: number, duree: number, fondu: number): numb
   return Math.max(0, Math.min(1, entree, sortie));
 }
 
-// Le logo (en haut à droite) descend sous un encart affiché en haut.
-export function decalageLogo(image: number, encarts: EncartImages[]): number {
-  let facteur = 0;
-  for (const e of encarts) {
-    if (e.position !== 'haut') continue;
-    const montee = (image - (e.debut - TRANSITION_LOGO)) / TRANSITION_LOGO;
-    const descente = (e.debut + e.duree + TRANSITION_LOGO - image) / TRANSITION_LOGO;
-    facteur = Math.max(facteur, Math.max(0, Math.min(1, montee, descente)));
-  }
-  return facteur * DECALAGE_LOGO;
+// Volume du tapis : montée sur 1,5 s, descente sur les 2 dernières secondes.
+export function volumeTapis(image: number, duree: number, fps: number, volume: number): number {
+  const entree = image / (1.5 * fps);
+  const sortie = (duree - image) / (2 * fps);
+  return volume * Math.max(0, Math.min(1, entree, sortie));
 }

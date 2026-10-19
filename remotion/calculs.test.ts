@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { EncartImages } from '../noyau/decisions';
-import { DECALAGE_LOGO, decalageLogo, volumeRaccord } from './calculs';
+import { volumeRaccord, volumeTapis } from './calculs';
 
 describe('volumeRaccord', () => {
   it('atténue la première et la dernière image avec un fondu d\'une image', () => {
@@ -18,19 +17,12 @@ describe('volumeRaccord', () => {
   });
 });
 
-describe('decalageLogo', () => {
-  const encart = (p: Partial<EncartImages>): EncartImages => ({
-    terme: 'API', definition: 'x', position: 'haut', debut: 100, duree: 60, ...p,
-  });
-  it('descend le logo pendant un encart en haut, avec transitions', () => {
-    const e = [encart({})];
-    expect(decalageLogo(85, e)).toBe(0);
-    expect(decalageLogo(95, e)).toBe(DECALAGE_LOGO / 2);
-    expect(decalageLogo(120, e)).toBe(DECALAGE_LOGO);
-    expect(decalageLogo(165, e)).toBe(DECALAGE_LOGO / 2);
-    expect(decalageLogo(175, e)).toBe(0);
-  });
-  it('ne bouge pas pour un encart en bas', () => {
-    expect(decalageLogo(120, [encart({ position: 'bas' })])).toBe(0);
+describe('volumeTapis', () => {
+  it('monte en 1,5 s, tient le volume réglé, descend sur les 2 dernières secondes', () => {
+    expect(volumeTapis(0, 300, 30, 0.1)).toBe(0);
+    expect(volumeTapis(45, 300, 30, 0.1)).toBeCloseTo(0.1);
+    expect(volumeTapis(150, 300, 30, 0.1)).toBeCloseTo(0.1);
+    expect(volumeTapis(270, 300, 30, 0.1)).toBeCloseTo(0.05);
+    expect(volumeTapis(300, 300, 30, 0.1)).toBe(0);
   });
 });

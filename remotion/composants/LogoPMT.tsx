@@ -2,34 +2,39 @@ import type { FC } from 'react';
 import { charte } from '../charte';
 import { police } from '../police';
 
-// Carré bleu, bande rouge à gauche, coin bleu-gris, texte « PMT ».
-export const LogoPMT: FC<{ taille: number }> = ({ taille }) => (
-  <div
-    style={{
-      width: taille,
-      height: taille,
-      position: 'relative',
-      overflow: 'hidden',
-      borderRadius: taille * 0.08,
-      backgroundColor: charte.bleu,
-    }}
-  >
-    <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: taille * 0.14, backgroundColor: charte.rouge }} />
+export const RAPPORT_LOGO = 1.85;
+
+// Rectangle bleu paysage, bande rouge à gauche, coin bleu-gris : « la chaîne » en fin, « PMT » en gras.
+export const LogoPMT: FC<{ hauteur: number; arrondi?: boolean }> = ({ hauteur, arrondi = true }) => {
+  const largeur = hauteur * RAPPORT_LOGO;
+  const bande = largeur * 0.07;
+  const coin = hauteur * 0.26;
+  return (
     <div
       style={{
-        position: 'absolute', right: 0, top: 0, width: 0, height: 0,
-        borderTop: `${taille * 0.3}px solid ${charte.bleuGris}`,
-        borderLeft: `${taille * 0.3}px solid transparent`,
-      }}
-    />
-    <div
-      style={{
-        position: 'absolute', inset: 0, paddingLeft: taille * 0.14,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontFamily: police, fontWeight: 700, fontSize: taille * 0.34, color: charte.blanc,
+        width: largeur, height: hauteur, position: 'relative', overflow: 'hidden', flexShrink: 0,
+        borderRadius: arrondi ? hauteur * 0.08 : 0, backgroundColor: charte.bleu,
       }}
     >
-      {charte.nomChaine}
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: bande, backgroundColor: charte.rouge }} />
+      <div
+        style={{
+          position: 'absolute', right: 0, top: 0, width: 0, height: 0,
+          borderTop: `${coin}px solid ${charte.bleuGris}`, borderLeft: `${coin}px solid transparent`,
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute', top: 0, bottom: 0, left: bande + hauteur * 0.2,
+          display: 'flex', flexDirection: 'column', justifyContent: 'center',
+          fontFamily: police, color: charte.blanc, lineHeight: 1,
+        }}
+      >
+        <div style={{ fontWeight: 300, fontSize: hauteur * 0.22, letterSpacing: hauteur * 0.004 }}>la chaîne</div>
+        <div style={{ fontWeight: 800, fontSize: hauteur * 0.56, letterSpacing: hauteur * 0.01, marginTop: hauteur * 0.02 }}>
+          {charte.nomChaine}
+        </div>
+      </div>
     </div>
-  </div>
-);
+  );
+};

@@ -1,44 +1,44 @@
 import { Video } from '@remotion/media';
 import type { FC } from 'react';
-import { AbsoluteFill, Sequence, Series, useCurrentFrame, useVideoConfig } from 'remotion';
-import type { EncartImages, Partie } from '../../noyau/decisions';
-import { decalageLogo, volumeRaccord } from '../calculs';
+import { AbsoluteFill, Sequence, Series, useVideoConfig } from 'remotion';
+import type { Partie } from '../../noyau/decisions';
+import { volumeRaccord } from '../calculs';
+import { FRISE, HAUTEUR_LOGO_VIDEO } from '../charte';
 import { EncartDefinition } from '../composants/EncartDefinition';
+import { Frise } from '../composants/Frise';
 import { LogoPMT } from '../composants/LogoPMT';
 
-const LogoCoin: FC<{ encarts: EncartImages[] }> = ({ encarts }) => {
-  const frame = useCurrentFrame();
-  return (
-    <div style={{ position: 'absolute', top: 40, right: 40, transform: `translateY(${decalageLogo(frame, encarts)}px)` }}>
-      <LogoPMT taille={110} />
-    </div>
-  );
-};
-
-// Segments conservés de source.mp4 bout à bout (jump cuts), logo en continu, encarts aux temps décidés.
+// Segments conservés de source.mp4 bout à bout (jump cuts) plein cadre, frise en bas, logo collé au coin bas droit,
+// encarts aux temps décidés.
 export const VideoMontee: FC<{ partie: Partie; sourceUrl: string; fondu: number }> = ({ partie, sourceUrl, fondu }) => {
   const { fps } = useVideoConfig();
   return (
-    <AbsoluteFill style={{ backgroundColor: 'black' }}>
-      <Series>
-        {partie.segments.map(s => (
-          <Series.Sequence key={s.debut} durationInFrames={s.fin - s.debut} premountFor={fps}>
-            <Video
-              src={sourceUrl}
-              trimBefore={s.debut}
-              trimAfter={s.fin}
-              volume={f => volumeRaccord(f, s.fin - s.debut, fondu)}
-              style={{ width: '100%', height: '100%' }}
-            />
-          </Series.Sequence>
-        ))}
-      </Series>
+    <AbsoluteFill>
+      <AbsoluteFill style={{ backgroundColor: 'black' }}>
+        <Series>
+          {partie.segments.map(s => (
+            <Series.Sequence key={s.debut} durationInFrames={s.fin - s.debut} premountFor={fps}>
+              <Video
+                src={sourceUrl}
+                trimBefore={s.debut}
+                trimAfter={s.fin}
+                volume={f => volumeRaccord(f, s.fin - s.debut, fondu)}
+                objectFit="cover"
+                style={{ width: '100%', height: '100%' }}
+              />
+            </Series.Sequence>
+          ))}
+        </Series>
+      </AbsoluteFill>
+      <Frise epaisseur={FRISE} />
       {partie.encarts.map(e => (
         <Sequence key={`${e.terme}-${e.debut}`} from={e.debut} durationInFrames={e.duree} premountFor={fps}>
           <EncartDefinition terme={e.terme} definition={e.definition} position={e.position} duree={e.duree} />
         </Sequence>
       ))}
-      <LogoCoin encarts={partie.encarts} />
+      <div style={{ position: 'absolute', right: 0, bottom: 0 }}>
+        <LogoPMT hauteur={HAUTEUR_LOGO_VIDEO} arrondi={false} />
+      </div>
     </AbsoluteFill>
   );
 };
