@@ -5,7 +5,7 @@ Le studio sert à relire un tournage analysé, corriger les décisions de montag
 ## Lancer
 
 1. Analyser le tournage (voir le pipeline) : `cd pipeline; ..\.venv\Scripts\python -m mtpipeline.cli analyser ..\donnees\tournages\<dossier> --titre "<titre>"`.
-2. À la racine du projet : `npm run validation`, puis ouvrir http://127.0.0.1:5180.
+2. À la racine du projet : `npm run validation`, puis ouvrir http://127.0.0.1:5180 dans Chrome ou Edge. Le navigateur intégré de VS Code ne décode pas le son AAC de `source.mp4` : l’aperçu n’y fait entendre que le jingle et le tapis.
 
 ## Écran de montage
 
