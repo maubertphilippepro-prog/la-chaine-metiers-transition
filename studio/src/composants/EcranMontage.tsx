@@ -66,6 +66,7 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
     if (vue === 'complete') {
       const p = positionDansParties(decisions.complete.parties, t, fps);
       if (p) setDemande({ image: imageVideoComplete(decisions.complete, p), jeton, pause });
+      else if (pause) setDemande({ jeton, pause });
       return;
     }
     const p = positionDansParties(decisions.episodes.map(e => e.partie), t, fps);
@@ -73,6 +74,8 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
     if (p && episode) {
       setVue(p.partie);
       setDemande({ image: imageEpisode(episode, p), jeton, pause });
+    } else if (pause) {
+      setDemande({ jeton, pause });
     }
   };
 

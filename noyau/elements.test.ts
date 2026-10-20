@@ -40,8 +40,14 @@ describe('problemesElements', () => {
     ]))).toEqual([
       'e0 : Le passage est entièrement coupé.',
       'e1 : Moins de 1 s à l’écran une fois les coupes retirées.',
+      'e2 : Moins de 1 s à l’écran une fois les coupes retirées.',
       'e3 : Le passage est vide.',
     ]);
+  });
+  it('applique la durée minimale à chaque épisode que l’élément traverse', () => {
+    const m = (elements: ElementEcran[]): Montage => ({ ...montage(elements), coupes: [], chapitres: [{ titre: 'A', debut: 0 }, { titre: 'B', debut: 10 }] });
+    expect(problemesElements(analyse, m([zoom('e0', 9.6, 11)]), r).map(p => p.id)).toEqual(['e0']);
+    expect(problemesElements(analyse, m([zoom('e0', 8.5, 11.5)]), r)).toEqual([]);
   });
   it('contrôle le texte et la zone', () => {
     expect(problemes(montage([

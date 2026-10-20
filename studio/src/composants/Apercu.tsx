@@ -11,7 +11,8 @@ export type Vue = 'complete' | number;
 
 // Le jeton change à chaque demande, même pour la même image ; `pause` arrête l'aperçu sur l'image (tracé d'une zone).
 export interface DemandeLecture {
-  image: number;
+  // Sans image (rien de conservé à cet instant), la demande ne fait que mettre en pause.
+  image?: number;
   jeton: number;
   pause?: boolean;
 }
@@ -33,7 +34,7 @@ export const Apercu: FC<Props> = ({ episodes, complete, vue, onVue, demande, des
   const ref = useRef<PlayerRef>(null);
   useEffect(() => {
     if (!demande || !ref.current) return;
-    ref.current.seekTo(demande.image);
+    if (demande.image !== undefined) ref.current.seekTo(demande.image);
     if (demande.pause) ref.current.pause();
     else ref.current.play();
   }, [demande]);

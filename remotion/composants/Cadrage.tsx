@@ -31,8 +31,10 @@ export const Cadrage: FC<{ elements: ElementImages[]; couche: (muette: boolean) 
     <AbsoluteFill style={{ overflow: 'hidden', backgroundColor: 'black' }}>
       <AbsoluteFill
         style={{
-          transformOrigin: '0 0',
-          transform: transformation ? enCss(transformation) : undefined,
+          // Le flou échantillonne du noir hors de la couche : on agrandit un peu l'écran flouté pour que les bords
+          // ne s'assombrissent pas (un zoom et la caméra en grand ne se chevauchent jamais).
+          transformOrigin: flou > 0 ? '50% 50%' : '0 0',
+          transform: transformation ? enCss(transformation) : flou > 0 ? `scale(${1 + 0.05 * flou})` : undefined,
           filter: flou > 0 ? `blur(${FLOU * flou}px)` : undefined,
         }}
       >

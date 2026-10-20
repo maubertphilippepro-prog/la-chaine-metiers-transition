@@ -31,7 +31,10 @@ const EditionTexte: FC<{ element: ElementTexteIncruste; max: number; changer: (c
   const [brouillon, setBrouillon] = useState(element.texte);
   useEffect(() => setBrouillon(element.texte), [element.texte]);
   const appliquer = () => {
-    if (brouillon !== element.texte) changer({ texte: brouillon });
+    if (brouillon === element.texte) return;
+    changer({ texte: brouillon });
+    // Si le montage garde l'ancien texte (changement refusé), le champ y revient.
+    setBrouillon(element.texte);
   };
   return (
     <div className="actions">

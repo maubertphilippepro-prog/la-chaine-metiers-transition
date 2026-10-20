@@ -58,11 +58,18 @@ function problemeForme(e: ElementEcran, r: Reglages['elements']): string | null 
   return null;
 }
 
-function problemeDuree(e: ElementEcran, segments: Segment[], dureeMin: number): string | null {
-  const plage = plageMontee(e.debut, e.fin, segments);
-  if (!plage) return 'Le passage est entièrement coupé.';
-  if (plage.fin - plage.debut < dureeMin) return `Moins de ${dureeMin} s à l’écran une fois les coupes retirées.`;
-  return null;
+// La durée minimale s'applique à chaque épisode que l'élément traverse : le montage place les éléments épisode par épisode.
+function problemeDuree(e: ElementEcran, analyse: Analyse, montage: Montage, segments: Segment[], dureeMin: number): string | null {
+  const plages = plagesEpisodes(montage.chapitres, analyse.duree);
+  const morceaux = plages.length ? plages.map(p => ({ plage: p, segs: decouperSegments(segments, p) })) : [{ plage: { debut: 0, fin: analyse.duree }, segs: segments }];
+  let affiche = false;
+  for (const { plage, segs } of morceaux) {
+    const vue = plageMontee(Math.max(e.debut, plage.debut), Math.min(e.fin, plage.fin), segs);
+    if (!vue) continue;
+    affiche = true;
+    if (vue.fin - vue.debut < dureeMin) return `Moins de ${dureeMin} s à l’écran une fois les coupes retirées.`;
+  }
+  return affiche ? null : 'Le passage est entièrement coupé.';
 }
 
 // Problème de `a` quand il chevauche `b`, ou null si les deux peuvent coexister.
@@ -109,7 +116,7 @@ export function problemesElements(analyse: Analyse, montage: Montage, r: Reglage
       problemes.push({ id: e.id, probleme: forme });
       continue;
     }
-    const duree = problemeDuree(e, segments, r.elements.dureeMin);
+    const duree = problemeDuree(e, analyse, montage, segments, r.elements.dureeMin);
     if (duree) problemes.push({ id: e.id, probleme: duree });
     for (const autre of actifs) {
       if (autre === e || !chevauche(e, autre)) continue;
