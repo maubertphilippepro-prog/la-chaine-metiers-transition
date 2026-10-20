@@ -1,4 +1,4 @@
-import type { Montage, Terme } from './types';
+import type { ElementEcran, Montage, PositionTexte, StatutElement, Terme, Zone } from './types';
 
 // Opérations du studio : chacune renvoie un nouveau montage sans modifier l'original.
 // Une opération impossible renvoie le même objet, ce qui évite un enregistrement inutile.
@@ -68,4 +68,54 @@ export function ajouterChapitre(m: Montage, debut: number, titre: string): Monta
 
 export function changerTitre(m: Montage, titre: string): Montage {
   return titre === m.titre ? m : { ...m, titre };
+}
+
+type SansId<T> = T extends unknown ? Omit<T, 'id'> : never;
+export type NouvelElement = SansId<ElementEcran>;
+
+export type ChangementElement = Partial<{
+  debut: number;
+  fin: number;
+  statut: StatutElement;
+  texte: string;
+  position: PositionTexte;
+  zone: Zone;
+}>;
+
+// Les champs qui ne concernent pas la nature de l'élément sont ignorés. Les clés sont toujours
+// rangées dans le même ordre, pour que la comparaison « sans effet » des consignes reste fiable.
+function changer(e: ElementEcran, c: ChangementElement): ElementEcran {
+  const commun = { id: e.id, debut: c.debut ?? e.debut, fin: c.fin ?? e.fin, statut: c.statut ?? e.statut };
+  switch (e.nature) {
+    case 'texte':
+      return { ...commun, nature: e.nature, texte: c.texte ?? e.texte, position: c.position ?? e.position };
+    case 'zoom':
+    case 'miseEnAvant':
+      return { ...commun, nature: e.nature, zone: c.zone ?? e.zone };
+    case 'camera':
+      return { ...commun, nature: e.nature };
+  }
+}
+
+// Élément créé dans le studio (directement ou par une consigne) : e0, e1…
+export function prochainIdElement(m: Montage): string {
+  const numeros = m.elements
+    .map(e => /^e(\d+)$/.exec(e.id)?.[1])
+    .filter((n): n is string => n !== undefined)
+    .map(Number);
+  return `e${numeros.length > 0 ? Math.max(...numeros) + 1 : 0}`;
+}
+
+export function ajouterElement(m: Montage, e: NouvelElement): Montage {
+  return { ...m, elements: [...m.elements, changer({ id: prochainIdElement(m), ...e }, {})] };
+}
+
+export function modifierElement(m: Montage, id: string, c: ChangementElement): Montage {
+  if (!m.elements.some(e => e.id === id)) return m;
+  return { ...m, elements: m.elements.map(e => (e.id === id ? changer(e, c) : e)) };
+}
+
+export function supprimerElement(m: Montage, id: string): Montage {
+  if (!m.elements.some(e => e.id === id)) return m;
+  return { ...m, elements: m.elements.filter(e => e.id !== id) };
 }

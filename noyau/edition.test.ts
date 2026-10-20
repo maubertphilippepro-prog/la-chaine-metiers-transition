@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ajouterChapitre, ajouterTerme, basculerCoupe, changerTitre, couperPassage, deciderLongueur, deplacerLimite,
   fusionnerChapitre, modifierTerme, renommerChapitre,
+  ajouterElement, modifierElement, prochainIdElement, supprimerElement,
 } from './edition';
 import type { Montage } from './types';
 
@@ -90,5 +91,32 @@ describe('ajouts des consignes', () => {
   it('change le titre de la vidéo', () => {
     expect(changerTitre(base, 'Nouveau').titre).toBe('Nouveau');
     expect(changerTitre(base, 'Essai')).toBe(base);
+  });
+});
+
+describe('éléments à l’écran', () => {
+  const avec: Montage = {
+    ...base,
+    elements: [{ id: 'se0', debut: 1, fin: 3, statut: 'a-valider', nature: 'zoom', zone: null }],
+  };
+
+  it('numérote les éléments créés dans le studio e0, e1…', () => {
+    expect(prochainIdElement(base)).toBe('e0');
+    const m = ajouterElement(avec, { debut: 4, fin: 6, statut: 'valide', nature: 'camera' });
+    expect(m.elements[1]).toEqual({ id: 'e0', debut: 4, fin: 6, statut: 'valide', nature: 'camera' });
+    expect(prochainIdElement(m)).toBe('e1');
+    const plus = { ...m, elements: [...m.elements, { id: 'e7', debut: 0, fin: 1, statut: 'valide' as const, nature: 'camera' as const }] };
+    expect(prochainIdElement(plus)).toBe('e8');
+  });
+  it('modifie un élément sans toucher aux champs d’une autre nature', () => {
+    const zone = { x: 0, y: 0, largeur: 480, hauteur: 270 };
+    const m = modifierElement(avec, 'se0', { zone, texte: 'ignoré', statut: 'valide' });
+    expect(m.elements[0]).toEqual({ id: 'se0', debut: 1, fin: 3, statut: 'valide', nature: 'zoom', zone });
+    expect(modifierElement(avec, 'x', { statut: 'valide' })).toBe(avec);
+    expect(avec.elements[0]!.statut).toBe('a-valider');
+  });
+  it('supprime un élément', () => {
+    expect(supprimerElement(avec, 'se0').elements).toEqual([]);
+    expect(supprimerElement(avec, 'x')).toBe(avec);
   });
 });

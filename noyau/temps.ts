@@ -23,3 +23,17 @@ export function monteVersSource(t: number, segments: Segment[]): number | null {
   }
   return null;
 }
+
+// Passage [debut, fin] de la source vu dans le montage : les morceaux coupés sont retirés, les autres
+// mis bout à bout en une seule plage ; null s'il est entièrement coupé. Segments triés, en secondes ou en images.
+export function plageMontee(debut: number, fin: number, segments: Segment[]): Segment | null {
+  let cumul = 0;
+  let plage: Segment | null = null;
+  for (const s of segments) {
+    const a = Math.max(debut, s.debut);
+    const b = Math.min(fin, s.fin);
+    if (b > a) plage = { debut: plage ? plage.debut : cumul + (a - s.debut), fin: cumul + (b - s.debut) };
+    cumul += s.fin - s.debut;
+  }
+  return plage;
+}
