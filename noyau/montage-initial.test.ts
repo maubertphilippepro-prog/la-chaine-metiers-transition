@@ -96,8 +96,16 @@ describe('éléments suggérés', () => {
     ]);
   });
   it('lit une analyse sans suggestions d’éléments comme une liste vide', () => {
-    expect(montageInitial(analyse, 'T').elements).toEqual([]);
+    const { elements: _, ...sansElements } = analyse.suggestions!;
+    const ancienne = { ...analyse, suggestions: sansElements } as Analyse;
+    expect(montageInitial(ancienne, 'T').elements).toEqual([]);
     expect(montageInitial({ ...analyse, suggestions: null }, 'T').elements).toEqual([]);
+  });
+  it('n’ajoute aucun élément depuis une analyse sans suggestions d’éléments', () => {
+    const { elements: _, ...sansElements } = analyse.suggestions!;
+    const ancienne = { ...analyse, suggestions: sansElements } as Analyse;
+    const m = montageInitial(ancienne, 'T');
+    expect(integrerSuggestions(m, ancienne).elements).toEqual([]);
   });
   it('ajoute les suggestions d’éléments absentes sans toucher aux autres', () => {
     const m = {
