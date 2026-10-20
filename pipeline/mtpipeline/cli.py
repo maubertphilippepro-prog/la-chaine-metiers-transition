@@ -9,12 +9,11 @@ from .detection import detecter, marquer_paroles
 from .environnement import charger_env
 from .erreurs import ErreurEntree, ErreurSuggestions
 from .glossaire import charger_glossaire
+from .images import detourer, extraire_image, lister_bruts, retirer_fond
 from .preparation import preparer
 from .reglages import RACINE, charger_reglages
 from .suggestions import convertir, demander
 from .transcription import transcrire, transcrire_extraits
-
-EXTENSIONS = {".mp4", ".mkv", ".mov", ".webm"}
 
 
 def lire(chemin: Path):
@@ -83,7 +82,7 @@ def analyser(dossier: Path, titre: str, reglages: dict, transcrire_fn=transcrire
         if not (dossier / "preparation.json").exists():
             if not (dossier / "bruts").is_dir():
                 raise ErreurEntree(f"Dossier bruts/ introuvable dans {dossier}.")
-            bruts = sorted(p for p in (dossier / "bruts").iterdir() if p.suffix.lower() in EXTENSIONS)
+            bruts = lister_bruts(dossier / "bruts")
             ecrire(dossier / "preparation.json", preparer(bruts, source))
 
         if not (dossier / "transcription.json").exists():
@@ -134,10 +133,23 @@ def main(argv: list[str] | None = None) -> int:
     p_analyser.add_argument("--titre", required=True)
     p_relancer = sous.add_parser("relancer-suggestions", help="Relancer uniquement les suggestions Claude.")
     p_relancer.add_argument("dossier", type=Path)
+    p_image = sous.add_parser("image", help="Extraire l'image d'une vidéo à un instant donné (PNG).")
+    p_image.add_argument("video", type=Path)
+    p_image.add_argument("instant", type=float)
+    p_image.add_argument("sortie", type=Path)
+    p_detourer = sous.add_parser("detourer", help="Détourer une photo (PNG transparent).")
+    p_detourer.add_argument("entree", type=Path)
+    p_detourer.add_argument("sortie", type=Path)
     args = parser.parse_args(argv)
 
     reglages = charger_reglages()
     try:
+        if args.commande == "image":
+            extraire_image(args.video, args.instant, args.sortie)
+            return 0
+        if args.commande == "detourer":
+            detourer(args.entree, args.sortie, retirer_fond(reglages["modeles"]["detourage"]))
+            return 0
         if args.commande == "analyser":
             analyse = analyser(args.dossier, args.titre, reglages)
         else:

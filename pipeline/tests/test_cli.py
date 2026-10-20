@@ -222,3 +222,27 @@ def test_hesitation_reecoutee_avec_des_mots_signalee(tournage, tmp_path):
     hesitations = [d for d in a["detections"] if d["type"] == "hesitation"]
     assert reecoutes == [(d["debut"], d["fin"]) for d in hesitations]
     assert all(d["paroles"] == "il y a" for d in hesitations)
+
+
+def test_commande_image(video_test, tmp_path):
+    video = video_test("source.mp4", duree=2)
+    assert main(["image", str(video), "0.5", str(tmp_path / "i.png")]) == 0
+    assert (tmp_path / "i.png").exists()
+
+
+def test_commande_image_en_erreur(tmp_path, capsys):
+    assert main(["image", str(tmp_path / "absent.mp4"), "0", str(tmp_path / "i.png")]) == 1
+    assert "Erreur" in capsys.readouterr().err
+
+
+def test_commande_detourer(tmp_path, monkeypatch):
+    from PIL import Image
+
+    def retirer(image):
+        return image.convert("RGBA")
+
+    monkeypatch.setattr("mtpipeline.cli.retirer_fond", lambda modele: retirer)
+    entree = tmp_path / "pose.png"
+    Image.new("RGB", (10, 20), "blue").save(entree)
+    assert main(["detourer", str(entree), str(tmp_path / "pose.detoure.png")]) == 0
+    assert (tmp_path / "pose.detoure.png").exists()

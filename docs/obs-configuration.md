@@ -20,3 +20,10 @@ Tout s'enregistre d'un bloc ; le montage retire les prises ratées grâce à deu
 - **« Coupez ! »** dès qu'une prise est ratée, suivi d'une pause. La prise est retirée depuis son « action » (ou, à défaut, depuis la fin de la prise ratée précédente) jusqu'à la reprise.
 
 Exemple : « Action ! — Bonjour, aujourd'hui je vais vous pr… Coupez ! — Action ! — Bonjour, aujourd'hui je vais vous présenter… ». Seule la seconde prise reste. Les prises retirées apparaissent comme des coupes de type « prise », désactivables si un mot-clé a été mal compris.
+
+## Caméra enregistrée à part (pour les vignettes)
+
+Les vignettes YouTube montrent le visage en grand : la vignette caméra de la scène (480x270) serait floue. Deux sources possibles, au choix dans le studio :
+
+1. **Caméra séparée.** Installer le plugin **Source Record** (page des plugins sur obsproject.com), puis, sur la source webcam : clic droit → Filtres → ajouter « Source Record ». Réglages : enregistrer pendant l’enregistrement, dossier `bruts/` du tournage, format de nom se terminant par `-camera` (par exemple `%CCYY-%MM-%DD %hh-%mm-%ss-camera`), webcam en 1920x1080. Ce fichier ne sert qu’aux vignettes : la préparation de la vidéo l’ignore. Il n’est utilisé que si `bruts/` contient un seul autre enregistrement.
+2. **Banque de poses.** Déposer 5 à 10 photos HD de soi (téléphone, fond uni, expressions variées : surpris, souriant, pensif, qui pointe du doigt) dans `donnees/poses/`. Le studio les détoure la première fois qu’il ouvre l’écran Publication. Ce dossier n’est pas versionné.
