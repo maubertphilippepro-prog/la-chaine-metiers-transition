@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import exemple from '../../../fixtures/analyse-exemple.json';
 import type { Consigne, EtatProposition } from '../../../noyau/consignes';
 import type { Analyse, Montage } from '../../../noyau/types';
-import { bilan, passageDeProposition } from './consignes';
+import { bilan, demandeUneZone, passageDeProposition } from './consignes';
 
 const analyse = exemple as Analyse;
 const montage: Montage = {
@@ -11,7 +11,7 @@ const montage: Montage = {
   coupes: [{ id: 'l0', type: 'longueur', debut: 10, fin: 20, active: false, enAttente: true }],
   chapitres: [{ titre: 'Intro', debut: 0 }],
   termes: [],
-  elements: [],
+  elements: [{ id: 'e0', debut: 3.0, fin: 4.3, statut: 'valide', nature: 'camera' }],
 };
 
 const consigne = (etats: EtatProposition[]): Consigne => ({
@@ -41,5 +41,22 @@ describe('bilan', () => {
     expect(bilan(consigne(['acceptee', 'acceptee', 'refusee']))).toBe('2 acceptées, 1 refusée');
     expect(bilan(consigne(['en-attente', 'invalide', 'invalide']))).toBe('1 en attente, 2 invalides');
     expect(bilan(consigne([]))).toBe('aucune opération');
+  });
+});
+
+describe('propositions sur les éléments à l’écran', () => {
+  it('donne le passage à écouter', () => {
+    expect(passageDeProposition(analyse, montage, { type: 'ajouterElement', nature: 'texte', premierMot: 3, dernierMot: 5, texte: 'A' }))
+      .toEqual({ debut: 3.0, fin: 4.3 });
+    expect(passageDeProposition(analyse, montage, { type: 'modifierElement', idElement: 'e0', statut: 'ecarte' }))
+      .toEqual({ debut: 3.0, fin: 4.3 });
+    expect(passageDeProposition(analyse, montage, { type: 'modifierElement', idElement: 'e0', premierMot: 0, dernierMot: 2 }))
+      .toEqual({ debut: 0.8, fin: 1.8 });
+    expect(passageDeProposition(analyse, montage, { type: 'supprimerElement', idElement: 'x' })).toBeNull();
+  });
+  it('repère les propositions qui demandent une zone', () => {
+    expect(demandeUneZone({ type: 'ajouterElement', nature: 'zoom', premierMot: 3, dernierMot: 5 })).toBe(true);
+    expect(demandeUneZone({ type: 'ajouterElement', nature: 'texte', premierMot: 3, dernierMot: 5, texte: 'A' })).toBe(false);
+    expect(demandeUneZone({ type: 'couper', premierMot: 0, dernierMot: 2 })).toBe(false);
   });
 });

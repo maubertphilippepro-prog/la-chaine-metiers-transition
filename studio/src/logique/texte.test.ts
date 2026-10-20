@@ -44,4 +44,18 @@ describe('construireTexte', () => {
     const [bloc] = construireTexte(analyse, montage);
     expect(bloc!.elements.map(resume)).toEqual(['Bonjour[a]', 'à', 'tous.', "Aujourd'hui,", 'le', 'SSO.']);
   });
+  it('repère les passages couverts par un élément non écarté', () => {
+    const montage: Montage = {
+      version: 1, titre: 'T', coupes: [], chapitres: [{ titre: 'Intro', debut: 0 }], termes: [],
+      elements: [
+        { id: 'e0', debut: 3.0, fin: 4.3, statut: 'valide', nature: 'texte', texte: 'SSO', position: 'centre' },
+        { id: 'e1', debut: 3.6, fin: 3.8, statut: 'a-valider', nature: 'zoom', zone: null },
+        { id: 'e2', debut: 0.8, fin: 1.8, statut: 'ecarte', nature: 'camera' },
+      ],
+    };
+    const mots = construireTexte(analyse, montage)[0]!.elements.flatMap(e => (e.genre === 'mot' ? [[e.mot.texte, e.reperes]] : []));
+    expect(mots).toEqual([
+      ['Bonjour', []], ['à', []], ['tous.', []], ["Aujourd'hui,", ['texte']], ['le', ['texte', 'zoom']], ['SSO.', ['texte']],
+    ]);
+  });
 });

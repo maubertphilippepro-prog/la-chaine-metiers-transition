@@ -1,7 +1,7 @@
-import type { Analyse, Coupe, Montage, Mot } from '../../../noyau/types';
+import type { Analyse, Coupe, Montage, Mot, NatureElement } from '../../../noyau/types';
 
 export type ElementTexte =
-  | { genre: 'mot'; mot: Mot; coupe: Coupe | null; terme: string | null }
+  | { genre: 'mot'; mot: Mot; coupe: Coupe | null; terme: string | null; reperes: NatureElement[] }
   | { genre: 'trou'; coupe: Coupe };
 
 // `index` est la position du chapitre dans montage.chapitres (pour les opérations d'édition).
@@ -18,7 +18,7 @@ function rang(c: Coupe): number {
 }
 
 const milieu = (m: Mot) => (m.debut + m.fin) / 2;
-const couvre = (c: Coupe, t: number) => t >= c.debut && t <= c.fin;
+const couvre = (p: { debut: number; fin: number }, t: number) => t >= p.debut && t <= p.fin;
 const cle = (t: number) => Math.round(t * 1000);
 
 export function construireTexte(analyse: Analyse, montage: Montage): BlocChapitre[] {
@@ -29,6 +29,9 @@ export function construireTexte(analyse: Analyse, montage: Montage): BlocChapitr
     for (const o of t.occurrences) termes.set(cle(o), t.terme);
   }
 
+  // Repères des éléments non écartés : natures des éléments qui couvrent le milieu du mot.
+  const elements = montage.elements.filter(e => e.statut !== 'ecarte');
+
   const places: { t: number; element: ElementTexte }[] = analyse.mots.map(mot => ({
     t: mot.debut,
     element: {
@@ -36,6 +39,7 @@ export function construireTexte(analyse: Analyse, montage: Montage): BlocChapitr
       mot,
       coupe: coupes.find(c => couvre(c, milieu(mot))) ?? null,
       terme: termes.get(cle(mot.debut)) ?? null,
+      reperes: [...new Set(elements.filter(e => couvre(e, milieu(mot))).map(e => e.nature))],
     },
   }));
   for (const coupe of montage.coupes) {
