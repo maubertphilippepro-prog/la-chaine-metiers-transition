@@ -1,7 +1,8 @@
 import { decouperSegments, placerEncarts, plagesEpisodes } from './episodes';
 import { dureeImages, enImages, segmentsEnImages, versImages, type SegmentImages } from './images';
 import { calculerSegments } from './segments';
-import type { Analyse, Montage, PositionEncart, Reglages, Terme } from './types';
+import { plageMontee } from './temps';
+import type { Analyse, ElementEcran, Montage, PositionEncart, PositionTexte, Reglages, Terme, Zone } from './types';
 
 // Toutes les positions et durées sont en images.
 export interface EncartImages {
@@ -12,12 +13,22 @@ export interface EncartImages {
   duree: number;
 }
 
+// Élément validé, placé dans la partie.
+export type ElementImages = { id: string; debut: number; duree: number } & (
+  | { nature: 'zoom'; zone: Zone }
+  | { nature: 'miseEnAvant'; zone: Zone }
+  | { nature: 'texte'; texte: string; position: PositionTexte }
+  | { nature: 'camera' }
+);
+
 export interface Partie {
   titre: string;
   segments: SegmentImages[];
   encarts: EncartImages[];
   // Termes validés et conservés dans la partie dont l'encart a été retiré (chevauchement).
   encartsRetires: string[];
+  // Éléments à l'écran validés, triés par début.
+  elements: ElementImages[];
   duree: number;
 }
 
@@ -53,9 +64,28 @@ export function dureesHabillage(r: Reglages, fps: number): DureesHabillage {
   };
 }
 
+// Les morceaux coupés d'un élément sont retirés ; ceux qui restent sont contigus dans la partie et forment
+// une seule plage, si bien qu'un zoom reste stable à travers les jump cuts.
+export function placerElements(elements: ElementEcran[], segments: SegmentImages[], fps: number): ElementImages[] {
+  const places: ElementImages[] = [];
+  for (const e of elements) {
+    if (e.statut !== 'valide') continue;
+    const plage = plageMontee(versImages(e.debut, fps), versImages(e.fin, fps), segments);
+    if (!plage) continue;
+    const debut = Math.round(plage.debut);
+    const duree = Math.round(plage.fin) - debut;
+    if (duree <= 0) continue;
+    const place = { id: e.id, debut, duree };
+    if (e.nature === 'texte') places.push({ ...place, nature: e.nature, texte: e.texte, position: e.position });
+    else if (e.nature === 'camera') places.push({ ...place, nature: e.nature });
+    else if (e.zone) places.push({ ...place, nature: e.nature, zone: e.zone });
+  }
+  return places.sort((a, b) => a.debut - b.debut);
+}
+
 // Un encart qui dépasserait la fin est avancé ; s'il chevauche alors le précédent, il est retiré.
 export function construirePartie(
-  titre: string, segments: SegmentImages[], termes: Terme[], dureeEncart: number, fps: number,
+  titre: string, segments: SegmentImages[], termes: Terme[], dureeEncart: number, fps: number, elements: ElementEcran[] = [],
 ): Partie {
   const duree = dureeImages(segments);
   const longueur = Math.min(dureeEncart, duree);
@@ -73,7 +103,7 @@ export function construirePartie(
       encarts.push({ terme: e.terme, definition: e.definition, position: e.position, debut, duree: longueur });
     }
   }
-  return { titre, segments, encarts, encartsRetires, duree };
+  return { titre, segments, encarts, encartsRetires, elements: placerElements(elements, segments, fps), duree };
 }
 
 function segmentsParChapitre(analyse: Analyse, montage: Montage, r: Reglages) {
@@ -91,7 +121,7 @@ export function decisionsEpisodes(
   const durees = dureesHabillage(r, fps);
   const dureeEncart = enImages(r.durees.encart, fps);
   return segmentsParChapitre(analyse, montage, r)
-    .map(c => construirePartie(c.titre, c.segments, montage.termes, dureeEncart, fps))
+    .map(c => construirePartie(c.titre, c.segments, montage.termes, dureeEncart, fps, montage.elements))
     .filter(partie => partie.duree > 0)
     .map(partie => ({ fps, sourceUrl, titre: partie.titre, partie, durees }));
 }
@@ -105,7 +135,7 @@ export function decisionsVideoComplete(
   const parties: Partie[] = [];
   for (const c of segmentsParChapitre(analyse, montage, r)) {
     const termes = montage.termes.filter(t => !dejaDefinis.has(t.terme));
-    const partie = construirePartie(c.titre, c.segments, termes, dureeEncart, fps);
+    const partie = construirePartie(c.titre, c.segments, termes, dureeEncart, fps, montage.elements);
     if (partie.duree === 0) continue;
     partie.encarts.forEach(e => dejaDefinis.add(e.terme));
     parties.push(partie);

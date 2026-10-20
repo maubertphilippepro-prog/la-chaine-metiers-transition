@@ -3,7 +3,7 @@ import reglagesJson from '../reglages.json';
 import {
   construirePartie, decisionsEpisodes, decisionsVideoComplete, dureeEpisode, dureesHabillage, dureeVideoComplete,
 } from './decisions';
-import type { Analyse, Montage, Reglages, Terme } from './types';
+import type { Analyse, Montage, Reglages, Terme, Zone } from './types';
 
 const r: Reglages = {
   ...reglagesJson,
@@ -88,5 +88,36 @@ describe('decisionsVideoComplete', () => {
   it('prend le titre du montage et compte un intertitre entre deux chapitres', () => {
     expect(v.titre).toBe('Vidéo test');
     expect(dureeVideoComplete(v)).toBe(40 + 80 + 20 + 100 + 50);
+  });
+});
+
+describe('éléments à l’écran', () => {
+  const ZONE: Zone = { x: 480, y: 270, largeur: 960, hauteur: 540 };
+  // Coupe 2–4 s ; chapitre A : images 0–20 et 40–100 ; chapitre B : 100–200.
+  const avecElements: Montage = {
+    ...montage,
+    elements: [
+      { id: 'e0', debut: 1, fin: 5, statut: 'valide', nature: 'texte', texte: 'Windows + V', position: 'haut-gauche' },
+      { id: 'e1', debut: 8, fin: 12, statut: 'valide', nature: 'zoom', zone: ZONE },
+      { id: 'e2', debut: 2.5, fin: 3.5, statut: 'valide', nature: 'camera' },
+      { id: 'e3', debut: 6, fin: 7, statut: 'a-valider', nature: 'camera' },
+      { id: 'e4', debut: 15, fin: 16, statut: 'valide', nature: 'miseEnAvant', zone: null },
+    ],
+  };
+
+  it('place les éléments validés en images, coupes retirées et morceaux contigus fusionnés', () => {
+    const [a, b] = decisionsEpisodes(analyse, avecElements, r, '');
+    expect(a!.partie.elements).toEqual([
+      { id: 'e0', debut: 10, duree: 20, nature: 'texte', texte: 'Windows + V', position: 'haut-gauche' },
+      { id: 'e1', debut: 60, duree: 20, nature: 'zoom', zone: ZONE },
+    ]);
+    expect(b!.partie.elements).toEqual([{ id: 'e1', debut: 0, duree: 20, nature: 'zoom', zone: ZONE }]);
+  });
+  it('les reprend dans chaque partie de la vidéo complète', () => {
+    const v = decisionsVideoComplete(analyse, avecElements, r, '');
+    expect(v.parties.map(p => p.elements.map(e => e.id))).toEqual([['e0', 'e1'], ['e1']]);
+  });
+  it('n’en met aucun dans une partie construite sans éléments', () => {
+    expect(construirePartie('X', [{ debut: 0, fin: 30 }], [], 60, FPS).elements).toEqual([]);
   });
 });

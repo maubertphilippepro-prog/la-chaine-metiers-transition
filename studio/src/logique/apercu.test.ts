@@ -4,7 +4,7 @@ import { dureeImages, type SegmentImages } from '../../../noyau/images';
 import { imageEpisode, imageVideoComplete, positionDansParties } from './apercu';
 
 const partie = (segments: SegmentImages[]): Partie => ({
-  titre: 't', segments, encarts: [], encartsRetires: [], duree: dureeImages(segments),
+  titre: 't', segments, encarts: [], encartsRetires: [], elements: [], duree: dureeImages(segments),
 });
 // À 30 images/s : la partie 1 garde 0–1 s et 2–3 s de la source, la partie 2 garde 4–5 s.
 const p1 = partie([{ debut: 0, fin: 30 }, { debut: 60, fin: 90 }]);
