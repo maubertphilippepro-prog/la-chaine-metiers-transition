@@ -69,6 +69,36 @@ describe('interpreterConsigne', () => {
       { headers: { 'anthropic-beta': 'server-side-fallback-2026-07-01' } },
     );
   });
+  it('retire les champs laissés à null par Claude', async () => {
+    const brute = {
+      reformulation: 'r',
+      operations: [{
+        type: 'modifierElement', idElement: 'se0', premierMot: null, dernierMot: null,
+        texte: null, position: null, statut: 'valide', explication: 'e',
+      }],
+      nonRealisable: [],
+    };
+    const { client: c } = client(async () => ({ stop_reason: 'end_turn', parsed_output: brute }));
+    expect((await interpreterConsigne(demande, c)).operations).toEqual([
+      { type: 'modifierElement', idElement: 'se0', statut: 'valide', explication: 'e' },
+    ]);
+  });
+  it('n’envoie aucun champ facultatif dans le schéma (grammaire de taille bornée)', async () => {
+    const { client: c, parse } = client(async () => ({ stop_reason: 'end_turn', parsed_output: REPONSE }));
+    await interpreterConsigne(demande, c);
+    const format = (parse.mock.calls[0]![0] as { output_config: { format: { schema: unknown } } }).output_config.format.schema;
+    const objets: { properties?: object; required?: string[] }[] = [];
+    const parcourir = (n: unknown): void => {
+      if (Array.isArray(n)) n.forEach(parcourir);
+      else if (n && typeof n === 'object') {
+        const o = n as { properties?: object; required?: string[] };
+        if (o.properties) objets.push(o);
+        Object.values(n).forEach(parcourir);
+      }
+    };
+    parcourir(format);
+    for (const o of objets) expect(o.required?.sort()).toEqual(Object.keys(o.properties!).sort());
+  });
   it('signale un refus de Claude', async () => {
     const { client: c } = client(async () => ({ stop_reason: 'refusal', parsed_output: null }));
     await expect(interpreterConsigne(demande, c)).rejects.toMatchObject({

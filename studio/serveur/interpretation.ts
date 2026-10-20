@@ -77,10 +77,10 @@ Opérations possibles. Les passages sont désignés par les numéros de leur pre
 - ajouterChapitre : commencer un nouveau chapitre au mot premierMot, avec un titre.
 - deplacerChapitre : faire commencer le chapitre premierMotChapitre au mot nouveauPremierMot, entre le début du chapitre précédent et le chapitre suivant. Pas le premier chapitre.
 - fusionnerChapitre : fusionner le chapitre premierMotChapitre avec le précédent. Pas le premier chapitre.
-- modifierTerme : changer la définition, le statut (a-valider, valide, ecarte) ou la position de l'encart (bas, haut) d'un terme existant ; ne donne que les champs à changer.
+- modifierTerme : changer la définition, le statut (a-valider, valide, ecarte) ou la position de l'encart (bas, haut) d'un terme existant ; mets à null les champs à ne pas changer.
 - ajouterTerme : ajouter un terme à définir, avec sa définition et les numéros de tous les mots où il est prononcé.
-- ajouterElement : poser un élément sur la vidéo pendant le passage premierMot à dernierMot. nature : zoom (agrandir une zone de l'écran partagé), miseEnAvant (assombrir l'image autour d'une zone), texte (incruster un texte court : URL, nom d'outil, raccourci clavier, chiffre clé ; donne texte, et position parmi haut-gauche, haut-droite, centre, bas-centre si l'auteur la précise), camera (passer la caméra en grand pour un aparté face caméra). Tu ne vois pas l'image : ne donne jamais de zone, l'auteur la tracera lui-même.
-- modifierElement : changer le passage (premierMot et dernierMot ensemble), le texte, la position ou le statut (a-valider, valide, ecarte) d'un élément existant (idElement) ; ne donne que les champs à changer. Accepter un élément suggéré : statut = valide.
+- ajouterElement : poser un élément sur la vidéo pendant le passage premierMot à dernierMot. nature : zoom (agrandir une zone de l'écran partagé), miseEnAvant (assombrir l'image autour d'une zone), texte (incruster un texte court : URL, nom d'outil, raccourci clavier, chiffre clé ; donne texte, et position parmi haut-gauche, haut-droite, centre, bas-centre si l'auteur la précise, sinon null ; texte et position à null pour les autres natures), camera (passer la caméra en grand pour un aparté face caméra). Tu ne vois pas l'image : ne donne jamais de zone, l'auteur la tracera lui-même.
+- modifierElement : changer le passage (premierMot et dernierMot ensemble), le texte, la position ou le statut (a-valider, valide, ecarte) d'un élément existant (idElement) ; mets à null les champs à ne pas changer. Accepter un élément suggéré : statut = valide.
 - supprimerElement : retirer un élément (idElement).
 - titreVideo : changer le titre de la vidéo complète.
 
@@ -93,6 +93,8 @@ Réponds avec :
 `;
 }
 
+// Pas de champ facultatif dans le schéma : chacun double la grammaire de la sortie structurée, que l'API refuse
+// au-delà d'une taille. Un champ sans valeur arrive à null et est retiré avant d'être rendu.
 const explication = z.string();
 const positionTexte = z.enum(['haut-gauche', 'haut-droite', 'centre', 'bas-centre']);
 const SchemaOperation = z.discriminatedUnion('type', [
@@ -108,9 +110,9 @@ const SchemaOperation = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('modifierTerme'),
     terme: z.string(),
-    definition: z.string().optional(),
-    statut: z.enum(['a-valider', 'valide', 'ecarte']).optional(),
-    position: z.enum(['bas', 'haut']).optional(),
+    definition: z.string().nullable(),
+    statut: z.enum(['a-valider', 'valide', 'ecarte']).nullable(),
+    position: z.enum(['bas', 'haut']).nullable(),
     explication,
   }),
   z.object({ type: z.literal('ajouterTerme'), terme: z.string(), definition: z.string(), mots: z.array(z.number().int()), explication }),
@@ -119,18 +121,18 @@ const SchemaOperation = z.discriminatedUnion('type', [
     nature: z.enum(['zoom', 'miseEnAvant', 'texte', 'camera']),
     premierMot: z.number().int(),
     dernierMot: z.number().int(),
-    texte: z.string().optional(),
-    position: positionTexte.optional(),
+    texte: z.string().nullable(),
+    position: positionTexte.nullable(),
     explication,
   }),
   z.object({
     type: z.literal('modifierElement'),
     idElement: z.string(),
-    premierMot: z.number().int().optional(),
-    dernierMot: z.number().int().optional(),
-    texte: z.string().optional(),
-    position: positionTexte.optional(),
-    statut: z.enum(['a-valider', 'valide', 'ecarte']).optional(),
+    premierMot: z.number().int().nullable(),
+    dernierMot: z.number().int().nullable(),
+    texte: z.string().nullable(),
+    position: positionTexte.nullable(),
+    statut: z.enum(['a-valider', 'valide', 'ecarte']).nullable(),
     explication,
   }),
   z.object({ type: z.literal('supprimerElement'), idElement: z.string(), explication }),
@@ -177,5 +179,10 @@ export async function interpreterConsigne(d: DemandeInterpretation, client?: Ant
   if (!reponse.parsed_output) {
     throw new ErreurInterpretation(500, `Réponse de Claude inexploitable (arrêt : ${reponse.stop_reason}).`);
   }
-  return reponse.parsed_output;
+  const { operations, ...reste } = reponse.parsed_output;
+  return { ...reste, operations: operations.map(sansNuls) as ReponseConsigne['operations'] };
+}
+
+function sansNuls(o: object): object {
+  return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null));
 }
