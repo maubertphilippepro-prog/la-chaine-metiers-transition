@@ -14,6 +14,7 @@ const base: Montage = {
   ],
   chapitres: [{ titre: 'Intro', debut: 0 }, { titre: 'Suite', debut: 5 }, { titre: 'Fin', debut: 12 }],
   termes: [{ terme: 'SSO', definition: 'Déf.', occurrences: [3.8], statut: 'a-valider', position: 'bas' }],
+  elements: [],
 };
 
 describe('coupes', () => {

@@ -37,6 +37,11 @@ describe('chargerTournage', () => {
     expect(t.montage.titre).toBe('Validé');
     expect(t.titre).toBe('2026-10-07-essai');
   });
+  it('lit un montage enregistré sans éléments à l’écran comme une liste vide', async () => {
+    const montage = { version: 1, titre: 'Validé', coupes: [], chapitres: [{ titre: 'Seul', debut: 0 }], termes: [] };
+    const t = await chargerTournage(await tournage({ 'analyse.json': exemple, 'montage.json': montage }), { brouillon: false });
+    expect(t.montage.elements).toEqual([]);
+  });
   it('signale un JSON illisible', async () => {
     const d = await tournage({ 'analyse.json': exemple });
     await writeFile(path.join(d, 'montage.json'), '{ pas du json', 'utf-8');
@@ -51,6 +56,7 @@ describe('chargerTournage', () => {
       [{ ...valide, coupes: null }, 'coupes'],
       [{ ...valide, chapitres: {} }, 'chapitres'],
       [{ ...valide, termes: 'x' }, 'termes'],
+      [{ ...valide, elements: {} }, 'elements'],
     ] as const) {
       const d = await tournage({ 'analyse.json': exemple, 'montage.json': montage });
       await expect(chargerTournage(d, { brouillon: false })).rejects.toThrow(`2026-10-07-essai/montage.json invalide : ${raison}`);

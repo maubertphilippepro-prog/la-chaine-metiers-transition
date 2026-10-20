@@ -46,6 +46,8 @@ export function raisonMontage(m: unknown): string | null {
   for (const champ of ['coupes', 'chapitres', 'termes']) {
     if (!Array.isArray(m[champ])) return `${champ} doit être une liste`;
   }
+  // Absent dans un montage enregistré avant les éléments à l'écran.
+  if (m.elements !== undefined && !Array.isArray(m.elements)) return 'elements doit être une liste';
   return null;
 }
 
@@ -68,7 +70,10 @@ export async function chargerTournage(dossier: string, options: { brouillon: boo
 
   const cheminMontage = path.join(dossier, 'montage.json');
   let montage: Montage;
-  if (existsSync(cheminMontage)) montage = await lireValide<Montage>(cheminMontage, `${nom}/montage.json`, raisonMontage);
+  if (existsSync(cheminMontage)) {
+    const lu = await lireValide<Montage>(cheminMontage, `${nom}/montage.json`, raisonMontage);
+    montage = { ...lu, elements: lu.elements ?? [] };
+  }
   else if (options.brouillon) montage = montageInitial(analyse, titre);
   else throw new Error(`${nom} : montage.json absent. Validez le tournage dans le studio, ou utilisez --brouillon.`);
 

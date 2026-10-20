@@ -12,6 +12,7 @@ const pret: Montage = {
     { terme: 'SSO', definition: 'Déf.', occurrences: [], statut: 'valide', position: 'bas' },
     { terme: 'API', definition: '', occurrences: [], statut: 'ecarte', position: 'bas' },
   ],
+  elements: [],
 };
 
 describe('verifierAvantRendu', () => {

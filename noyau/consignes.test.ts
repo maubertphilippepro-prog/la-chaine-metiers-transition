@@ -18,6 +18,7 @@ const base: Montage = {
   ],
   chapitres: [{ titre: 'Intro', debut: 0 }, { titre: 'Le SSO', debut: 3.0 }],
   termes: [{ terme: 'SSO', definition: 'Déf.', occurrences: [3.8], statut: 'a-valider', position: 'bas' }],
+  elements: [],
 };
 
 const verifier = (op: Operation, m: Montage = base) => verifierOperation(analyse, m, op, reglages);

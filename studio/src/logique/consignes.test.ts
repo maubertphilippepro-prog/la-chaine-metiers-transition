@@ -11,6 +11,7 @@ const montage: Montage = {
   coupes: [{ id: 'l0', type: 'longueur', debut: 10, fin: 20, active: false, enAttente: true }],
   chapitres: [{ titre: 'Intro', debut: 0 }],
   termes: [],
+  elements: [],
 };
 
 const consigne = (etats: EtatProposition[]): Consigne => ({

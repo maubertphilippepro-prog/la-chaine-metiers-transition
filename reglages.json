@@ -40,5 +40,11 @@
     "tapis": "audio/tapis.mp3",
     "volumeJingle": 1,
     "volumeTapis": 0.01
+  },
+  "camera": { "x": 24, "y": 786, "largeur": 480, "hauteur": 270 },
+  "elements": {
+    "texteMaxCaracteres": 40,
+    "dureeMin": 1,
+    "zoomLargeurMin": 480
   }
 }

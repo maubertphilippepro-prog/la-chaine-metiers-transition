@@ -76,3 +76,36 @@ describe('integrerSuggestions', () => {
     expect(r.termes.map(t => [t.terme, t.statut])).toEqual([['SSO', 'ecarte'], ['API', 'valide']]);
   });
 });
+
+describe('éléments suggérés', () => {
+  const avecElements: Analyse = {
+    ...analyse,
+    suggestions: {
+      ...analyse.suggestions!,
+      elements: [
+        { id: 'se0', nature: 'texte', debut: 3.0, fin: 4.3, texte: 'SSO', raison: 'Sigle prononcé.' },
+        { id: 'se1', nature: 'zoom', debut: 0.8, fin: 1.8, raison: 'Désigne l’écran.' },
+      ],
+    },
+  };
+
+  it('transforme chaque suggestion en élément à valider', () => {
+    expect(montageInitial(avecElements, 'T').elements).toEqual([
+      { id: 'se0', debut: 3.0, fin: 4.3, statut: 'a-valider', nature: 'texte', texte: 'SSO', position: 'haut-gauche' },
+      { id: 'se1', debut: 0.8, fin: 1.8, statut: 'a-valider', nature: 'zoom', zone: null },
+    ]);
+  });
+  it('lit une analyse sans suggestions d’éléments comme une liste vide', () => {
+    expect(montageInitial(analyse, 'T').elements).toEqual([]);
+    expect(montageInitial({ ...analyse, suggestions: null }, 'T').elements).toEqual([]);
+  });
+  it('ajoute les suggestions d’éléments absentes sans toucher aux autres', () => {
+    const m = {
+      ...montageInitial(analyse, 'T'),
+      elements: [{ id: 'se0', debut: 3.0, fin: 4.3, statut: 'ecarte' as const, nature: 'camera' as const }],
+    };
+    expect(integrerSuggestions(m, avecElements).elements.map(e => [e.id, e.statut])).toEqual([
+      ['se0', 'ecarte'], ['se1', 'a-valider'],
+    ]);
+  });
+});

@@ -22,6 +22,7 @@ describe('construireTexte', () => {
       ],
       chapitres: [{ titre: 'Le SSO', debut: 3 }, { titre: 'Intro', debut: 0 }],
       termes: [{ terme: 'SSO', definition: 'D', occurrences: [3.8], statut: 'valide', position: 'bas' }],
+      elements: [],
     };
     expect(construireTexte(analyse, montage).map(b => [b.index, b.titre, b.debut, b.elements.map(resume)])).toEqual([
       [1, 'Intro', 0, ['<d0>', 'Bonjour', 'à[m0]', 'tous.[m0]', '<d1>']],
@@ -38,6 +39,7 @@ describe('construireTexte', () => {
       ],
       chapitres: [{ titre: 'Seul', debut: 0 }],
       termes: [{ terme: 'SSO', definition: 'D', occurrences: [3.8], statut: 'ecarte', position: 'bas' }],
+      elements: [],
     };
     const [bloc] = construireTexte(analyse, montage);
     expect(bloc!.elements.map(resume)).toEqual(['Bonjour[a]', 'à', 'tous.', "Aujourd'hui,", 'le', 'SSO.']);

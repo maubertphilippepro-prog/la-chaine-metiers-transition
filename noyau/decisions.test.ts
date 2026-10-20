@@ -23,6 +23,7 @@ const montage: Montage = {
   coupes: [{ id: 'm0', type: 'manuelle', debut: 2, fin: 4, active: true }],
   chapitres: [{ titre: 'A', debut: 0 }, { titre: 'B', debut: 10 }],
   termes: [terme({ terme: 'API', occurrences: [5, 15] }), terme({ terme: 'SSO', occurrences: [12] })],
+  elements: [],
 };
 
 describe('dureesHabillage', () => {

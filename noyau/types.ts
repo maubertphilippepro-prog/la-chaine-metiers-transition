@@ -39,10 +39,43 @@ export interface SuggestionLongueur {
   raison: string;
 }
 
+// Rectangle en pixels de source.mp4 (1920×1080).
+export interface Zone {
+  x: number;
+  y: number;
+  largeur: number;
+  hauteur: number;
+}
+
+export type NatureElement = 'zoom' | 'miseEnAvant' | 'texte' | 'camera';
+export type PositionTexte = 'haut-gauche' | 'haut-droite' | 'centre' | 'bas-centre';
+export type StatutElement = 'a-valider' | 'valide' | 'ecarte';
+
+// Élément posé sur la vidéo pendant un passage de la source.
+// `zone: null` n'existe que pour une suggestion de l'analyse pas encore complétée.
+export type ElementEcran = { id: string; debut: number; fin: number; statut: StatutElement } & (
+  | { nature: 'zoom'; zone: Zone | null }
+  | { nature: 'miseEnAvant'; zone: Zone | null }
+  | { nature: 'texte'; texte: string; position: PositionTexte }
+  | { nature: 'camera' }
+);
+
+// Suggestion de l'analyse ; sa raison reste lisible dans le studio par l'id.
+export interface SuggestionElement {
+  id: string;
+  nature: 'zoom' | 'miseEnAvant' | 'texte';
+  debut: number;
+  fin: number;
+  texte?: string;
+  raison: string;
+}
+
 export interface Suggestions {
   chapitres: SuggestionChapitre[];
   termes: SuggestionTerme[];
   longueurs: SuggestionLongueur[];
+  // Absent dans une analyse faite avant les éléments à l'écran : aucune suggestion.
+  elements?: SuggestionElement[];
 }
 
 export interface Analyse {
@@ -87,6 +120,7 @@ export interface Montage {
   coupes: Coupe[];
   chapitres: Chapitre[];
   termes: Terme[];
+  elements: ElementEcran[];
 }
 
 export type StatutEpisode = 'analyse' | 'en-validation' | 'valide' | 'rendu' | 'erreur';
@@ -134,6 +168,9 @@ export interface Reglages {
   };
   // Fichiers relatifs au dossier public/, volumes entre 0 et 1.
   audio: { jingle: string; tapis: string; volumeJingle: number; volumeTapis: number };
+  // Position de la vignette caméra dans la source, en pixels.
+  camera: Zone;
+  elements: { texteMaxCaracteres: number; dureeMin: number; zoomLargeurMin: number };
   modeles: { whisper: string; claude: string };
   definitionMaxCaracteres: number;
 }
