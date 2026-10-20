@@ -1,16 +1,19 @@
 import { Player, type PlayerRef } from '@remotion/player';
 import { type FC, useEffect, useRef } from 'react';
 import { dureeEpisode, dureeVideoComplete, type DecisionsEpisode, type DecisionsVideoComplete } from '../../../noyau/decisions';
+import type { Zone } from '../../../noyau/types';
 import { HAUTEUR, LARGEUR } from '../../../remotion/charte';
 import { Episode } from '../../../remotion/compositions/Episode';
 import { VideoComplete } from '../../../remotion/compositions/VideoComplete';
+import { type Dessin, TraceurZone } from './TraceurZone';
 
 export type Vue = 'complete' | number;
 
-// Le jeton change à chaque demande, même pour la même image.
+// Le jeton change à chaque demande, même pour la même image ; `pause` arrête l'aperçu sur l'image (tracé d'une zone).
 export interface DemandeLecture {
   image: number;
   jeton: number;
+  pause?: boolean;
 }
 
 interface Props {
@@ -19,15 +22,20 @@ interface Props {
   vue: Vue;
   onVue: (vue: Vue) => void;
   demande: DemandeLecture | null;
+  dessin: Dessin | null;
+  largeurMin: number;
+  validerDessin: (zone: Zone) => string | null;
+  onFinDessin: () => void;
 }
 
 // Lecteur Remotion sur les compositions de rendu, recalculé à chaque modification du montage.
-export const Apercu: FC<Props> = ({ episodes, complete, vue, onVue, demande }) => {
+export const Apercu: FC<Props> = ({ episodes, complete, vue, onVue, demande, dessin, largeurMin, validerDessin, onFinDessin }) => {
   const ref = useRef<PlayerRef>(null);
   useEffect(() => {
     if (!demande || !ref.current) return;
     ref.current.seekTo(demande.image);
-    ref.current.play();
+    if (demande.pause) ref.current.pause();
+    else ref.current.play();
   }, [demande]);
 
   const episode = typeof vue === 'number' ? episodes[vue] : undefined;
@@ -42,33 +50,38 @@ export const Apercu: FC<Props> = ({ episodes, complete, vue, onVue, demande }) =
           </button>
         ))}
       </div>
-      {episode ? (
-        <Player
-          key={`episode-${vue}`}
-          ref={ref}
-          component={Episode}
-          inputProps={{ decisions: episode }}
-          durationInFrames={Math.max(1, dureeEpisode(episode))}
-          fps={episode.fps}
-          compositionWidth={LARGEUR}
-          compositionHeight={HAUTEUR}
-          controls
-          style={style}
-        />
-      ) : (
-        <Player
-          key="complete"
-          ref={ref}
-          component={VideoComplete}
-          inputProps={{ decisions: complete }}
-          durationInFrames={Math.max(1, dureeVideoComplete(complete))}
-          fps={complete.fps}
-          compositionWidth={LARGEUR}
-          compositionHeight={HAUTEUR}
-          controls
-          style={style}
-        />
-      )}
+      <div className="cadre-apercu">
+        {episode ? (
+          <Player
+            key={`episode-${vue}`}
+            ref={ref}
+            component={Episode}
+            inputProps={{ decisions: episode }}
+            durationInFrames={Math.max(1, dureeEpisode(episode))}
+            fps={episode.fps}
+            compositionWidth={LARGEUR}
+            compositionHeight={HAUTEUR}
+            controls
+            style={style}
+          />
+        ) : (
+          <Player
+            key="complete"
+            ref={ref}
+            component={VideoComplete}
+            inputProps={{ decisions: complete }}
+            durationInFrames={Math.max(1, dureeVideoComplete(complete))}
+            fps={complete.fps}
+            compositionWidth={LARGEUR}
+            compositionHeight={HAUTEUR}
+            controls
+            style={style}
+          />
+        )}
+        {dessin && (
+          <TraceurZone key={JSON.stringify(dessin)} dessin={dessin} largeurMin={largeurMin} valider={validerDessin} onFin={onFinDessin} />
+        )}
+      </div>
     </section>
   );
 };

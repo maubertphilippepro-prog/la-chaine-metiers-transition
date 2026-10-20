@@ -1,21 +1,34 @@
-import { type FC, type MouseEvent, useMemo, useState } from 'react';
+import { type FC, type MouseEvent, useEffect, useMemo, useState } from 'react';
 import {
   ajouterChapitre, basculerCoupe, couperPassage, deplacerLimite, fusionnerChapitre, renommerChapitre,
 } from '../../../noyau/edition';
 import type { Ancrage } from '../../../noyau/consignes';
-import type { Analyse, Coupe, Montage, TypeCoupe } from '../../../noyau/types';
+import { LIBELLES_NATURE } from '../../../noyau/elements';
+import type { Analyse, Coupe, Montage, NatureElement, PositionTexte, TypeCoupe } from '../../../noyau/types';
+import { textePrerempli } from '../logique/elements';
 import { duree, horodatage } from '../logique/format';
 import { construireTexte, type ElementTexte } from '../logique/texte';
+import { ChoixPosition } from './ChoixPosition';
 
 type Choix = { genre: 'mots'; debut: number; fin: number; rangs: [number, number] } | { genre: 'coupe'; id: string };
+
+export interface SaisieTexte {
+  texte: string;
+  position: PositionTexte;
+}
 
 interface Props {
   analyse: Analyse;
   montage: Montage;
+  texteMax: number;
   modifier: (f: (m: Montage) => Montage) => void;
   ecouter: (debut: number, fin: number) => void;
   lireDansApercu: (t: number) => void;
   consignerPassage: (a: Ancrage) => void;
+  // Passage de mots choisi (ou null), pour « Recaler sur la sélection ».
+  surSelection: (a: Ancrage | null) => void;
+  // Crée un élément sur le passage ; renvoie le problème qui l'empêche, ou null.
+  creerElement: (nature: NatureElement, a: Ancrage, saisie?: SaisieTexte) => string | null;
 }
 
 export const LIBELLES_COUPE: Record<TypeCoupe, string> = {
@@ -33,7 +46,8 @@ function classeCoupe(c: Coupe | null): string {
 }
 
 // Texte horodaté : clic sur un mot ou un trou pour le choisir, glisser pour choisir un passage.
-export const Texte: FC<Props> = ({ analyse, montage, modifier, ecouter, lireDansApercu, consignerPassage }) => {
+export const Texte: FC<Props> = props => {
+  const { analyse, montage, texteMax, modifier, ecouter, lireDansApercu, consignerPassage, surSelection, creerElement } = props;
   const blocs = useMemo(() => construireTexte(analyse, montage), [analyse, montage]);
   const rangs = useMemo(() => new Map(analyse.mots.map((m, i) => [m.id, i])), [analyse]);
   const coupesDesMots = useMemo(() => {
@@ -42,8 +56,22 @@ export const Texte: FC<Props> = ({ analyse, montage, modifier, ecouter, lireDans
     return carte;
   }, [blocs]);
   const [choix, setChoix] = useState<Choix | null>(null);
+  const [saisie, setSaisie] = useState<SaisieTexte | null>(null);
+  const [alerte, setAlerte] = useState<string | null>(null);
   const coupe = choix?.genre === 'coupe' ? montage.coupes.find(c => c.id === choix.id) ?? null : null;
   const paroles = coupe ? analyse.detections.find(d => d.id === coupe.id)?.paroles : undefined;
+  const ancrage = useMemo((): Ancrage | null => {
+    if (choix?.genre !== 'mots') return null;
+    const premier = analyse.mots[choix.rangs[0]];
+    const dernier = analyse.mots[choix.rangs[1]];
+    return premier && dernier ? { premierMot: premier.id, dernierMot: dernier.id } : null;
+  }, [choix, analyse]);
+
+  useEffect(() => {
+    surSelection(ancrage);
+    setSaisie(null);
+    setAlerte(null);
+  }, [ancrage, surSelection]);
 
   const choisirMots = (r1: number, r2: number) => {
     const [a, b] = r1 <= r2 ? [r1, r2] : [r2, r1];
@@ -78,6 +106,13 @@ export const Texte: FC<Props> = ({ analyse, montage, modifier, ecouter, lireDans
     }
   };
 
+  const creer = (nature: NatureElement, s?: SaisieTexte) => {
+    if (!ancrage) return;
+    const probleme = creerElement(nature, ancrage, s);
+    setAlerte(probleme);
+    if (!probleme) setSaisie(null);
+  };
+
   const estChoisi = (e: ElementTexte) => {
     if (choix?.genre === 'coupe') return (e.genre === 'trou' ? e.coupe.id : e.coupe?.id) === choix.id;
     if (choix?.genre === 'mots' && e.genre === 'mot') {
@@ -92,8 +127,11 @@ export const Texte: FC<Props> = ({ analyse, montage, modifier, ecouter, lireDans
       <span
         key={`m${e.mot.id}`}
         data-mot={e.mot.id}
-        title={e.terme ?? undefined}
-        className={['mot', classeCoupe(e.coupe), e.terme ? 'terme' : '', estChoisi(e) ? 'choisi' : ''].join(' ')}
+        title={[e.terme, ...e.reperes.map(n => LIBELLES_NATURE[n])].filter(Boolean).join(' · ') || undefined}
+        className={[
+          'mot', classeCoupe(e.coupe), e.terme ? 'terme' : '', e.reperes[0] ? `repere repere-${e.reperes[0]}` : '',
+          estChoisi(e) ? 'choisi' : '',
+        ].join(' ')}
       >
         {e.mot.texte}{' '}
       </span>
@@ -118,15 +156,29 @@ export const Texte: FC<Props> = ({ analyse, montage, modifier, ecouter, lireDans
             <button onClick={() => ecouter(choix.debut, choix.fin)}>Écouter</button>
             <button onClick={() => lireDansApercu(choix.debut)}>Lire dans l’aperçu</button>
             <button onClick={() => modifier(m => ajouterChapitre(m, choix.debut, 'Nouveau chapitre'))}>Nouveau chapitre ici</button>
+            <button onClick={() => { if (ancrage) consignerPassage(ancrage); }}>Donner une consigne sur ce passage</button>
+            <button onClick={() => creer('zoom')}>Zoomer ici</button>
+            <button onClick={() => creer('miseEnAvant')}>Mettre en avant</button>
             <button
-              onClick={() => {
-                const premier = analyse.mots[choix.rangs[0]];
-                const dernier = analyse.mots[choix.rangs[1]];
-                if (premier && dernier) consignerPassage({ premierMot: premier.id, dernierMot: dernier.id });
-              }}
+              onClick={() => { if (ancrage) setSaisie({ texte: textePrerempli(analyse, ancrage, texteMax), position: 'haut-gauche' }); }}
             >
-              Donner une consigne sur ce passage
+              Ajouter un texte
             </button>
+            <button onClick={() => creer('camera')}>Caméra en grand</button>
+            {saisie && (
+              <span className="actions">
+                <input
+                  value={saisie.texte}
+                  maxLength={texteMax}
+                  aria-label="Texte à incruster"
+                  onChange={e => setSaisie({ ...saisie, texte: e.target.value })}
+                />
+                <ChoixPosition valeur={saisie.position} onChange={position => setSaisie({ ...saisie, position })} />
+                <button className="principal" onClick={() => creer('texte', saisie)}>Ajouter</button>
+                <button onClick={() => setSaisie(null)}>Annuler</button>
+              </span>
+            )}
+            {alerte && <span className="trop-long">{alerte}</span>}
           </>
         )}
         {coupe && (

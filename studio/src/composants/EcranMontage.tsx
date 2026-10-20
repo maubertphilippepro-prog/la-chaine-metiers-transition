@@ -1,6 +1,9 @@
 import { type FC, useMemo, useState } from 'react';
 import { decisionsEpisodes, decisionsVideoComplete } from '../../../noyau/decisions';
-import type { Ancrage } from '../../../noyau/consignes';
+import { passageEnTemps, tracerZoneProposition, type Ancrage } from '../../../noyau/consignes';
+import { ajouterElement, modifierElement, prochainIdElement, type NouvelElement } from '../../../noyau/edition';
+import { problemeDe } from '../../../noyau/elements';
+import type { Montage, NatureElement, Zone } from '../../../noyau/types';
 import { useEcoute } from '../ecoute';
 import { imageEpisode, imageVideoComplete, positionDansParties } from '../logique/apercu';
 import { useConsignes } from '../useConsignes';
@@ -11,7 +14,8 @@ import { PanneauConsignes } from './PanneauConsignes';
 import { PanneauLongueurs } from './PanneauLongueurs';
 import { PanneauRendu } from './PanneauRendu';
 import { PanneauTermes } from './PanneauTermes';
-import { Texte } from './Texte';
+import { Texte, type SaisieTexte } from './Texte';
+import type { Dessin } from './TraceurZone';
 
 const LIBELLES_ENREGISTREMENT: Record<EtatEnregistrement, string> = {
   'a-jour': 'Enregistré',
@@ -26,14 +30,23 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
   const [demande, setDemande] = useState<DemandeLecture | null>(null);
   const consignes = useConsignes(nom, detail?.consignes ?? null);
   const [ancrage, setAncrage] = useState<Ancrage | null>(null);
+  const [selection, setSelection] = useState<Ancrage | null>(null);
+  const [dessin, setDessin] = useState<Dessin | null>(null);
+  // Pendant le retracé d'une zone, l'aperçu montre l'image sans cet élément.
+  const montageApercu = useMemo(() => {
+    const cible = dessin?.cible;
+    return montage && cible?.genre === 'element'
+      ? { ...montage, elements: montage.elements.filter(e => e.id !== cible.id) }
+      : montage;
+  }, [montage, dessin]);
   const decisions = useMemo(
-    () => (detail && montage
+    () => (detail && montageApercu
       ? {
-        episodes: decisionsEpisodes(detail.analyse, montage, detail.reglages, detail.sourceUrl),
-        complete: decisionsVideoComplete(detail.analyse, montage, detail.reglages, detail.sourceUrl),
+        episodes: decisionsEpisodes(detail.analyse, montageApercu, detail.reglages, detail.sourceUrl),
+        complete: decisionsVideoComplete(detail.analyse, montageApercu, detail.reglages, detail.sourceUrl),
       }
       : null),
-    [detail, montage],
+    [detail, montageApercu],
   );
 
   if (erreur) {
@@ -46,18 +59,68 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
   }
   if (!detail || !montage || !decisions || !consignes.fichier) return <div className="page">Chargement…</div>;
 
-  const lireDansApercu = (t: number) => {
+  const lireDansApercu = (t: number, pause = false) => {
     const fps = detail.analyse.fps;
+    const jeton = Date.now();
     if (vue === 'complete') {
       const p = positionDansParties(decisions.complete.parties, t, fps);
-      if (p) setDemande({ image: imageVideoComplete(decisions.complete, p), jeton: Date.now() });
+      if (p) setDemande({ image: imageVideoComplete(decisions.complete, p), jeton, pause });
       return;
     }
     const p = positionDansParties(decisions.episodes.map(e => e.partie), t, fps);
     const episode = p ? decisions.episodes[p.partie] : undefined;
     if (p && episode) {
       setVue(p.partie);
-      setDemande({ image: imageEpisode(episode, p), jeton: Date.now() });
+      setDemande({ image: imageEpisode(episode, p), jeton, pause });
+    }
+  };
+
+  // Une création ou une retouche d'élément n'est enregistrée que si l'élément touché respecte les règles.
+  const retoucher = (id: string, f: (m: Montage) => Montage): string | null => {
+    const suivant = f(montage);
+    if (suivant === montage) return null;
+    const probleme = problemeDe(detail.analyse, suivant, id, detail.reglages);
+    if (probleme) return probleme;
+    modifier(() => suivant);
+    return null;
+  };
+  const creer = (e: NouvelElement) => retoucher(prochainIdElement(montage), m => ajouterElement(m, e));
+
+  const tracer = (d: Dessin) => {
+    setDessin(d);
+    lireDansApercu(d.debut, true);
+  };
+
+  const creerElement = (nature: NatureElement, a: Ancrage, saisie?: SaisieTexte): string | null => {
+    const p = passageEnTemps(detail.analyse, a.premierMot, a.dernierMot);
+    if (typeof p === 'string') return p;
+    const commun = { debut: p.debut, fin: p.fin, statut: 'valide' as const };
+    switch (nature) {
+      case 'camera':
+        return creer({ ...commun, nature });
+      case 'texte':
+        return saisie ? creer({ ...commun, nature, ...saisie }) : null;
+      case 'zoom':
+      case 'miseEnAvant':
+        tracer({ nature, debut: p.debut, cible: { genre: 'nouveau', fin: p.fin } });
+        return null;
+    }
+  };
+
+  const fichierConsignes = consignes.fichier;
+  const validerDessin = (d: Dessin, zone: Zone): string | null => {
+    const cible = d.cible;
+    switch (cible.genre) {
+      case 'nouveau':
+        return creer({ debut: d.debut, fin: cible.fin, statut: 'valide', nature: d.nature, zone });
+      case 'element':
+        return retoucher(cible.id, m => modifierElement(m, cible.id, { zone }));
+      case 'proposition':
+        consignes.enregistrer({
+          ...fichierConsignes,
+          consignes: fichierConsignes.consignes.map(c => (c.id === cible.idConsigne ? tracerZoneProposition(c, cible.indice, zone) : c)),
+        });
+        return null;
     }
   };
 
@@ -73,13 +136,22 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
         <span className="discret">{LIBELLES_ENREGISTREMENT[enregistrement]}</span>
       </header>
       <main className="texte">
-        <Texte analyse={detail.analyse} montage={montage} modifier={modifier} ecouter={ecouter} lireDansApercu={lireDansApercu} consignerPassage={setAncrage} />
+        <Texte analyse={detail.analyse} montage={montage} modifier={modifier} ecouter={ecouter} lireDansApercu={lireDansApercu} consignerPassage={setAncrage}
+          texteMax={detail.reglages.elements.texteMaxCaracteres}
+          surSelection={setSelection}
+          creerElement={creerElement}
+        />
       </main>
       <aside className="cote">
         {detail.analyse.erreurSuggestions && (
           <BandeauSuggestions nom={nom} erreur={detail.analyse.erreurSuggestions} onRelance={remplacerDetail} />
         )}
-        <Apercu episodes={decisions.episodes} complete={decisions.complete} vue={vue} onVue={setVue} demande={demande} />
+        <Apercu episodes={decisions.episodes} complete={decisions.complete} vue={vue} onVue={setVue} demande={demande}
+          dessin={dessin}
+          largeurMin={detail.reglages.elements.zoomLargeurMin}
+          validerDessin={zone => (dessin ? validerDessin(dessin, zone) : null)}
+          onFinDessin={() => setDessin(null)}
+        />
         <PanneauConsignes
           nom={nom}
           analyse={detail.analyse}

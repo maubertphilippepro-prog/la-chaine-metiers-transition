@@ -65,3 +65,13 @@ button.principal { background: var(--bleu); color: white; padding: 6px 12px; }
 .proposition-traitee { opacity: 0.55; }
 .pastille { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--rouge); margin-right: 6px; }
 button.lien { background: none; border: none; padding: 0; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+
+.repere { box-shadow: inset 0 -3px 0 var(--couleur-repere); }
+.repere-zoom { --couleur-repere: #0ea5e9; }
+.repere-miseEnAvant { --couleur-repere: #f59e0b; }
+.repere-texte { --couleur-repere: #10b981; }
+.repere-camera { --couleur-repere: #8b5cf6; }
+.cadre-apercu { position: relative; }
+.traceur { position: absolute; inset: 0; cursor: crosshair; background: rgba(0, 0, 0, 0.15); touch-action: none; }
+.traceur-zone { position: absolute; border: 2px solid var(--rouge); background: rgba(255, 255, 255, 0.15); pointer-events: none; }
+.traceur-barre { position: absolute; top: 6px; left: 6px; right: 6px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; background: rgba(255, 255, 255, 0.92); padding: 4px 8px; border-radius: 6px; cursor: default; font-size: 13px; }
