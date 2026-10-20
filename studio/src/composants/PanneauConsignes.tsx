@@ -1,11 +1,11 @@
 import { type FC, type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import {
-  accepterPropositions, extraitPassage, indicesEnAttente, refuserPropositions,
-  type Ancrage, type Consigne, type EtatProposition, type FichierConsignes, type ReglagesConsignes,
+  accepterPropositions, extraitPassage, indicesEnAttente, refuserPropositions, zoneATracer,
+  type Ancrage, type Consigne, type EtatProposition, type FichierConsignes, type Operation, type ReglagesConsignes,
 } from '../../../noyau/consignes';
 import type { Analyse, Montage } from '../../../noyau/types';
 import { api } from '../api';
-import { bilan, passageDeProposition } from '../logique/consignes';
+import { bilan, demandeUneZone, passageDeProposition } from '../logique/consignes';
 import type { EtatEnregistrement } from '../useMontage';
 
 interface Props {
@@ -23,6 +23,8 @@ interface Props {
   modifier: (f: (m: Montage) => Montage) => void;
   ecouter: (debut: number, fin: number) => void;
   lireDansApercu: (t: number) => void;
+  // Ouvre le tracé de la zone d'une proposition de zoom ou de mise en avant.
+  tracerProposition: (idConsigne: string, indice: number, operation: Operation) => void;
 }
 
 const LIBELLES_ETAT: Record<EtatProposition, string> = {
@@ -102,8 +104,14 @@ export const PanneauConsignes: FC<Props> = props => {
               <div>{p.explication}</div>
               {p.etat === 'en-attente' ? (
                 <div className="actions">
-                  <button disabled={envoi} onClick={() => decider(c, [i], true)}>Accepter</button>
+                  <button disabled={envoi || zoneATracer(p.operation)} onClick={() => decider(c, [i], true)}>Accepter</button>
                   <button disabled={envoi} onClick={() => decider(c, [i], false)}>Refuser</button>
+                  {demandeUneZone(p.operation) && (
+                    <button disabled={envoi} onClick={() => props.tracerProposition(c.id, i, p.operation)}>
+                      {zoneATracer(p.operation) ? 'Tracer dans l’aperçu' : 'Retracer'}
+                    </button>
+                  )}
+                  {zoneATracer(p.operation) && <span className="trop-long">Zone à tracer</span>}
                   {passage && (
                     <>
                       <button onClick={() => props.ecouter(passage.debut, passage.fin)}>Écouter</button>

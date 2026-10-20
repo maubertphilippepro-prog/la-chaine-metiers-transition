@@ -1,9 +1,9 @@
 import { type FC, useMemo, useState } from 'react';
 import { decisionsEpisodes, decisionsVideoComplete } from '../../../noyau/decisions';
-import { passageEnTemps, tracerZoneProposition, type Ancrage } from '../../../noyau/consignes';
+import { passageEnTemps, tracerZoneProposition, type Ancrage, type Operation } from '../../../noyau/consignes';
 import { ajouterElement, modifierElement, prochainIdElement, type NouvelElement } from '../../../noyau/edition';
 import { problemeDe } from '../../../noyau/elements';
-import type { Montage, NatureElement, Zone } from '../../../noyau/types';
+import type { ElementEcran, Montage, NatureElement, Zone } from '../../../noyau/types';
 import { useEcoute } from '../ecoute';
 import { imageEpisode, imageVideoComplete, positionDansParties } from '../logique/apercu';
 import { useConsignes } from '../useConsignes';
@@ -11,6 +11,7 @@ import { type EtatEnregistrement, useMontage } from '../useMontage';
 import { Apercu, type DemandeLecture, type Vue } from './Apercu';
 import { BandeauSuggestions } from './BandeauSuggestions';
 import { PanneauConsignes } from './PanneauConsignes';
+import { PanneauElements } from './PanneauElements';
 import { PanneauLongueurs } from './PanneauLongueurs';
 import { PanneauRendu } from './PanneauRendu';
 import { PanneauTermes } from './PanneauTermes';
@@ -107,6 +108,16 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
     }
   };
 
+  const tracerElement = (e: ElementEcran) => {
+    if (e.nature === 'zoom' || e.nature === 'miseEnAvant') tracer({ nature: e.nature, debut: e.debut, cible: { genre: 'element', id: e.id } });
+  };
+
+  const tracerProposition = (idConsigne: string, indice: number, op: Operation) => {
+    if (op.type !== 'ajouterElement' || (op.nature !== 'zoom' && op.nature !== 'miseEnAvant')) return;
+    const p = passageEnTemps(detail.analyse, op.premierMot, op.dernierMot);
+    if (typeof p !== 'string') tracer({ nature: op.nature, debut: p.debut, cible: { genre: 'proposition', idConsigne, indice } });
+  };
+
   const fichierConsignes = consignes.fichier;
   const validerDessin = (d: Dessin, zone: Zone): string | null => {
     const cible = d.cible;
@@ -165,6 +176,17 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
           ancrage={ancrage}
           onAncrage={setAncrage}
           modifier={modifier}
+          ecouter={ecouter}
+          lireDansApercu={lireDansApercu}
+          tracerProposition={tracerProposition}
+        />
+        <PanneauElements
+          analyse={detail.analyse}
+          montage={montage}
+          reglages={detail.reglages}
+          selection={selection}
+          retoucher={retoucher}
+          tracer={tracerElement}
           ecouter={ecouter}
           lireDansApercu={lireDansApercu}
         />

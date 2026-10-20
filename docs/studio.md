@@ -11,7 +11,7 @@ Le studio sert à relire un tournage analysé, corriger les décisions de montag
 
 - **Texte** (à gauche) : les passages coupés sont barrés, avec une couleur par type (silence, hésitation, répétition, prise ratée, longueur, coupe manuelle). Les termes à définir sont surlignés en jaune, les longueurs proposées sur fond rose.
   - Cliquer un passage coupé : le rétablir (ou le recouper), l'écouter seul, le retrouver dans l'aperçu.
-  - Cliquer un mot ou sélectionner un passage à la souris : le couper, l'écouter, le lire dans l'aperçu, y commencer un nouveau chapitre, y donner une consigne.
+  - Cliquer un mot ou sélectionner un passage à la souris : le couper, l'écouter, le lire dans l'aperçu, y commencer un nouveau chapitre, y donner une consigne, y poser un élément à l’écran.
   - Chaque chapitre a son titre modifiable, « Commencer ici » (déplace son début sur le passage choisi) et « Fusionner avec le précédent ».
 - **Aperçu** (à droite) : la vidéo complète ou chaque épisode, avec habillage, recalculés à chaque modification.
 - **Longueurs proposées** : rien n'est coupé tant que la suggestion n'est pas acceptée (« Couper ») ou refusée (« Garder »).
@@ -23,13 +23,26 @@ Chaque modification est enregistrée dans `montage.json` ; `analyse.json` n’es
 
 Le panneau **Consignes** (sous l’aperçu) accepte une consigne écrite librement : « coupe tout le passage sur Excel », « renomme le chapitre 2 en … », « ajoute une définition pour prompt ». Pour viser un passage, le sélectionner dans le texte puis choisir « Donner une consigne sur ce passage ».
 
-- « Envoyer » (ou Ctrl+Entrée) : Claude reformule la consigne (« J’ai compris : … ») et la traduit en opérations du studio (couper, rétablir une coupe, décider d’une longueur, renommer, ajouter, déplacer ou fusionner un chapitre, modifier ou ajouter un terme, changer le titre). Ce qu’aucune opération ne permet est listé dans « Pas réalisable ».
+- « Envoyer » (ou Ctrl+Entrée) : Claude reformule la consigne (« J’ai compris : … ») et la traduit en opérations du studio (couper, rétablir une coupe, décider d’une longueur, renommer, ajouter, déplacer ou fusionner un chapitre, modifier ou ajouter un terme, changer le titre, poser, modifier ou retirer un élément à l’écran). Ce qu’aucune opération ne permet est listé dans « Pas réalisable ».
 - Rien ne change tant qu’une proposition n’est pas acceptée. Chacune peut être acceptée ou refusée, écoutée et vue dans l’aperçu quand elle porte sur un passage ; « Tout accepter » et « Tout refuser » traitent toutes celles en attente.
 - Une proposition qui ne s’applique plus au montage (par exemple parce qu’une autre a été refusée) passe « invalide » avec la raison ; elle ne bloque pas le rendu. Une proposition en attente bloque « Valider et lancer le rendu ».
 - Les consignes précédentes restent consultables (pastille rouge : propositions encore en attente).
 
 Les consignes sont enregistrées dans `consignes.json`, à côté de `montage.json`. L’appel à Claude demande la clé `ANTHROPIC_API_KEY`, lue comme pour l’analyse dans la variable d’environnement ou dans le fichier `.env` à la racine du projet ; le modèle est celui de `reglages.json` (`modeles.claude`).
 
+## Éléments à l’écran
+
+Quatre éléments peuvent être posés sur la vidéo pendant un passage : un **zoom** sur une zone du partage d’écran, une **mise en avant** (le reste de l’image s’assombrit, la zone reçoit un cadre rouge), un **texte incrusté** court (URL, nom d’outil, raccourci clavier, chiffre clé ; 40 caractères au plus) et la **caméra en grand** (la vignette passe au centre, deux fois plus grande, l’écran derrière est flouté).
+
+- **Depuis le texte** : sélectionner un passage, puis « Zoomer ici », « Mettre en avant », « Ajouter un texte » (prérempli avec les mots sélectionnés, position au choix) ou « Caméra en grand ». L’élément est créé directement, validé.
+- **Tracer une zone** : pour un zoom ou une mise en avant, l’aperçu se met en pause au début du passage ; tirer un rectangle à la souris (en 16:9 pour un zoom, 480 pixels de large au moins), puis « Valider » ou « Annuler ».
+- **Par une consigne** : « zoome ici », « affiche l’URL », « accepte les textes suggérés »… Claude ne voit pas l’image : une proposition de zoom ou de mise en avant affiche « Zone à tracer » ; « Tracer dans l’aperçu » ouvre le tracé, et « Accepter » n’est possible qu’une fois la zone tracée.
+- **Suggestions de l’analyse** : Claude propose les textes à incruster et les moments où l’auteur désigne l’écran. Elles arrivent « à valider », avec leur raison ; une suggestion de zoom ou de mise en avant attend sa zone.
+
+Le panneau **Éléments à l’écran** liste les éléments par ordre d’apparition : écouter, voir dans l’aperçu, accepter ou écarter une suggestion, tracer ou retracer la zone, modifier le texte et sa position, « Recaler sur la sélection » (reprend le passage sélectionné dans le texte), supprimer. Dans le texte, un soulignement de couleur repère les passages couverts (bleu : zoom, orange : mise en avant, vert : texte, violet : caméra), avec la nature au survol.
+
+Règles vérifiées à chaque création ou retouche (un refus s’affiche sans rien modifier) : au moins 1 s à l’écran une fois les coupes retirées ; un seul zoom ou caméra en grand à la fois ; pas de mise en avant pendant un zoom ou la caméra en grand ; deux textes simultanés à des positions différentes ; pas de texte en haut à droite pendant un encart de définition placé en haut. Les textes ne se placent pas dans les coins bas (vignette caméra à gauche, logo à droite). La position de la vignette caméra dans la source se règle dans `reglages.json` (`camera`).
+
 ## Rendu
 
-« Valider et lancer le rendu » est disponible quand la vidéo et chaque chapitre ont un titre, chaque terme est validé ou écarté, aucune longueur n'est en attente et aucune proposition de consigne n'attend de décision. Le studio ajoute alors les définitions validées à `donnees/glossaire.json`, passe le tournage au statut « Validé » et rend la vidéo complète et chaque épisode dans `rendus/`. Un rendu en échec peut être relancé seul ; le détail est dans `rendus/journal.txt`.
+« Valider et lancer le rendu » est disponible quand la vidéo et chaque chapitre ont un titre, chaque terme est validé ou écarté, aucune longueur n'est en attente, aucune proposition de consigne n'attend de décision et aucun élément à l’écran n’est à valider ni en défaut. Le studio ajoute alors les définitions validées à `donnees/glossaire.json`, passe le tournage au statut « Validé » et rend la vidéo complète et chaque épisode dans `rendus/`. Un rendu en échec peut être relancé seul ; le détail est dans `rendus/journal.txt`.
