@@ -1,13 +1,19 @@
 import { existsSync } from 'node:fs';
+import { mkdir } from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import { createServer as creerVite } from 'vite';
+import { rendreVignette } from '../../remotion/scripts/vignette';
 import { rendreTournage } from '../../remotion/scripts/rendu';
 import { demarrerServeur } from '../../remotion/scripts/serveur-fichiers';
 import { RACINE } from '../../remotion/scripts/tournage';
 import { creerApi } from './api';
 import { interpreterConsigne } from './interpretation';
 import { requeteAutorisee } from './origine';
+import { detourerImage, extraireImage } from './pipeline';
+import { creerApiPublication } from './publication';
+import { redigerPublication } from './redaction';
+import { lireReferencesSite } from './site-replit';
 import { relancerSuggestions } from './suggestions';
 import { SuiviRendu } from './suivi-rendu';
 
@@ -29,6 +35,24 @@ async function main(): Promise<void> {
     interpreterConsigne: d => interpreterConsigne(d),
   });
 
+  // Banque de poses servie à part : ses photos ne sont pas dans un dossier de tournage.
+  const cheminPoses = path.join(RACINE, 'donnees', 'poses');
+  await mkdir(cheminPoses, { recursive: true });
+  const serveurPoses = await demarrerServeur(cheminPoses);
+  const apiPublication = creerApiPublication({
+    racineTournages,
+    cheminPoses,
+    urlFichiers: fichiers.url,
+    urlPoses: serveurPoses.url,
+    // Adresse publiée du site Replit (catégories et playlists), dans .env.
+    urlSite: process.env.REPLIT_SITE_URL,
+    lireSite: url => lireReferencesSite(url),
+    rediger: d => redigerPublication(d),
+    extraireImage,
+    detourer: detourerImage,
+    rendreVignette: (props, sortie, octetsMax) => rendreVignette(props, sortie, octetsMax),
+  });
+
   const serveur = http.createServer();
   const vite = await creerVite({
     configFile: path.join(RACINE, 'studio', 'vite.config.ts'),
@@ -41,6 +65,7 @@ async function main(): Promise<void> {
       res.writeHead(403).end();
       return;
     }
+    if (await apiPublication(req, res)) return;
     if (await api(req, res)) return;
     vite.middlewares(req, res);
   });

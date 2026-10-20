@@ -1,6 +1,9 @@
 import type { FichierConsignes } from '../noyau/consignes';
 import type { Analyse, Montage, Reglages, StatutEpisode } from '../noyau/types';
 import type { ResultatRendu } from '../remotion/scripts/rendu';
+import type { CiblePublication, Publication, ReglagesPublication } from '../noyau/publication';
+import type { ChapitreYoutube } from '../noyau/publication-textes';
+import type { ReferencesSite } from './serveur/site-replit';
 
 // Données échangées entre le serveur du studio et l'interface.
 
@@ -31,4 +34,26 @@ export interface EtatRendu {
   progression: number;
   resultats: ResultatRendu[];
   erreur: string | null;
+}
+
+export interface VideoDisponible {
+  cible: CiblePublication;
+  titre: string;
+  fichier: string;          // nom du rendu dans rendus/
+  rendue: boolean;
+  dureeSecondes: number;
+  chapitres: ChapitreYoutube[];
+}
+export interface Pose { fichier: string; url: string }   // url : PNG détouré
+export interface DetailPublication {
+  nom: string;
+  titre: string;
+  sourceUrl: string;
+  urlTournage: string;      // sert le dossier du tournage (images, vignettes)
+  urlPoses: string;
+  publication: Publication;
+  videos: VideoDisponible[];
+  camera: string | null;    // nom du fichier caméra dans bruts/
+  site: ReferencesSite | null;
+  reglages: ReglagesPublication;
 }
