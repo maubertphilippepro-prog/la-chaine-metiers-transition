@@ -47,12 +47,13 @@ def etape_suggestions(dossier: Path, mots: list[dict], reglages: dict, demander_
         glossaire = charger_glossaire(glossaire_chemin)
     except (ValueError, KeyError, TypeError, AttributeError, OSError) as e:
         return None, f"glossaire.json illisible : {e!r}"
+    texte_max = reglages["elements"]["texteMaxCaracteres"]
     try:
         reponse = demander_fn(mots, glossaire, reglages["modeles"]["claude"],
-                              max_caracteres=reglages["definitionMaxCaracteres"])
+                              max_caracteres=reglages["definitionMaxCaracteres"], texte_max=texte_max)
     except ErreurSuggestions as e:
         return None, str(e)
-    suggestions = convertir(reponse, mots, glossaire)
+    suggestions = convertir(reponse, mots, glossaire, texte_max=texte_max)
     ecrire(fichier, suggestions)
     return suggestions, None
 
@@ -150,7 +151,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Suggestions indisponibles : {analyse['erreurSuggestions']}", file=sys.stderr)
     else:
         s = analyse["suggestions"]
-        print(f"{len(s['chapitres'])} chapitres, {len(s['termes'])} termes, {len(s['longueurs'])} longueurs proposés.")
+        print(f"{len(s['chapitres'])} chapitres, {len(s['termes'])} termes, {len(s['longueurs'])} longueurs, "
+              f"{len(s.get('elements', []))} éléments à l'écran proposés.")
     return 0
 
 

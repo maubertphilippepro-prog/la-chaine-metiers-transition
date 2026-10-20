@@ -20,7 +20,7 @@ def faux_transcrire(chemin, modele):
 
 def faux_demander(mots, glossaire, modele, **kwargs):
     faux_demander.kwargs = kwargs
-    return ReponseIA(chapitres=[ChapitreIA(titre="Intro", premier_mot=0)], termes=[], longueurs=[])
+    return ReponseIA(chapitres=[ChapitreIA(titre="Intro", premier_mot=0)], termes=[], longueurs=[], elements=[])
 
 
 def demander_en_erreur(mots, glossaire, modele, **kwargs):
@@ -192,7 +192,10 @@ def test_erreur_inattendue_marque_l_episode(tournage, tmp_path):
 
 def test_longueur_de_definition_transmise(tournage, tmp_path):
     analyser(tournage, "Test", REGLAGES, faux_transcrire, faux_demander, tmp_path / "glossaire.json")
-    assert faux_demander.kwargs == {"max_caracteres": REGLAGES["definitionMaxCaracteres"]}
+    assert faux_demander.kwargs == {
+        "max_caracteres": REGLAGES["definitionMaxCaracteres"],
+        "texte_max": REGLAGES["elements"]["texteMaxCaracteres"],
+    }
 
 
 def test_analyse_d_un_webm(tmp_path, video_test):

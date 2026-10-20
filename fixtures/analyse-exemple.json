@@ -25,7 +25,8 @@
     ],
     "longueurs": [
       { "id": "l0", "debut": 10.0, "fin": 20.0, "raison": "Digression sans lien avec le sujet." }
-    ]
+    ],
+    "elements": []
   },
   "erreurSuggestions": null
 }

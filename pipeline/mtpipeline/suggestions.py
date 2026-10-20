@@ -1,4 +1,5 @@
 import os
+from typing import Literal
 
 import anthropic
 from pydantic import BaseModel, ValidationError
@@ -23,10 +24,19 @@ class LongueurIA(BaseModel):
     raison: str
 
 
+class ElementIA(BaseModel):
+    nature: Literal["zoom", "miseEnAvant", "texte"]
+    premier_mot: int
+    dernier_mot: int
+    texte: str | None = None
+    raison: str
+
+
 class ReponseIA(BaseModel):
     chapitres: list[ChapitreIA]
     termes: list[TermeIA]
     longueurs: list[LongueurIA]
+    elements: list[ElementIA]
 
 
 def texte_numerote(mots: list[dict]) -> str:
@@ -36,7 +46,8 @@ def texte_numerote(mots: list[dict]) -> str:
     return "\n".join(lignes)
 
 
-def construire_prompt(mots: list[dict], glossaire: dict[str, dict], *, max_caracteres: int = 160) -> str:
+def construire_prompt(mots: list[dict], glossaire: dict[str, dict], *, max_caracteres: int = 160,
+                      texte_max: int = 40) -> str:
     connus = ", ".join(sorted(t["terme"] for t in glossaire.values())) or "(aucun)"
     return f"""Tu prépares le montage d'une vidéo YouTube de la chaîne personnelle « PMT » : astuces et outils numériques (logiciels, IA, productivité) expliqués simplement à un public non spécialiste. La vidéo est un tournage face caméra, non scripté, en français. Chaque chapitre deviendra un épisode autonome publié séparément.
 
@@ -53,11 +64,15 @@ Propose :
 2. **termes** : les termes techniques ou anglicismes qu'un public non spécialiste ne comprendrait pas forcément. Pour chacun : le terme tel qu'il doit s'afficher, une définition claire en une ou deux phrases ({max_caracteres} caractères maximum), et les numéros de tous les mots où il est prononcé. Ces termes sont déjà dans le glossaire, reprends-les s'ils apparaissent (leur définition sera reprise du glossaire) : {connus}.
 
 3. **longueurs** : les passages qui pourraient être coupés sans perte (digressions, redites, explications qui tournent en rond). Pour chacun : premier et dernier numéro de mot, et la raison en une phrase. Sois sélectif : ces passages ne sont que des propositions que l'auteur validera.
+
+4. **elements** : ce qu'il serait utile de poser sur la vidéo. Sois très sélectif : seulement quand cela aide vraiment à suivre.
+   - textes à incruster (nature « texte ») : les URL, noms d'outils, raccourcis clavier et chiffres clés prononcés. Pour chacun : premier et dernier numéro de mot du passage où il est prononcé, le texte à afficher ({texte_max} caractères maximum) et la raison en une phrase.
+   - moments à zoomer (nature « zoom ») ou à mettre en avant (nature « miseEnAvant ») : quand l'auteur désigne un endroit de l'écran (« cliquez ici », « en haut à droite, vous voyez… »). Pour chacun : premier et dernier numéro de mot et la raison en une phrase. Tu ne vois pas l'image : l'auteur tracera lui-même la zone.
 """
 
 
 def demander(mots: list[dict], glossaire: dict[str, dict], modele: str, client=None,
-             *, max_caracteres: int = 160) -> ReponseIA:
+             *, max_caracteres: int = 160, texte_max: int = 40) -> ReponseIA:
     if client is None:
         if not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")):
             raise ErreurSuggestions(
@@ -69,7 +84,8 @@ def demander(mots: list[dict], glossaire: dict[str, dict], modele: str, client=N
             model=modele,
             max_tokens=16000,
             output_config={"effort": "medium"},
-            messages=[{"role": "user", "content": construire_prompt(mots, glossaire, max_caracteres=max_caracteres)}],
+            messages=[{"role": "user", "content": construire_prompt(
+                mots, glossaire, max_caracteres=max_caracteres, texte_max=texte_max)}],
             output_format=ReponseIA,
             extra_headers={"anthropic-beta": "server-side-fallback-2026-07-01"},
             extra_body={"fallbacks": "default"},
@@ -89,7 +105,7 @@ def demander(mots: list[dict], glossaire: dict[str, dict], modele: str, client=N
     return reponse.parsed_output
 
 
-def convertir(reponse: ReponseIA, mots: list[dict], glossaire: dict[str, dict]) -> dict:
+def convertir(reponse: ReponseIA, mots: list[dict], glossaire: dict[str, dict], *, texte_max: int = 40) -> dict:
     def valide(i: int) -> bool:
         return 0 <= i < len(mots)
 
@@ -122,4 +138,23 @@ def convertir(reponse: ReponseIA, mots: list[dict], glossaire: dict[str, dict]) 
                 "raison": l.raison,
             })
 
-    return {"chapitres": chapitres, "termes": termes, "longueurs": longueurs}
+    # La caméra en grand n'est jamais suggérée ; un texte trop long est tronqué, un texte vide écarté.
+    elements = []
+    for e in reponse.elements:
+        if not (valide(e.premier_mot) and valide(e.dernier_mot) and e.premier_mot <= e.dernier_mot):
+            continue
+        element = {
+            "id": f"se{len(elements)}",
+            "nature": e.nature,
+            "debut": mots[e.premier_mot]["debut"],
+            "fin": mots[e.dernier_mot]["fin"],
+            "raison": e.raison,
+        }
+        if e.nature == "texte":
+            texte = (e.texte or "").strip()[:texte_max].rstrip()
+            if not texte:
+                continue
+            element["texte"] = texte
+        elements.append(element)
+
+    return {"chapitres": chapitres, "termes": termes, "longueurs": longueurs, "elements": elements}

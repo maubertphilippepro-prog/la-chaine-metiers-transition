@@ -5,7 +5,7 @@ from pydantic import ValidationError
 
 from mtpipeline.erreurs import ErreurSuggestions
 from mtpipeline.suggestions import (
-    ChapitreIA, LongueurIA, ReponseIA, TermeIA, construire_prompt, convertir, demander, texte_numerote,
+    ChapitreIA, ElementIA, LongueurIA, ReponseIA, TermeIA, construire_prompt, convertir, demander, texte_numerote,
 )
 
 MOTS = [{"id": i, "texte": t, "debut": float(i), "fin": i + 0.5}
@@ -32,6 +32,7 @@ def test_convertir():
             TermeIA(terme="Fantôme", definition="x", mots=[99]),
         ],
         longueurs=[LongueurIA(premier_mot=3, dernier_mot=4, raison="Digression.")],
+        elements=[],
     )
     assert convertir(reponse, MOTS, GLOSSAIRE) == {
         "chapitres": [{"titre": "Intro", "debut": 0.0}, {"titre": "API", "debut": 4.0}],
@@ -40,6 +41,7 @@ def test_convertir():
             {"terme": "API", "definition": "Interface d'échange entre logiciels.", "occurrences": [5.0], "origine": "glossaire"},
         ],
         "longueurs": [{"id": "l0", "debut": 3.0, "fin": 4.5, "raison": "Digression."}],
+        "elements": [],
     }
 
 
@@ -49,7 +51,7 @@ def faux_client(stop_reason="end_turn", parsed=None):
 
 
 def test_demander_renvoie_la_reponse():
-    attendu = ReponseIA(chapitres=[], termes=[], longueurs=[])
+    attendu = ReponseIA(chapitres=[], termes=[], longueurs=[], elements=[])
     assert demander(MOTS, {}, "claude-opus-5-5", client=faux_client(parsed=attendu)) is attendu
 
 
@@ -101,3 +103,26 @@ def test_prompt_presente_la_chaine_pmt():
     assert "chaîne personnelle « PMT »" in p
     assert "collaborateurs" not in p
     assert "entreprise" not in p
+
+
+def test_convertir_elements():
+    reponse = ReponseIA(chapitres=[], termes=[], longueurs=[], elements=[
+        ElementIA(nature="texte", premier_mot=5, dernier_mot=5,
+                  texte="api.example.com/v2/documentation/complete", raison="URL prononcée."),
+        ElementIA(nature="zoom", premier_mot=3, dernier_mot=4, raison="Désigne un bouton."),
+        ElementIA(nature="miseEnAvant", premier_mot=4, dernier_mot=99, raison="Mot inconnu."),
+        ElementIA(nature="texte", premier_mot=2, dernier_mot=1, texte="SSO", raison="À l'envers."),
+        ElementIA(nature="texte", premier_mot=2, dernier_mot=2, texte="  ", raison="Texte vide."),
+    ])
+    assert convertir(reponse, MOTS, {}, texte_max=20)["elements"] == [
+        {"id": "se0", "nature": "texte", "debut": 5.0, "fin": 5.5, "texte": "api.example.com/v2/d", "raison": "URL prononcée."},
+        {"id": "se1", "nature": "zoom", "debut": 3.0, "fin": 4.5, "raison": "Désigne un bouton."},
+    ]
+
+
+def test_prompt_demande_les_elements_sans_zone():
+    p = construire_prompt(MOTS, GLOSSAIRE, texte_max=35)
+    assert "4. **elements**" in p
+    assert "35 caractères maximum" in p
+    assert "Tu ne vois pas l'image" in p
+    assert "Sois très sélectif" in p
