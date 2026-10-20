@@ -21,8 +21,11 @@ Aucune vidéo ne part sans validation humaine de son titre, de sa description et
 | Plan | Contenu | Dépend de |
 |---|---|---|
 | 6 — Préparation | onglet Publication, profils, métadonnées, vignette | — |
-| 7 — Envoi YouTube | connexion OAuth, envoi avec reprise, vignette, playlist, mode manuel | 6 |
+| 7 — YouTube en mode manuel | dossier prêt à téléverser, URL collée dans le studio, vérification de la visibilité | 6 |
 | 8 — Site Replit et relais | clé d'API, visibilité interne, stockage, lecteur ; relais depuis l'app | 6 (7 pour Mixte) |
+| plus tard — Envoi YouTube par l'API | connexion OAuth, envoi avec reprise, vignette, playlist | 7, projet Google Cloud |
+
+Décision du 2026-10-20 : tant que la chaîne n'a pas fait ses preuves, pas de projet Google Cloud. L'envoi sur YouTube se fait à la main à partir d'un dossier préparé par le studio (plan 7). L'envoi par l'API est décrit plus bas pour mémoire et sera planifié plus tard.
 
 ## Données
 
@@ -113,7 +116,31 @@ Les épisodes reprennent par défaut la pose et le fond choisis pour la vidéo c
 
 Le **détourage** se fait dans le pipeline Python, avec un modèle de segmentation de personne exécuté localement (aucun service en ligne), et produit un PNG transparent aux dimensions de l'image d'origine.
 
-## Plan 7 — Envoi YouTube
+## Plan 7 — YouTube en mode manuel
+
+### Préparer pour YouTube
+
+Pour une vidéo `prete`, le bouton « Préparer pour YouTube » passe les contrôles avant envoi puis écrit `donnees/tournages/<tournage>/publication/<cible>/` :
+
+- `vignette.jpg` ;
+- `titre.txt`, `description.txt` (chapitres compris), `tags.txt` (séparés par des virgules, comme les attend YouTube Studio) ;
+- `reglages-youtube.txt` : visibilité à choisir, catégorie « Science et technologie », langue français, « non, cette vidéo n'est pas conçue pour les enfants », playlist suggérée (nom du tournage) quand plusieurs vidéos du tournage sont publiées.
+
+Le MP4 n'est pas copié : le studio affiche le chemin du rendu dans `rendus/`. Il propose aussi un bouton « copier » par champ et un bouton qui ouvre le dossier dans l'Explorateur.
+
+Visibilité indiquée selon le profil : **Privée** pour Interne, **Publique** ou **Programmée** pour Perso et Mixte.
+
+### Retour de l'URL
+
+Une fois la vidéo téléversée dans YouTube Studio, l'auteur colle son URL dans le studio. Le noyau en extrait l'identifiant (formes `youtube.com/watch?v=`, `youtu.be/`, `youtube.com/shorts/`, `studio.youtube.com/video/<id>/edit`, ou identifiant seul de 11 caractères) et refuse toute autre chaîne. L'auteur indique la visibilité choisie et, si elle est programmée, la date et l'heure. La vidéo passe à `envoyee-youtube`.
+
+### Vérification de la visibilité
+
+Sans compte Google, par l'adresse publique oEmbed : `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=<id>&format=json`. Une réponse 200 signifie que la vidéo est lisible publiquement ; 401, 403 ou 404 qu'elle est privée, programmée et pas encore en ligne, ou supprimée. Cette vérification conditionne le relais Mixte. Pour une vidéo Interne, le studio la lance aussi et alerte si la vidéo est lisible publiquement alors qu'elle devrait être privée.
+
+## Plus tard — Envoi YouTube par l'API
+
+Pour mémoire : cette partie sera planifiée quand la chaîne aura fait ses preuves et que le projet Google Cloud existera. Elle remplace alors le téléversement à la main ; `publication.json`, les contrôles et le relais restent inchangés.
 
 ### Connexion
 
@@ -144,11 +171,9 @@ La progression s'affiche en direct, sur le modèle du suivi de rendu existant.
 
 ### Contrainte de l'audit
 
-Un projet d'API non audité qui envoie des vidéos les voit verrouillées en privé, quelle que soit la visibilité demandée. L'audit (formulaire de conformité, démonstration de la connexion OAuth) prend quelques semaines et se demande dès le plan 7. Ce point s'appuie sur des sources tierces et doit être vérifié dans la documentation Google et la console au moment de la configuration.
+Un projet d'API non audité qui envoie des vidéos les voit verrouillées en privé, quelle que soit la visibilité demandée. L'audit (formulaire de conformité, démonstration de la connexion OAuth) prend quelques semaines et se demande dès la création du projet Google Cloud. Ce point s'appuie sur des sources tierces et doit être vérifié dans la documentation Google et la console au moment de la configuration.
 
-### Mode manuel
-
-Si la vidéo verrouillée ne peut pas passer en public à la main, le studio exporte `publication/<cible>/` : MP4, vignette, `titre.txt`, `description.txt`, `tags.txt`. L'auteur téléverse la vidéo dans YouTube Studio, puis colle son URL dans le studio, qui enregistre `youtube.id` et passe la vidéo à `envoyee-youtube`.
+Tant que l'audit n'est pas obtenu, si une vidéo verrouillée ne peut pas passer en public à la main, le mode manuel du plan 7 reste la voie normale pour Perso et Mixte.
 
 ### Quotas
 
@@ -174,7 +199,7 @@ Un bouton par vidéo Interne ou Mixte, actif quand les conditions sont remplies 
 | Profil | Condition | Envoyé au site |
 |---|---|---|
 | Interne | vidéo `prete` ou `envoyee-youtube` | MP4 et vignette dans le stockage, `visibility: interne` |
-| Mixte | vidéo publique sur YouTube, vérifiée par l'API (`status.privacyStatus`) ; une vidéo programmée attend son heure de mise en ligne | `videoUrl` YouTube, vignette dans le stockage, `visibility: public` |
+| Mixte | vidéo `envoyee-youtube` et lisible publiquement, vérifiée par oEmbed au moment du relais ; une vidéo programmée attend son heure de mise en ligne | `videoUrl` YouTube, vignette dans le stockage, `visibility: public` |
 
 Dans les deux cas : titre, description sans horodatages, tags, catégorie, playlist, `durationSeconds`, `format: long`, `status: published`. L'identifiant renvoyé est enregistré dans `replit.id` ; un nouveau relais met à jour la vidéo (`PATCH /api/videos/:id`) au lieu d'en créer une autre.
 
@@ -195,29 +220,30 @@ Le noyau refuse un envoi ou un relais et explique pourquoi si :
 
 Chaque étape (vignette, YouTube, Replit) écrit son état dans `publication.json`. En cas d'échec, `statut: erreur` et `erreur` gardent l'étape, le message et l'horodatage ; relancer reprend à l'étape échouée sans refaire les précédentes. Messages en français, avec l'action à faire :
 
-- jeton Google expiré ou révoqué → reconnexion ;
-- quota dépassé → réessayer le lendemain ;
-- vidéo verrouillée en privé → audit à obtenir, mode manuel ;
-- chaîne non vérifiée (vignette refusée) → vérification par téléphone ;
+- URL YouTube non reconnue → rappel des formes acceptées ;
+- vidéo Mixte pas encore lisible publiquement → passer en public dans YouTube Studio, ou attendre l'heure programmée ;
+- vidéo Interne lisible publiquement → la passer en privé dans YouTube Studio ;
 - site injoignable ou clé refusée → le relais reste à faire, rien n'est perdu.
+
+L'envoi par l'API, plus tard, ajoutera : jeton Google expiré ou révoqué (reconnexion), quota dépassé (réessayer le lendemain), vidéo verrouillée en privé (audit à obtenir).
 
 ## Tests
 
-- **noyau** (vitest) : chapitres horodatés depuis le montage, contrôles avant envoi, transitions d'état, visibilité selon le profil et l'audit, lecture d'un `publication.json` absent ;
-- **serveur du studio** : routes de publication avec YouTube et le site Replit simulés, sans aucun appel réel ;
+- **noyau** (vitest) : chapitres horodatés depuis le montage, contrôles avant envoi, transitions d'état, visibilité indiquée selon le profil, extraction de l'identifiant d'une URL YouTube, lecture d'un `publication.json` absent ;
+- **serveur du studio** : routes de publication, dossier « Préparer pour YouTube », avec oEmbed et le site Replit simulés, sans aucun appel réel ;
 - **Remotion** : rendu de `Vignette` en image fixe, dimensions et poids ;
 - **pipeline** (pytest) : détourage d'une photo de fixture, PNG transparent aux bonnes dimensions ;
-- **essais réels guidés** : en fin de plan 7, envoi d'une vidéo de test en privé ; en fin de plan 8, relais Interne et Mixte, et contrôle de l'accès par domaine avec un compte autorisé et un compte non autorisé.
+- **essais réels guidés** : en fin de plan 7, préparation d'une vidéo de test, téléversement à la main en privé, URL collée et vérification oEmbed ; en fin de plan 8, relais Interne et Mixte, et contrôle de l'accès par domaine avec un compte autorisé et un compte non autorisé.
 
 ## Prérequis côté utilisateur
 
-1. Créer le projet Google Cloud, activer l'API YouTube Data v3, créer l'identifiant OAuth « application de bureau » (fiche guidée).
-2. Vérifier la chaîne PMT par téléphone (vignettes personnalisées).
-3. Demander l'audit de l'API YouTube, au plus tôt.
-4. Fournir 5 à 10 photos HD pour la banque de poses.
-5. Installer le plugin OBS Source Record et brancher la webcam 1080p ; la fiche OBS sera complétée.
-6. Établir la liste complète des domaines e-mail d'Ingérop pour le site.
-7. Confirmer que la licence gratuite de Remotion couvre la diffusion de vidéos sur le site destiné à Ingérop.
+1. Vérifier la chaîne PMT par téléphone dans YouTube Studio (nécessaire pour les vignettes personnalisées, même à la main).
+2. Fournir 5 à 10 photos HD pour la banque de poses.
+3. Installer le plugin OBS Source Record et brancher la webcam 1080p ; la fiche OBS sera complétée.
+4. Établir la liste complète des domaines e-mail d'Ingérop pour le site.
+5. Confirmer que la licence gratuite de Remotion couvre la diffusion de vidéos sur le site destiné à Ingérop.
+
+Plus tard, pour l'envoi par l'API : créer le projet Google Cloud, activer l'API YouTube Data v3, créer l'identifiant OAuth « application de bureau » (fiche guidée) et demander l'audit.
 
 ## Hors périmètre
 
