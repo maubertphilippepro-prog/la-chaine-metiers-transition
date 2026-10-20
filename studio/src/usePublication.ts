@@ -17,7 +17,8 @@ export function usePublication(nom: string) {
   const recue = useRef<Publication | null>(null);
   const derniere = useRef<Publication | null>(null);
   const minuteur = useRef<number | undefined>(undefined);
-  const file = useRef<Promise<unknown>>(Promise.resolve());
+  const enAttente = useRef<Publication | null>(null);
+  const file = useRef<Promise<string | null>>(Promise.resolve(null));
   derniere.current = publication;
 
   const recevoir = useCallback((p: Publication) => {
@@ -34,15 +35,27 @@ export function usePublication(nom: string) {
   const enregistrer = useCallback((p: Publication) => {
     file.current = file.current
       .then(() => api.enregistrerPublication(nom, p))
-      .then(() => setEnregistrement('a-jour'), () => setEnregistrement('erreur'));
+      .then(() => { setEnregistrement('a-jour'); return null; }, (e: Error) => { setEnregistrement('erreur'); return e.message; });
     return file.current;
   }, [nom]);
+
+  // Au démontage (ou au changement de tournage), l'enregistrement en attente part tout de suite au lieu d'être perdu.
+  useEffect(() => () => {
+    window.clearTimeout(minuteur.current);
+    const p = enAttente.current;
+    enAttente.current = null;
+    if (p) void enregistrer(p);
+  }, [enregistrer]);
 
   useEffect(() => {
     if (!publication || publication === recue.current) return;
     setEnregistrement('en-attente');
     window.clearTimeout(minuteur.current);
-    minuteur.current = window.setTimeout(() => void enregistrer(publication), DELAI_ENREGISTREMENT);
+    enAttente.current = publication;
+    minuteur.current = window.setTimeout(() => {
+      enAttente.current = null;
+      void enregistrer(publication);
+    }, DELAI_ENREGISTREMENT);
   }, [publication, enregistrer]);
 
   const modifier = useCallback((f: (p: Publication) => Publication) => {
@@ -51,8 +64,12 @@ export function usePublication(nom: string) {
 
   const executer = useCallback(async (action: () => Promise<Publication>) => {
     window.clearTimeout(minuteur.current);
+    enAttente.current = null;
     const p = derniere.current;
-    if (p && p !== recue.current) await enregistrer(p);
+    if (p && p !== recue.current) {
+      const echec = await enregistrer(p);
+      if (echec !== null) throw new Error(echec);
+    }
     recevoir(await action());
     setEnregistrement('a-jour');
   }, [enregistrer, recevoir]);
