@@ -165,6 +165,13 @@ describe('rendu', () => {
     expect(r.status).toBe(422);
     expect((await r.json()).problemes).toEqual(['Consigne : 1 proposition(s) en attente.']);
   });
+  it('refuse le rendu tant qu’un élément à l’écran est à valider', async () => {
+    const elements = [{ id: 'se0', debut: 3.0, fin: 4.3, statut: 'a-valider', nature: 'texte', texte: 'SSO', position: 'haut-gauche' }];
+    await tournage('a', { 'analyse.json': exemple, 'montage.json': { ...MONTAGE_PRET, elements } });
+    const r = await demanderRendu('a', 'tout');
+    expect(r.status).toBe(422);
+    expect((await r.json()).problemes).toEqual(['1 élément(s) à l’écran à valider.']);
+  });
   it('exige un montage enregistré', async () => {
     await tournage('a', { 'analyse.json': exemple });
     const r = await demanderRendu('a', 'tout');

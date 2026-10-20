@@ -1,7 +1,7 @@
 import { type FC, useEffect, useMemo, useState } from 'react';
 import type { Consigne } from '../../../noyau/consignes';
-import type { Montage } from '../../../noyau/types';
-import { verifierAvantRendu } from '../../../noyau/verifications';
+import type { Analyse, Montage } from '../../../noyau/types';
+import { verifierAvantRendu, type ReglagesRendu } from '../../../noyau/verifications';
 import type { Cible } from '../../../remotion/scripts/rendu';
 import type { EtatRendu } from '../../commun';
 import { api, ErreurApi } from '../api';
@@ -10,8 +10,9 @@ import type { EtatEnregistrement } from '../useMontage';
 
 interface Props {
   nom: string;
+  analyse: Analyse;
   montage: Montage;
-  definitionMax: number;
+  reglages: ReglagesRendu;
   consignes: Consigne[];
   enregistrement: EtatEnregistrement;
 }
@@ -19,13 +20,13 @@ interface Props {
 const INTERVALLE_SUIVI = 1000;
 
 // Vérifications, puis rendu de la vidéo complète et de chaque épisode avec suivi ; relance d'un rendu en échec.
-export const PanneauRendu: FC<Props> = ({ nom, montage, definitionMax, consignes, enregistrement }) => {
+export const PanneauRendu: FC<Props> = ({ nom, analyse, montage, reglages, consignes, enregistrement }) => {
   const [etat, setEtat] = useState<EtatRendu | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [problemesServeur, setProblemesServeur] = useState<string[]>([]);
   const problemes = useMemo(
-    () => verifierAvantRendu(montage, definitionMax, consignes),
-    [montage, definitionMax, consignes],
+    () => verifierAvantRendu(analyse, montage, reglages, consignes),
+    [analyse, montage, reglages, consignes],
   );
   const enCours = etat?.enCours ?? false;
 

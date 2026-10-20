@@ -236,7 +236,7 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
     try {
       const t = await charger(dossier, false);
       const { consignes } = await consignesDe(dossier);
-      const problemes = verifierAvantRendu(t.montage, t.reglages.definitionMaxCaracteres, consignes);
+      const problemes = verifierAvantRendu(t.analyse, t.montage, t.reglages, consignes);
       if (problemes.length > 0) throw new ErreurHttp(422, 'Le montage n’est pas prêt pour le rendu.', problemes);
       await ecrireJson(c.cheminGlossaire, majGlossaire(await lireGlossaire(c.cheminGlossaire), t.montage.termes));
       await majStatutEpisode(dossier, 'valide', null);

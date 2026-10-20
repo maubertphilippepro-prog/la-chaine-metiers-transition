@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import exemple from '../fixtures/analyse-exemple.json';
+import reglagesJson from '../reglages.json';
 import type { Consigne } from './consignes';
-import type { Montage } from './types';
+import type { Analyse, Montage, Reglages } from './types';
 import { verifierAvantRendu } from './verifications';
+
+const analyse = exemple as Analyse;
+const reglages: Reglages = reglagesJson;
 
 const pret: Montage = {
   version: 1,
@@ -17,7 +22,7 @@ const pret: Montage = {
 
 describe('verifierAvantRendu', () => {
   it('accepte un montage prêt', () => {
-    expect(verifierAvantRendu(pret, 160)).toEqual([]);
+    expect(verifierAvantRendu(analyse, pret, reglages)).toEqual([]);
   });
   it('liste chaque problème', () => {
     const terme = pret.termes[0]!;
@@ -32,7 +37,7 @@ describe('verifierAvantRendu', () => {
         { ...terme, terme: 'Web', statut: 'a-valider' },
       ],
     };
-    expect(verifierAvantRendu(m, 160)).toEqual([
+    expect(verifierAvantRendu(analyse, m, reglages)).toEqual([
       'La vidéo complète n’a pas de titre.',
       'Le chapitre 2 n’a pas de titre.',
       'La définition de « SSO » dépasse 160 caractères.',
@@ -55,7 +60,23 @@ describe('verifierAvantRendu', () => {
         { operation: { type: 'titreVideo', titre: 'C' }, explication: 'c', etat: 'acceptee' },
       ],
     };
-    expect(verifierAvantRendu(pret, 160, [consigne])).toEqual(['Consigne : 1 proposition(s) en attente.']);
-    expect(verifierAvantRendu(pret, 160, [{ ...consigne, propositions: consigne.propositions.slice(1) }])).toEqual([]);
+    expect(verifierAvantRendu(analyse, pret, reglages, [consigne])).toEqual(['Consigne : 1 proposition(s) en attente.']);
+    expect(verifierAvantRendu(analyse, pret, reglages, [{ ...consigne, propositions: consigne.propositions.slice(1) }])).toEqual([]);
+  });
+  it('bloque sur les éléments à l’écran à valider ou en défaut', () => {
+    // pret coupe 1 à 2 s : un texte de 3,0 à 3,5 ne reste que 0,5 s.
+    const m: Montage = {
+      ...pret,
+      elements: [
+        { id: 'se0', debut: 3.0, fin: 4.3, statut: 'a-valider', nature: 'zoom', zone: null },
+        { id: 'e0', debut: 3.0, fin: 3.5, statut: 'valide', nature: 'texte', texte: 'Windows + V', position: 'centre' },
+        { id: 'e1', debut: 10, fin: 12, statut: 'ecarte', nature: 'camera' },
+      ],
+    };
+    expect(verifierAvantRendu(analyse, m, reglages)).toEqual([
+      '1 élément(s) à l’écran à valider.',
+      'Élément se0 : La zone est à tracer.',
+      'Élément e0 : Moins de 1 s à l’écran une fois les coupes retirées.',
+    ]);
   });
 });

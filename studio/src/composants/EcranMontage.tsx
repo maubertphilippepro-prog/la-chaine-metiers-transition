@@ -98,8 +98,9 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
         />
         <PanneauRendu
           nom={nom}
+          analyse={detail.analyse}
           montage={montage}
-          definitionMax={detail.reglages.definitionMaxCaracteres}
+          reglages={detail.reglages}
           consignes={consignes.fichier.consignes}
           enregistrement={enregistrement}
         />
