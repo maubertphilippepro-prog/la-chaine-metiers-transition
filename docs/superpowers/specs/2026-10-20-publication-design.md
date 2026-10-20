@@ -44,7 +44,7 @@ interface Publication {
 }
 
 interface VideoPubliee {
-  cible: 'complete' | { episode: number };   // rendu concerné dans rendus/
+  cible: 'complete' | number;                // rendu concerné dans rendus/ : vidéo complète ou numéro d'épisode (1, 2…), comme la cible du rendu
   publier: boolean;
   profil: Profil;                             // par défaut profilParDefaut
   statut: StatutPublication;
@@ -52,6 +52,7 @@ interface VideoPubliee {
   variantesTitre: string[];                   // 2 propositions de Claude
   description: string;                        // ≤ 5 000 caractères, chapitres compris
   tags: string[];                             // ≤ 500 caractères au total
+  accroches: string[];                        // propositions de Claude pour la vignette
   vignette: Vignette | null;
   youtube: {
     id: string | null;
@@ -71,7 +72,7 @@ interface Vignette {
   pose: { source: 'banque'; fichier: string } | { source: 'camera'; instant: number };
   fond: { source: 'ecran'; instant: number } | { source: 'charte' };
   accroche: string;                           // 3 à 5 mots
-  fichier: string;                            // rendus/vignettes/<cible>.jpg
+  fichier: string | null;                     // rendus/vignettes/<cible>.jpg ; null tant que la vignette n'est pas rendue, remis à null si pose, fond ou accroche changent
 }
 ```
 
@@ -83,7 +84,7 @@ interface Vignette {
 
 ### Caméra séparée
 
-Si `bruts/` contient un enregistrement de la webcam seule (plugin OBS Source Record, nom se terminant par `-camera`), il sert uniquement aux vignettes : le montage l'ignore.
+Si `bruts/` contient un enregistrement de la webcam seule (plugin OBS Source Record, nom se terminant par `-camera`), il sert uniquement aux vignettes : la préparation de `source.mp4` l'ignore. Il n'est utilisé que si `bruts/` contient un seul autre enregistrement : ses temps sont alors ceux de `source.mp4`.
 
 ## Plan 6 — Préparation
 
@@ -107,8 +108,8 @@ Tout se modifie à la main dans le studio.
 
 Format : 1280×720, JPEG de moins de 2 Mo.
 
-1. **Pose** : l'auteur choisit une photo détourée de la banque de poses ou, si une caméra séparée existe, un instant du tournage. Claude suggère 3 instants où l'auteur est face caméra, à partir de la transcription. Le pipeline extrait l'image de la caméra séparée et la détoure.
-2. **Fond** : un instant du partage d'écran (image de `source.mp4` dans le montage) ou un fond de la charte.
+1. **Pose** : l'auteur choisit une photo détourée de la banque de poses ou, si une caméra séparée existe, l'instant affiché dans le lecteur du studio. Le pipeline extrait l'image de la caméra séparée à cet instant et la détoure.
+2. **Fond** : l'image de `source.mp4` à l'instant affiché dans le lecteur, ou un fond de la charte.
 3. **Accroche** : Claude en propose 3, de 3 à 5 mots ; l'auteur en choisit une ou l'écrit.
 4. **Rendu** : la composition Remotion `Vignette` assemble le fond (assombri et flouté légèrement), la pose détourée en grand à droite, l'accroche en gros caractères à gauche, les formes géométriques et le logo PMT de la charte. L'image fixe est rendue par `renderStill`, et le studio l'affiche aussitôt.
 
@@ -224,7 +225,7 @@ Le noyau refuse un envoi ou un relais et explique pourquoi si :
 - le fichier de rendu ou la vignette est absent ;
 - la vignette dépasse 2 Mo ;
 - le titre dépasse 100 caractères, la description 5 000, les tags 500 au total ;
-- une vidéo Perso ou Mixte mentionne Ingérop ou Cicad dans son titre, sa description ou ses tags (YouTube) ;
+- une vidéo Perso ou Mixte contient, dans son titre, sa description ou ses tags, une des mentions interdites listées dans `reglages.json` (`publication.mentionsInterdites`, noms de l'employeur) ;
 - l'action n'est pas permise par le profil (relais d'une vidéo Perso, relais Mixte d'une vidéo non publique).
 
 ## Gestion des erreurs
