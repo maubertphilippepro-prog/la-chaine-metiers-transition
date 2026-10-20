@@ -15,7 +15,7 @@ const LIBELLES_ENREGISTREMENT: Record<EtatEnregistrement, string> = {
 
 // Une carte par vidéo rendue ; le lecteur de la source sert à choisir l'image d'un fond ou d'une pose caméra.
 export const EcranPublication: FC<{ nom: string }> = ({ nom }) => {
-  const { detail, publication, erreur, enregistrement, modifier, executer } = usePublication(nom);
+  const { detail, publication, erreur, enregistrement, modifier, executer, synchroniser } = usePublication(nom);
   const [poses, setPoses] = useState<Pose[] | null>(null);
   const [erreurPoses, setErreurPoses] = useState<string | null>(null);
   const lecteur = useRef<HTMLVideoElement>(null);
@@ -57,7 +57,7 @@ export const EcranPublication: FC<{ nom: string }> = ({ nom }) => {
           <CartePublication
             key={String(v.cible)} nom={nom} video={v} disponible={disponible} detail={detail} poses={poses ?? []}
             complete={publication.videos.find(x => x.cible === 'complete')?.vignette ?? null}
-            instant={instant} modifier={modifier} executer={executer}
+            instant={instant} modifier={modifier} executer={executer} synchroniser={synchroniser}
           />
         );
       })}

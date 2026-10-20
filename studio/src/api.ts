@@ -2,7 +2,8 @@ import type { Ancrage, Consigne, FichierConsignes } from '../../noyau/consignes'
 import type { Montage } from '../../noyau/types';
 import type { CiblePublication, Publication } from '../../noyau/publication';
 import type { Cible } from '../../remotion/scripts/rendu';
-import type { DetailPublication, DetailTournage, EtatRendu, Pose, ResumeTournage } from '../commun';
+import type { VisibiliteYoutube } from '../../noyau/youtube';
+import type { DetailPublication, DetailTournage, DossierYoutube, EtatRendu, Pose, ResumeTournage, VerificationYoutube } from '../commun';
 
 export class ErreurApi extends Error {
   constructor(readonly statut: number, message: string, readonly problemes: string[]) {
@@ -49,5 +50,14 @@ export const api = {
     appeler<{ chemin: string }>(`${chemin(nom)}/publication/image`, enJson('POST', { source, instant })),
   rendreVignette: (nom: string, cible: CiblePublication) => appeler<Publication>(`${chemin(nom)}/publication/vignette`, enJson('POST', { cible })),
   validerVideo: (nom: string, cible: CiblePublication) => appeler<Publication>(`${chemin(nom)}/publication/valider`, enJson('POST', { cible })),
+  preparerYoutube: (nom: string, cible: CiblePublication) =>
+    appeler<DossierYoutube>(`${chemin(nom)}/publication/youtube/preparer`, enJson('POST', { cible })),
+  ouvrirDossierYoutube: async (nom: string, cible: CiblePublication) => {
+    await appeler<{ ok: true }>(`${chemin(nom)}/publication/youtube/ouvrir`, enJson('POST', { cible }));
+  },
+  envoiYoutube: (nom: string, cible: CiblePublication, envoi: { url: string; visibilite: VisibiliteYoutube; programmeeLe: string | null }) =>
+    appeler<Publication>(`${chemin(nom)}/publication/youtube/envoi`, enJson('POST', { cible, ...envoi })),
+  verifierYoutube: (nom: string, cible: CiblePublication) =>
+    appeler<VerificationYoutube>(`${chemin(nom)}/publication/youtube/verifier`, enJson('POST', { cible })),
   poses: () => appeler<Pose[]>('/api/poses'),
 };

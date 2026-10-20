@@ -1,4 +1,5 @@
 import type { CiblePublication, FondVignette, PoseVignette, Profil, Publication, StatutPublication, Vignette } from '../../../noyau/publication';
+import type { VisibiliteYoutube } from '../../../noyau/youtube';
 
 export const LIBELLES_PROFIL: Record<Profil, string> = { interne: 'Interne', perso: 'Perso', mixte: 'Mixte' };
 
@@ -37,4 +38,20 @@ export function baseVignette(
   const source = vignette ?? complete;
   if (source) return { pose: source.pose, fond: source.fond };
   return { pose: premierePose ? { source: 'banque', fichier: premierePose } : null, fond: { source: 'charte' } };
+}
+
+export const LIBELLES_VISIBILITE: Record<VisibiliteYoutube, string> = { privee: 'Privée', publique: 'Publique', programmee: 'Programmée' };
+
+// Champ « datetime-local » (heure locale, sans fuseau) ↔ date ISO enregistrée.
+export function isoDepuisLocal(valeur: string): string | null {
+  if (!valeur) return null;
+  const date = new Date(valeur);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+export function localDepuisIso(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const deux = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${deux(d.getMonth() + 1)}-${deux(d.getDate())}T${deux(d.getHours())}:${deux(d.getMinutes())}`;
 }

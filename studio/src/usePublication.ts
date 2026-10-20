@@ -65,7 +65,8 @@ export function usePublication(nom: string) {
     setPublication(p => (p ? appliquerModifications(p, f(p)) : p));
   }, []);
 
-  const executer = useCallback(async (action: () => Promise<Publication>) => {
+  // Envoie tout de suite l’enregistrement en attente : une action du serveur doit lire la publication à jour.
+  const synchroniser = useCallback(async () => {
     window.clearTimeout(minuteur.current);
     enAttente.current = null;
     const p = derniere.current;
@@ -73,9 +74,13 @@ export function usePublication(nom: string) {
       const echec = await enregistrer(p);
       if (echec !== null) throw new Error(echec);
     }
+  }, [enregistrer]);
+
+  const executer = useCallback(async (action: () => Promise<Publication>) => {
+    await synchroniser();
     recevoir(await action());
     setEnregistrement('a-jour');
-  }, [enregistrer, recevoir]);
+  }, [synchroniser, recevoir]);
 
-  return { detail, publication, erreur, enregistrement, modifier, executer };
+  return { detail, publication, erreur, enregistrement, modifier, executer, synchroniser };
 }

@@ -4,7 +4,9 @@ import { descriptionYoutube, formatHorodatage } from '../../../noyau/publication
 import type { DetailPublication, Pose, VideoDisponible } from '../../commun';
 import { api, ErreurApi } from '../api';
 import { EXPLICATIONS_PROFIL, libelleCible, LIBELLES_PROFIL, LIBELLES_STATUT, tagsDepuisTexte, texteDepuisTags } from '../logique/publication';
+import { pretePourYoutube } from '../../../noyau/youtube';
 import { ChoixVignette } from './ChoixVignette';
+import { PanneauYoutube } from './PanneauYoutube';
 
 interface Props {
   nom: string;
@@ -16,11 +18,12 @@ interface Props {
   instant: () => number;
   modifier: (f: (p: Publication) => Publication) => void;
   executer: (action: () => Promise<Publication>) => Promise<void>;
+  synchroniser: () => Promise<void>;
 }
 
 const idOuNull = (valeur: string) => (valeur === '' ? null : Number(valeur));
 
-export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail, poses, complete, instant, modifier, executer }) => {
+export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail, poses, complete, instant, modifier, executer, synchroniser }) => {
   const [occupe, setOccupe] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [problemes, setProblemes] = useState<string[]>([]);
@@ -115,6 +118,7 @@ export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail,
           <button className="principal" disabled={!!occupe} onClick={() => void lancer('Vérification…', () => api.validerVideo(nom, v.cible))}>
             Valider pour la publication
           </button>
+          {pretePourYoutube(v) && <PanneauYoutube key={v.profil} nom={nom} video={v} synchroniser={synchroniser} executer={executer} />}
         </>
       )}
       {occupe && <p className="discret">{occupe}</p>}

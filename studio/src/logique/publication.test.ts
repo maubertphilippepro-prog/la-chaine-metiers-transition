@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { accorderPublication, modifierVideo } from '../../../noyau/publication';
-import { baseVignette, changerProfilParDefaut, libelleCible, tagsDepuisTexte, texteDepuisTags } from './publication';
+import { baseVignette, changerProfilParDefaut, isoDepuisLocal, libelleCible, LIBELLES_VISIBILITE, localDepuisIso, tagsDepuisTexte, texteDepuisTags } from './publication';
 
 describe('tags', () => {
   it('découpe sur les virgules et retire les vides', () => {
@@ -37,5 +37,21 @@ describe('baseVignette', () => {
   it('retombe sur la première pose de la banque et la charte', () => {
     expect(baseVignette(null, null, 'b.jpg')).toEqual({ pose: { source: 'banque', fichier: 'b.jpg' }, fond: { source: 'charte' } });
     expect(baseVignette(null, null, undefined)).toEqual({ pose: null, fond: { source: 'charte' } });
+  });
+});
+
+describe('dates de programmation', () => {
+  it('passe d’un champ date et heure locale à une date ISO et retour', () => {
+    const iso = isoDepuisLocal('2026-10-21T18:30');
+    expect(iso).toBe(new Date('2026-10-21T18:30').toISOString());
+    expect(localDepuisIso(iso)).toBe('2026-10-21T18:30');
+  });
+  it('laisse vide ce qui n’est pas une date', () => {
+    expect(isoDepuisLocal('')).toBeNull();
+    expect(isoDepuisLocal('n’importe quoi')).toBeNull();
+    expect(localDepuisIso(null)).toBe('');
+  });
+  it('nomme les visibilités comme YouTube Studio', () => {
+    expect(LIBELLES_VISIBILITE).toEqual({ privee: 'Privée', publique: 'Publique', programmee: 'Programmée' });
   });
 });
