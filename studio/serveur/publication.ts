@@ -9,14 +9,19 @@ import {
 } from '../../noyau/publication';
 import { chapitresYoutube, descriptionYoutube, segmentsSecondes, texteConserve } from '../../noyau/publication-textes';
 import type { Segment } from '../../noyau/types';
+import {
+  bilanLecture, dossierYoutube, enregistrerEnvoi, FORMES_URL, idYoutube, problemesEnvoi, raisonEnvoi, textesYoutube,
+  type LectureYoutube, type VisibiliteYoutube,
+} from '../../noyau/youtube';
 import type { ProprietesVignette } from '../../remotion/composants/Vignette';
 import type { ResultatVignette } from '../../remotion/scripts/vignette';
 import { chargerTournage, lireEpisode, urlSource, type Tournage } from '../../remotion/scripts/tournage';
-import type { DetailPublication, Pose, VideoDisponible } from '../commun';
+import type { DetailPublication, DossierYoutube, Pose, VerificationYoutube, VideoDisponible } from '../commun';
 import { ErreurInterpretation } from './consignes';
 import { dossierTournage, ecrireJson, ErreurHttp, lireCorps, message, repondre, repondreErreur } from './http';
 import type { Rediger } from './redaction';
 import type { ReferencesSite } from './site-replit';
+import { ecrireDossierYoutube } from './youtube';
 
 export interface ConfigPublication {
   racineTournages: string;
@@ -30,6 +35,9 @@ export interface ConfigPublication {
   extraireImage: (video: string, instant: number, sortie: string) => Promise<void>;
   detourer: (entree: string, sortie: string) => Promise<void>;
   rendreVignette: (props: ProprietesVignette, sortie: string, octetsMax: number) => Promise<ResultatVignette>;
+  // Visibilité vue par l’adresse publique oEmbed, et ouverture d’un dossier dans l’Explorateur.
+  lireVisibiliteYoutube: (id: string) => Promise<LectureYoutube>;
+  ouvrirDossier: (dossier: string) => Promise<void>;
 }
 
 const EXTENSIONS_VIDEO = new Set(['.mp4', '.mkv', '.mov', '.webm']);
@@ -256,6 +264,65 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
     return p;
   }
 
+  async function preparerYoutube(req: IncomingMessage, ctx: Contexte): Promise<DossierYoutube> {
+    const cible = lireCible(await lireCorps(req), ctx.cibles);
+    const video = videoDe(ctx.publication, cible);
+    const disponible = ctx.videos.find(v => v.cible === cible)!;
+    const descriptionFinale = descriptionYoutube(video.description, disponible.chapitres);
+    const vignette = video.vignette?.fichier ? path.join(ctx.dossier, video.vignette.fichier) : null;
+    const octetsVignette = vignette && existsSync(vignette) ? (await stat(vignette)).size : null;
+    const problemes = problemesEnvoi(video, descriptionFinale, ctx.tournage.reglages.publication, {
+      rendu: { fichier: disponible.fichier, present: disponible.rendue },
+      octetsVignette,
+    });
+    if (problemes.length > 0 || !vignette) throw new ErreurHttp(422, 'La vidéo ne peut pas être préparée pour YouTube.', problemes);
+    const rendu = path.join(ctx.dossier, 'rendus', disponible.fichier);
+    // Une playlist par tournage n’a de sens que si plusieurs de ses vidéos sont publiées.
+    const plusieurs = ctx.publication.videos.filter(v => v.publier).length > 1;
+    const textes = textesYoutube(video, descriptionFinale, { playlist: plusieurs ? ctx.tournage.titre : null, cheminRendu: rendu });
+    const dossier = path.join(ctx.dossier, dossierYoutube(cible));
+    await ecrireDossierYoutube(dossier, textes, vignette);
+    return { dossier, rendu, textes };
+  }
+
+  async function ouvrirYoutube(req: IncomingMessage, ctx: Contexte): Promise<{ ok: true }> {
+    const dossier = path.join(ctx.dossier, dossierYoutube(lireCible(await lireCorps(req), ctx.cibles)));
+    if (!existsSync(dossier)) throw new ErreurHttp(409, 'Préparez d’abord le dossier pour YouTube.');
+    try {
+      await c.ouvrirDossier(dossier);
+    } catch (e) {
+      throw new ErreurHttp(500, `Ouverture du dossier impossible : ${message(e)}`);
+    }
+    return { ok: true };
+  }
+
+  async function envoiYoutube(req: IncomingMessage, ctx: Contexte): Promise<Publication> {
+    const corps = await lireCorps(req);
+    const cible = lireCible(corps, ctx.cibles);
+    const o = objet(corps);
+    const id = typeof o.url === 'string' ? idYoutube(o.url) : null;
+    if (!id) throw new ErreurHttp(400, `URL YouTube non reconnue. ${FORMES_URL}`);
+    if (!['privee', 'publique', 'programmee'].includes(o.visibilite as string)) {
+      throw new ErreurHttp(400, 'visibilite attendue : « privee », « publique » ou « programmee ».');
+    }
+    if (o.programmeeLe !== null && typeof o.programmeeLe !== 'string') throw new ErreurHttp(400, 'programmeeLe attendu : date ISO ou null.');
+    const envoi = { id, visibilite: o.visibilite as VisibiliteYoutube, programmeeLe: o.programmeeLe };
+    const video = videoDe(ctx.publication, cible);
+    const refus = raisonEnvoi(video, envoi);
+    if (refus) throw new ErreurHttp(422, refus);
+    const p = modifierVideo(ctx.publication, cible, enregistrerEnvoi(video, envoi));
+    await ecrirePublication(ctx.dossier, p);
+    return p;
+  }
+
+  async function verifierYoutube(req: IncomingMessage, ctx: Contexte): Promise<VerificationYoutube> {
+    const video = videoDe(ctx.publication, lireCible(await lireCorps(req), ctx.cibles));
+    const id = video.youtube.id;
+    if (!id) throw new ErreurHttp(409, 'Collez d’abord l’URL de la vidéo mise en ligne.');
+    const lecture = await c.lireVisibiliteYoutube(id);
+    return { lecture, ...bilanLecture(video, lecture, new Date()) };
+  }
+
   // Photos de donnees/poses/, détourées à la première demande puis chaque fois que la photo change.
   // Les appels simultanés (double montage de l’écran) partagent le même passage : un seul détourage par photo.
   let posesEnCours: Promise<Pose[]> | null = null;
@@ -288,7 +355,8 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
 
   return async function traiter(req, res) {
     const chemin = new URL(req.url ?? '/', 'http://local').pathname;
-    const route = /^\/api\/tournages\/([^/]+)\/publication(?:\/(redaction|image|vignette|valider))?$/.exec(chemin);
+    const route = /^\/api\/tournages\/([^/]+)\/publication(?:\/(redaction|image|vignette|valider|youtube\/(?:preparer|ouvrir|envoi|verifier)))?$/
+      .exec(chemin);
     if (!route && chemin !== '/api/poses') return false;
     try {
       if (!route) {
@@ -304,6 +372,10 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
       else if (action === 'image' && req.method === 'POST') repondre(res, 200, await image(req, ctx));
       else if (action === 'vignette' && req.method === 'POST') repondre(res, 200, await vignette(req, ctx));
       else if (action === 'valider' && req.method === 'POST') repondre(res, 200, await valider(req, ctx));
+      else if (action === 'youtube/preparer' && req.method === 'POST') repondre(res, 200, await preparerYoutube(req, ctx));
+      else if (action === 'youtube/ouvrir' && req.method === 'POST') repondre(res, 200, await ouvrirYoutube(req, ctx));
+      else if (action === 'youtube/envoi' && req.method === 'POST') repondre(res, 200, await envoiYoutube(req, ctx));
+      else if (action === 'youtube/verifier' && req.method === 'POST') repondre(res, 200, await verifierYoutube(req, ctx));
       else repondre(res, 404, { erreur: 'Route inconnue.' });
     } catch (e) {
       repondreErreur(res, e);

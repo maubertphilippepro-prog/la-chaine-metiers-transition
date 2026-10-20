@@ -3,6 +3,7 @@ import type { Analyse, Montage, Reglages, StatutEpisode } from '../noyau/types';
 import type { ResultatRendu } from '../remotion/scripts/rendu';
 import type { CiblePublication, Publication, ReglagesPublication } from '../noyau/publication';
 import type { ChapitreYoutube } from '../noyau/publication-textes';
+import type { LectureYoutube, TextesYoutube } from '../noyau/youtube';
 import type { ReferencesSite } from './serveur/site-replit';
 
 // Données échangées entre le serveur du studio et l'interface.
@@ -56,4 +57,15 @@ export interface DetailPublication {
   camera: string | null;    // nom du fichier caméra dans bruts/
   site: ReferencesSite | null;
   reglages: ReglagesPublication;
+}
+// Dossier « Préparer pour YouTube » : chemins absolus, le MP4 reste dans rendus/.
+export interface DossierYoutube {
+  dossier: string;
+  rendu: string;
+  textes: TextesYoutube;
+}
+export interface VerificationYoutube {
+  lecture: LectureYoutube;
+  alerte: boolean;
+  message: string;
 }

@@ -62,6 +62,8 @@ beforeEach(async () => {
       await writeFile(sortie, 'jpg');
       return { octets: 3, qualite: 90 };
     }),
+    lireVisibiliteYoutube: vi.fn(async () => 'publique' as const),
+    ouvrirDossier: vi.fn(async () => {}),
   };
   const api = creerApiPublication(config);
   serveur = http.createServer(async (req, res) => {
@@ -224,5 +226,102 @@ describe('banque de poses', () => {
     const reponses = await Promise.all([fetch(`${url}/api/poses`), fetch(`${url}/api/poses`)]);
     expect(reponses.map(r => r.status)).toEqual([200, 200]);
     expect(config.detourer).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('YouTube', () => {
+  const ID = 'dQw4w9WgXcQ';
+  async function prete(profil = 'perso') {
+    const dossier = await tournage('a');
+    await writeFile(path.join(racine, 'poses', 'surpris.jpg'), 'jpg');
+    await writeFile(path.join(racine, 'poses', 'surpris.detoure.png'), 'png');
+    const p = await lirePublication('a');
+    const vignette = { pose: { source: 'banque', fichier: 'surpris.jpg' }, fond: { source: 'charte' }, accroche: 'Un seul mot de passe', fichier: null };
+    await envoyer('a', {
+      ...p,
+      videos: p.videos.map(v => (v.cible === 'complete'
+        ? { ...v, profil, titre: 'Titre', description: 'Desc', tags: ['sso', 'mot de passe'], vignette }
+        : v)),
+    });
+    await action('a', 'vignette', { cible: 'complete' });
+    expect((await action('a', 'valider', { cible: 'complete' })).status).toBe(200);
+    return dossier;
+  }
+  const envoi = (corps: Record<string, unknown> = {}) =>
+    action('a', 'youtube/envoi', { cible: 'complete', url: `https://youtu.be/${ID}`, visibilite: 'publique', programmeeLe: null, ...corps });
+
+  it('prépare le dossier à téléverser', async () => {
+    const dossier = await prete();
+    const r = await action('a', 'youtube/preparer', { cible: 'complete' });
+    expect(r.status).toBe(200);
+    const d = await r.json();
+    const sortie = path.join(dossier, 'publication', 'complete');
+    expect(d.dossier).toBe(sortie);
+    expect(d.rendu).toBe(path.join(dossier, 'rendus', 'video-complete.mp4'));
+    expect(d.textes).toMatchObject({ titre: 'Titre', description: 'Desc', tags: 'sso, mot de passe' });
+    expect(await readFile(path.join(sortie, 'titre.txt'), 'utf-8')).toBe('Titre');
+    expect(await readFile(path.join(sortie, 'vignette.jpg'), 'utf-8')).toBe('jpg');
+    const reglages = await readFile(path.join(sortie, 'reglages-youtube.txt'), 'utf-8');
+    expect(reglages).toContain('Science et technologie');
+    expect(reglages).not.toContain('Playlist');
+  });
+  it('suggère une playlist au nom du tournage quand plusieurs vidéos sont publiées', async () => {
+    await prete();
+    const p = await lirePublication('a');
+    await envoyer('a', { ...p, videos: p.videos.map(v => (v.cible === 1 ? { ...v, publier: true } : v)) });
+    const d = await (await action('a', 'youtube/preparer', { cible: 'complete' })).json();
+    expect(d.textes.reglages).toContain('Playlist : Essai');
+  });
+  it('refuse une vidéo non validée ou une vignette trop lourde, en expliquant pourquoi', async () => {
+    await tournage('a');
+    const refus = await action('a', 'youtube/preparer', { cible: 'complete' });
+    expect(refus.status).toBe(422);
+    expect((await refus.json()).problemes).toContain('Vidéo pas encore validée pour la publication.');
+    const dossier = await prete();
+    await writeFile(path.join(dossier, 'rendus', 'vignettes', 'complete.jpg'), Buffer.alloc(2_000_001));
+    const lourde = await action('a', 'youtube/preparer', { cible: 'complete' });
+    expect((await lourde.json()).problemes).toEqual(['Vignette trop lourde : 2000001 octets, 2000000 au plus.']);
+  });
+  it('ouvre le dossier une fois préparé', async () => {
+    const dossier = await prete();
+    expect((await action('a', 'youtube/ouvrir', { cible: 'complete' })).status).toBe(409);
+    await action('a', 'youtube/preparer', { cible: 'complete' });
+    expect((await action('a', 'youtube/ouvrir', { cible: 'complete' })).status).toBe(200);
+    expect(config.ouvrirDossier).toHaveBeenCalledWith(path.join(dossier, 'publication', 'complete'));
+  });
+  it('enregistre l’URL collée et passe la vidéo à envoyée', async () => {
+    const dossier = await prete();
+    const r = await envoi();
+    expect(r.status).toBe(200);
+    expect(((await r.json()) as Publication).videos[0]).toMatchObject({
+      statut: 'envoyee-youtube', youtube: { id: ID, visibilite: 'publique', programmeeLe: null, playlistId: null },
+    });
+    const enregistree = JSON.parse(await readFile(path.join(dossier, 'publication.json'), 'utf-8')) as Publication;
+    expect(enregistree.videos[0]!.youtube.id).toBe(ID);
+  });
+  it('refuse une URL non reconnue en rappelant les formes acceptées', async () => {
+    await prete();
+    const r = await envoi({ url: 'https://vimeo.com/123' });
+    expect(r.status).toBe(400);
+    expect((await r.json()).erreur).toContain('youtu.be/');
+  });
+  it('refuse une visibilité publique pour une vidéo Interne', async () => {
+    await prete('interne');
+    const r = await envoi();
+    expect(r.status).toBe(422);
+    expect((await r.json()).erreur).toBe('Une vidéo Interne reste privée sur YouTube.');
+    expect((await envoi({ visibilite: 'privee' })).status).toBe(200);
+  });
+  it('vérifie la visibilité par oEmbed une fois l’URL collée', async () => {
+    await prete();
+    expect((await action('a', 'youtube/verifier', { cible: 'complete' })).status).toBe(409);
+    await envoi();
+    vi.mocked(config.lireVisibiliteYoutube).mockResolvedValueOnce('non-publique');
+    const r = await action('a', 'youtube/verifier', { cible: 'complete' });
+    expect(await r.json()).toEqual({
+      lecture: 'non-publique', alerte: true,
+      message: 'Vidéo pas encore lisible publiquement : passez-la en public dans YouTube Studio, ou attendez l’heure programmée.',
+    });
+    expect(config.lireVisibiliteYoutube).toHaveBeenCalledWith(ID);
   });
 });

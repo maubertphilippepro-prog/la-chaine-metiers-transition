@@ -16,6 +16,7 @@ import { redigerPublication } from './redaction';
 import { lireReferencesSite } from './site-replit';
 import { relancerSuggestions } from './suggestions';
 import { SuiviRendu } from './suivi-rendu';
+import { lireVisibiliteYoutube, ouvrirDansExplorateur } from './youtube';
 
 const PORT = 5180;
 
@@ -51,6 +52,8 @@ async function main(): Promise<void> {
     extraireImage,
     detourer: detourerImage,
     rendreVignette: (props, sortie, octetsMax) => rendreVignette(props, sortie, octetsMax),
+    lireVisibiliteYoutube: id => lireVisibiliteYoutube(id),
+    ouvrirDossier: ouvrirDansExplorateur,
   });
 
   const serveur = http.createServer();
