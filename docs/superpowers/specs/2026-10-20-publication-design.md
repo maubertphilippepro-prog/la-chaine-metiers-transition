@@ -138,6 +138,17 @@ Une fois la vidéo téléversée dans YouTube Studio, l'auteur colle son URL dan
 
 Sans compte Google, par l'adresse publique oEmbed : `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=<id>&format=json`. Une réponse 200 signifie que la vidéo est lisible publiquement ; 401, 403 ou 404 qu'elle est privée, programmée et pas encore en ligne, ou supprimée. Cette vérification conditionne le relais Mixte. Pour une vidéo Interne, le studio la lance aussi et alerte si la vidéo est lisible publiquement alors qu'elle devrait être privée.
 
+### Notice YouTube Studio
+
+`docs/youtube-studio.md`, sur le modèle de `docs/obs-configuration.md`, pas à pas et propre à notre cas :
+
+- une fois pour toutes : vérification de la chaîne par téléphone, réglages par défaut des mises en ligne (catégorie, langue, « pas conçue pour les enfants »), playlists ;
+- à chaque vidéo : du dossier « Préparer pour YouTube » jusqu'à l'URL collée dans le studio, en suivant les écrans de téléversement de YouTube Studio (Détails, Éléments vidéo, Vérifications, Visibilité) ;
+- un parcours par profil : Interne (Privée, puis relais), Perso (Publique ou Programmée, pas de relais), Mixte (Publique ou Programmée, relais une fois en ligne) ;
+- les cas courants : modifier une vidéo déjà en ligne, remplacer la vignette, rattraper une erreur de visibilité.
+
+Les libellés des écrans de YouTube Studio sont vérifiés au moment de la rédaction, à la fin du plan 7.
+
 ## Plus tard — Envoi YouTube par l'API
 
 Pour mémoire : cette partie sera planifiée quand la chaîne aura fait ses preuves et que le projet Google Cloud existera. Elle remplace alors le téléversement à la main ; `publication.json`, les contrôles et le relais restent inchangés.
