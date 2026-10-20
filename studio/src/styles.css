@@ -75,3 +75,18 @@ button.lien { background: none; border: none; padding: 0; text-align: left; curs
 .traceur { position: absolute; inset: 0; cursor: crosshair; background: rgba(0, 0, 0, 0.15); touch-action: none; }
 .traceur-zone { position: absolute; border: 2px solid var(--rouge); background: rgba(255, 255, 255, 0.15); pointer-events: none; }
 .traceur-barre { position: absolute; top: 6px; left: 6px; right: 6px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; background: rgba(255, 255, 255, 0.92); padding: 4px 8px; border-radius: 6px; cursor: default; font-size: 13px; }
+
+.publication { max-width: 1100px; margin: 0 auto; }
+.publication label { display: block; margin: 0.5rem 0; }
+.publication input:not([type='checkbox']), .publication textarea { width: 100%; box-sizing: border-box; }
+.lecteur-publication { width: 100%; max-height: 360px; background: #000; }
+.carte-publication h3 label { display: inline; }
+.statut { font-size: 0.8rem; padding: 0.1rem 0.5rem; border-radius: 1rem; background: #e5e7eb; }
+.statut-prete { background: #d1fae5; }
+.statut-erreur { background: #fee2e2; }
+.vignette { border: 1px solid #d1d5db; border-radius: 6px; padding: 0.5rem 1rem; margin: 1rem 0; }
+.pose { padding: 2px; background: #f3f4f6; border: 2px solid transparent; }
+.pose.choisie { border-color: #004c99; }
+.pose img { height: 64px; display: block; }
+.apercus-vignette { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.vignette-rendue { width: 100%; }

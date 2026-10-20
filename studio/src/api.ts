@@ -1,7 +1,8 @@
 import type { Ancrage, Consigne, FichierConsignes } from '../../noyau/consignes';
 import type { Montage } from '../../noyau/types';
+import type { CiblePublication, Publication } from '../../noyau/publication';
 import type { Cible } from '../../remotion/scripts/rendu';
-import type { DetailTournage, EtatRendu, ResumeTournage } from '../commun';
+import type { DetailPublication, DetailTournage, EtatRendu, Pose, ResumeTournage } from '../commun';
 
 export class ErreurApi extends Error {
   constructor(readonly statut: number, message: string, readonly problemes: string[]) {
@@ -41,4 +42,12 @@ export const api = {
   },
   rendre: (nom: string, cible: Cible) => appeler<EtatRendu>(`${chemin(nom)}/rendu`, enJson('POST', { cible })),
   etatRendu: () => appeler<EtatRendu>('/api/rendu'),
+  publication: (nom: string) => appeler<DetailPublication>(`${chemin(nom)}/publication`),
+  enregistrerPublication: (nom: string, p: Publication) => appeler<Publication>(`${chemin(nom)}/publication`, enJson('PUT', p)),
+  rediger: (nom: string, cible: CiblePublication) => appeler<Publication>(`${chemin(nom)}/publication/redaction`, enJson('POST', { cible })),
+  image: (nom: string, source: 'ecran' | 'camera', instant: number) =>
+    appeler<{ chemin: string }>(`${chemin(nom)}/publication/image`, enJson('POST', { source, instant })),
+  rendreVignette: (nom: string, cible: CiblePublication) => appeler<Publication>(`${chemin(nom)}/publication/vignette`, enJson('POST', { cible })),
+  validerVideo: (nom: string, cible: CiblePublication) => appeler<Publication>(`${chemin(nom)}/publication/valider`, enJson('POST', { cible })),
+  poses: () => appeler<Pose[]>('/api/poses'),
 };

@@ -148,6 +148,7 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
           onChange={e => { const titre = e.target.value; modifier(m => ({ ...m, titre })); }}
         />
         <span className="discret">{LIBELLES_ENREGISTREMENT[enregistrement]}</span>
+        {detail.statut === 'rendu' && <a href={`#/${encodeURIComponent(nom)}/publication`}>Publication →</a>}
       </header>
       <main className="texte">
         <Texte analyse={detail.analyse} montage={montage} modifier={modifier} ecouter={ecouter} lireDansApercu={lireDansApercu} consignerPassage={setAncrage}

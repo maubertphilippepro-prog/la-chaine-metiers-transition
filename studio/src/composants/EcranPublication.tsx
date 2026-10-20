@@ -1,0 +1,65 @@
+import { type FC, useEffect, useRef, useState } from 'react';
+import { PROFILS, type Profil } from '../../../noyau/publication';
+import type { Pose } from '../../commun';
+import { api } from '../api';
+import { changerProfilParDefaut, EXPLICATIONS_PROFIL, LIBELLES_PROFIL } from '../logique/publication';
+import { usePublication } from '../usePublication';
+import type { EtatEnregistrement } from '../useMontage';
+import { CartePublication } from './CartePublication';
+
+const LIBELLES_ENREGISTREMENT: Record<EtatEnregistrement, string> = {
+  'a-jour': 'Enregistré',
+  'en-attente': 'Enregistrement…',
+  erreur: 'Échec de l’enregistrement : la prochaine modification réessaiera',
+};
+
+// Une carte par vidéo rendue ; le lecteur de la source sert à choisir l'image d'un fond ou d'une pose caméra.
+export const EcranPublication: FC<{ nom: string }> = ({ nom }) => {
+  const { detail, publication, erreur, enregistrement, modifier, executer } = usePublication(nom);
+  const [poses, setPoses] = useState<Pose[] | null>(null);
+  const [erreurPoses, setErreurPoses] = useState<string | null>(null);
+  const lecteur = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    api.poses().then(setPoses, (e: Error) => setErreurPoses(e.message));
+  }, []);
+
+  const retour = <a href={`#/${encodeURIComponent(nom)}`}>← Montage</a>;
+  if (erreur) return <div className="page">{retour}<p className="alerte">{erreur}</p></div>;
+  if (!detail || !publication) return <div className="page">Chargement…</div>;
+
+  const instant = () => lecteur.current?.currentTime ?? 0;
+  return (
+    <div className="page publication">
+      <header className="entete">
+        {retour}
+        <h2>Publication — {detail.titre}</h2>
+        <span className="discret">{LIBELLES_ENREGISTREMENT[enregistrement]}</span>
+      </header>
+      <section className="panneau">
+        <label>
+          Profil par défaut{' '}
+          <select value={publication.profilParDefaut} onChange={e => modifier(p => changerProfilParDefaut(p, e.target.value as Profil))}>
+            {PROFILS.map(p => <option key={p} value={p}>{LIBELLES_PROFIL[p]}</option>)}
+          </select>
+        </label>
+        <p className="discret">{EXPLICATIONS_PROFIL[publication.profilParDefaut]}</p>
+        <video ref={lecteur} className="lecteur-publication" src={detail.sourceUrl} controls preload="metadata" />
+        <p className="discret">Placez la vidéo sur l’image voulue, puis prenez-la comme fond ou comme pose dans une vignette.</p>
+        {poses === null && !erreurPoses && <p className="discret">Préparation de la banque de poses…</p>}
+        {erreurPoses && <p className="alerte">Banque de poses : {erreurPoses}</p>}
+        {!detail.site && (
+          <p className="discret">Site Replit injoignable ou adresse absente (REPLIT_SITE_URL dans .env) : catégories et playlists indisponibles.</p>
+        )}
+      </section>
+      {publication.videos.map(v => {
+        const disponible = detail.videos.find(d => d.cible === v.cible);
+        return disponible && (
+          <CartePublication
+            key={String(v.cible)} nom={nom} video={v} disponible={disponible} detail={detail} poses={poses ?? []}
+            instant={instant} modifier={modifier} executer={executer}
+          />
+        );
+      })}
+    </div>
+  );
+};

@@ -46,3 +46,14 @@ Règles vérifiées à chaque création ou retouche (un refus s’affiche sans r
 ## Rendu
 
 « Valider et lancer le rendu » est disponible quand la vidéo et chaque chapitre ont un titre, chaque terme est validé ou écarté, aucune longueur n'est en attente, aucune proposition de consigne n'attend de décision et aucun élément à l’écran n’est à valider ni en défaut. Le studio ajoute alors les définitions validées à `donnees/glossaire.json`, passe le tournage au statut « Validé » et rend la vidéo complète et chaque épisode dans `rendus/`. Un rendu en échec peut être relancé seul ; le détail est dans `rendus/journal.txt`.
+
+## Publication
+
+Une fois le tournage rendu, le lien **Publication →** de l’en-tête ouvre l’écran de publication. Chaque vidéo rendue (vidéo complète, épisodes) y a sa carte ; seules les vidéos cochées sont préparées.
+
+- **Profil** : *Interne* (contenu confidentiel : privée sur YouTube, fichier envoyé sur le site), *Perso* (publique sur YouTube, rien sur le site), *Mixte* (publique sur YouTube, puis relayée sur le site). Le profil par défaut s’applique aux vidéos qui ne l’ont pas changé. Pour Interne et Mixte, choisir la catégorie et la playlist du site (lues sur le site si `REPLIT_SITE_URL` est renseignée dans `.env`).
+- **Textes** : « Proposer les textes avec Claude » remplit le titre (avec deux variantes), la description, les tags et trois accroches de vignette, à partir des paroles conservées. Tout se corrige à la main. Les chapitres de la vidéo complète sont ajoutés à la description automatiquement (au moins 3 chapitres de 10 s).
+- **Vignette** : choisir une pose (photo de `donnees/poses/`, détourée automatiquement, ou caméra séparée à l’image affichée dans le lecteur), un fond (formes de la charte, ou écran à l’image affichée) et une accroche ; l’aperçu suit chaque choix. « Rendre la vignette » produit le JPEG 1280×720 dans `rendus/vignettes/`.
+- **Valider pour la publication** vérifie titre, description, tags, vignette rendue et, pour une vidéo publique, l’absence de mention interdite ; la vidéo passe alors à « Prête ». Toute modification ultérieure la ramène à « À préparer ».
+
+Tout est enregistré dans `publication.json` du tournage.
