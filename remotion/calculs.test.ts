@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { progressionElement, transformationCamera, transformationZoom, volumeRaccord, volumeTapis, type Transformation } from './calculs';
+import { progressionElement, tailleAccroche, transformationCamera, transformationZoom, volumeRaccord, volumeTapis, type Transformation } from './calculs';
 
 describe('volumeRaccord', () => {
   it('atténue la première et la dernière image avec un fondu d\'une image', () => {
@@ -61,5 +61,17 @@ describe('transformationCamera', () => {
     proche(transformationCamera(vignette, 0), { echelle: 1, x: 0, y: 0 });
     // Coin haut gauche de la vignette : 24 × 2 + 432 = 480 ; 786 × 2 − 1302 = 270 (960×540 centré).
     proche(transformationCamera(vignette, 1), { echelle: 2, x: 432, y: -1302 });
+  });
+});
+
+describe('tailleAccroche', () => {
+  it('écrit grand une accroche courte', () => {
+    expect(tailleAccroche('Copiez tout')).toBe(120);
+  });
+  it('réduit une accroche longue', () => {
+    expect(tailleAccroche('Retrouvez tout ce que vous copiez')).toBe(84);
+  });
+  it('réduit assez pour qu’un mot très long tienne sur une ligne', () => {
+    expect(tailleAccroche('Anticonstitutionnellement')).toBeLessThan(40);
   });
 });

@@ -16,6 +16,7 @@ const TYPES: Record<string, string> = {
   '.webm': 'video/webm',
   '.json': 'application/json',
   '.png': 'image/png',
+  '.jpg': 'image/jpeg',
 };
 
 const CORS = {

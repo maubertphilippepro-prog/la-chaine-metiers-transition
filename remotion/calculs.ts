@@ -47,3 +47,12 @@ export function transformationCamera(vignette: Zone, progression: number): Trans
   const y = vignette.y + (cibleY - vignette.y) * progression;
   return { echelle, x: x - vignette.x * echelle, y: y - vignette.y * echelle };
 }
+
+// Taille de l'accroche de la vignette (gras, capitales, colonne de 640 px) : plus grande quand elle est courte,
+// et assez petite pour que son mot le plus long tienne sur une ligne (une capitale grasse fait environ 0,68 em).
+export function tailleAccroche(texte: string): number {
+  const longueur = texte.trim().length;
+  const base = longueur <= 20 ? 120 : longueur <= 30 ? 100 : 84;
+  const plusLongMot = Math.max(1, ...texte.split(/\s+/).map(m => m.length));
+  return Math.min(base, Math.floor(640 / (0.68 * plusLongMot)));
+}

@@ -7,6 +7,7 @@ import { durees, FPS_HABILLAGE, HAUTEUR, LARGEUR } from './charte';
 import { CartonFin } from './composants/CartonFin';
 import { Generique } from './composants/Generique';
 import { Intertitre } from './composants/Intertitre';
+import { HAUTEUR_VIGNETTE, LARGEUR_VIGNETTE, Vignette } from './composants/Vignette';
 import { Episode, type ProprietesEpisode } from './compositions/Episode';
 import { VideoComplete, type ProprietesVideoComplete } from './compositions/VideoComplete';
 import { exempleEpisode, exempleVideoComplete } from './exemple';
@@ -61,6 +62,12 @@ export const RemotionRoot: FC = () => (
           width={LARGEUR} height={HAUTEUR} defaultProps={{ element: elementDemo(n, demo) }}
         />
       ))}
+    </Folder>
+    <Folder name="Vignettes">
+      <Still
+        id="Vignette" component={Vignette} width={LARGEUR_VIGNETTE} height={HAUTEUR_VIGNETTE}
+        defaultProps={{ fondUrl: null, poseUrl: null, accroche: 'Windows + V : le presse-papiers caché' }}
+      />
     </Folder>
     <Folder name="Rendus">
       <Composition
