@@ -125,6 +125,15 @@ describe('problemesPreparation', () => {
     expect(problemesPreparation(avec, avec.description, R, true)).toEqual([`Mention interdite pour une vidéo publique : « ${mention} ».`]);
     expect(problemesPreparation({ ...avec, profil: 'interne' }, avec.description, R, true)).toEqual([]);
   });
+  it('cherche les mentions aussi dans l’accroche et dans les chapitres, sans tenir compte des accents', () => {
+    const mention = R.mentionsInterdites[0]!;
+    const attendu = [`Mention interdite pour une vidéo publique : « ${mention} ».`];
+    const accroche = { ...v, vignette: { ...VIGNETTE, accroche: `Chez ${mention}` } };
+    expect(problemesPreparation(accroche, 'Desc', R, true)).toEqual(attendu);
+    expect(problemesPreparation(v, `Desc\n0:00 ${mention}`, R, true)).toEqual(attendu);
+    const decomposee = mention.normalize('NFD').replace(/e/g, 'e\u0301');
+    expect(problemesPreparation({ ...v, titre: decomposee }, 'Desc', R, true)).toEqual(attendu);
+  });
   it('compte les tags comme YouTube : virgules et guillemets des tags à espaces', () => {
     expect(longueurTags(['ia', 'presse papiers'])).toBe(2 + 1 + 14 + 2);
     expect(longueurTags([])).toBe(0);

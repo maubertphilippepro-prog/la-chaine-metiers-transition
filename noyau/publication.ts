@@ -186,9 +186,17 @@ export function longueurTags(tags: string[]): number {
   return tags.reduce((n, t) => n + t.length + (t.includes(' ') ? 2 : 0), 0) + Math.max(0, tags.length - 1);
 }
 
+const sansAccents = (t: string) => t.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+
 export function mentionsTrouvees(textes: string[], mentions: string[]): string[] {
-  const tout = textes.join('\n').toLowerCase();
-  return mentions.filter(m => tout.includes(m.toLowerCase()));
+  const tout = sansAccents(textes.join('\n'));
+  const vues = new Set<string>();
+  return mentions.filter(m => {
+    const cle = sansAccents(m);
+    if (!tout.includes(cle) || vues.has(cle)) return false;
+    vues.add(cle);
+    return true;
+  });
 }
 
 export function problemesPreparation(
@@ -207,7 +215,7 @@ export function problemesPreparation(
   if (!v.vignette) problemes.push('Vignette à composer.');
   else if (!v.vignette.fichier || !vignettePresente) problemes.push('Vignette à rendre.');
   if (v.profil !== 'interne') {
-    for (const m of mentionsTrouvees([v.titre, v.description, ...v.tags], r.mentionsInterdites)) {
+    for (const m of mentionsTrouvees([v.titre, descriptionFinale, ...v.tags, v.vignette?.accroche ?? ''], r.mentionsInterdites)) {
       problemes.push(`Mention interdite pour une vidéo publique : « ${m} ».`);
     }
   }
