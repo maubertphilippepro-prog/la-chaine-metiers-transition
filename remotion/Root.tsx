@@ -2,7 +2,7 @@ import type { FC } from 'react';
 import { type CalculateMetadataFunction, Composition, Folder, Still } from 'remotion';
 import { dureeEpisode, dureeVideoComplete } from '../noyau/decisions';
 import { enImages } from '../noyau/images';
-import { ApercuEncart, ApercuLogo } from './apercus';
+import { ApercuElement, ApercuEncart, ApercuLogo, elementDemo } from './apercus';
 import { durees, FPS_HABILLAGE, HAUTEUR, LARGEUR } from './charte';
 import { CartonFin } from './composants/CartonFin';
 import { Generique } from './composants/Generique';
@@ -15,6 +15,8 @@ const generique = enImages(durees.generique, FPS_HABILLAGE);
 const intertitre = enImages(durees.intertitre, FPS_HABILLAGE);
 const cartonFin = enImages(durees.cartonFin, FPS_HABILLAGE);
 const encart = enImages(durees.encart, FPS_HABILLAGE);
+const demo = enImages(4, FPS_HABILLAGE);
+const NATURES = ['zoom', 'miseEnAvant', 'texte', 'camera'] as const;
 
 const metaEpisode: CalculateMetadataFunction<ProprietesEpisode> = ({ props }) => ({
   durationInFrames: Math.max(1, dureeEpisode(props.decisions)),
@@ -52,6 +54,14 @@ export const RemotionRoot: FC = () => (
       }}
     />
   </Folder>
+    <Folder name="Elements-ecran">
+      {NATURES.map(n => (
+        <Composition
+          key={n} id={`Element-${n}`} component={ApercuElement} durationInFrames={demo} fps={FPS_HABILLAGE}
+          width={LARGEUR} height={HAUTEUR} defaultProps={{ element: elementDemo(n, demo) }}
+        />
+      ))}
+    </Folder>
     <Folder name="Rendus">
       <Composition
         id="Episode" component={Episode} durationInFrames={1} fps={FPS_HABILLAGE} width={LARGEUR} height={HAUTEUR}
