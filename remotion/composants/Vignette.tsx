@@ -49,7 +49,10 @@ export const Vignette: FC<ProprietesVignette> = ({ fondUrl, poseUrl, accroche })
         style={{
           fontSize: tailleAccroche(accroche), fontWeight: 800, lineHeight: 1.05, textTransform: 'uppercase',
           color: fondUrl ? charte.blanc : charte.bleu,
-          textShadow: fondUrl ? '0 4px 18px rgba(0, 0, 0, 0.6)' : 'none',
+          // Halo blanc sur la charte : l'accroche reste lisible là où la pose passe dessous.
+          textShadow: fondUrl
+            ? '0 4px 18px rgba(0, 0, 0, 0.6)'
+            : '0 0 4px rgba(255, 255, 255, 1), 0 0 10px rgba(255, 255, 255, 1), 0 0 22px rgba(255, 255, 255, 0.9)',
         }}
       >
         {accroche}
