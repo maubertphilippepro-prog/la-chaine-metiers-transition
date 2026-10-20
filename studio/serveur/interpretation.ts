@@ -3,6 +3,7 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
 import { extraitPassage, motsRecouverts, operationDepuisPlat, premierMotDuChapitre, type ReponseConsigne } from '../../noyau/consignes';
 import type { Coupe, Mot } from '../../noyau/types';
+import { verifierCleClaude, traduireErreurClaude } from './claude';
 import { ErreurInterpretation, type DemandeInterpretation } from './consignes';
 
 // Même présentation que le pipeline (suggestions.py) : « numéro:mot », 30 mots par ligne.
@@ -128,9 +129,7 @@ const SchemaReponse = z.object({
 
 // Sortie structurée, effort moyen et repli serveur en cas de refus, comme le pipeline.
 export async function interpreterConsigne(d: DemandeInterpretation, client?: Anthropic): Promise<ReponseConsigne> {
-  if (!client && !process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) {
-    throw new ErreurInterpretation(500, 'Clé API Claude absente : définissez la variable d’environnement ANTHROPIC_API_KEY.');
-  }
+  verifierCleClaude(client);
   let reponse;
   try {
     reponse = await (client ?? new Anthropic()).messages.parse(
@@ -144,18 +143,7 @@ export async function interpreterConsigne(d: DemandeInterpretation, client?: Ant
       { headers: { 'anthropic-beta': 'server-side-fallback-2026-07-01' } },
     );
   } catch (e) {
-    if (e instanceof Anthropic.APIConnectionError) {
-      throw new ErreurInterpretation(503, `Connexion à l’API Claude impossible : ${e.message}`);
-    }
-    if (e instanceof Anthropic.RateLimitError) {
-      throw new ErreurInterpretation(503, 'Limite de requêtes de l’API Claude atteinte, réessayez plus tard.');
-    }
-    if (e instanceof Anthropic.APIError) {
-      const statut = e.status !== undefined && e.status >= 500 ? 503 : 500;
-      throw new ErreurInterpretation(statut, `Erreur de l’API Claude (${e.status ?? 'sans statut'}) : ${e.message}`);
-    }
-    if (e instanceof Anthropic.AnthropicError) throw new ErreurInterpretation(500, `Réponse de Claude inexploitable : ${e.message}`);
-    throw e;
+    throw traduireErreurClaude(e);
   }
   if (reponse.stop_reason === 'refusal') throw new ErreurInterpretation(500, 'Claude a refusé de traiter cette consigne.');
   if (!reponse.parsed_output) {

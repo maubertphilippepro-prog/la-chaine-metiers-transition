@@ -1,16 +1,16 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, statSync } from 'node:fs';
-import { readdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { readdir, readFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import path from 'node:path';
 import { passageEnTemps, proposer, raisonFichierConsignes, type Ancrage, type Consigne, type FichierConsignes, type ReponseConsigne } from '../../noyau/consignes';
 import { majGlossaire, type Glossaire } from '../../noyau/glossaire';
-import type { StatutEpisode } from '../../noyau/types';
 import { verifierAvantRendu } from '../../noyau/verifications';
 import type { Cible, ResultatRendu } from '../../remotion/scripts/rendu';
-import { chargerTournage, majStatutEpisode, raisonMontage, urlSource, type Tournage } from '../../remotion/scripts/tournage';
+import { chargerTournage, lireEpisode, majStatutEpisode, raisonMontage, urlSource, type Tournage } from '../../remotion/scripts/tournage';
 import type { DetailTournage, EtatRendu, ResumeTournage } from '../commun';
 import { ErreurInterpretation, lireConsignes, type InterpreterConsigne } from './consignes';
+import { dossierTournage, ecrireJson, ErreurHttp, lireCorps, message, repondre, repondreErreur } from './http';
 import type { SuiviRendu } from './suivi-rendu';
 
 export interface ConfigApi {
@@ -23,59 +23,6 @@ export interface ConfigApi {
   relancerSuggestions: (dossier: string) => Promise<void>;
   // Appel à Claude, injecté pour les tests.
   interpreterConsigne: InterpreterConsigne;
-}
-
-class ErreurHttp extends Error {
-  constructor(readonly statut: number, message: string, readonly problemes?: string[]) {
-    super(message);
-  }
-}
-
-const STATUTS: StatutEpisode[] = ['analyse', 'en-validation', 'valide', 'rendu', 'erreur'];
-const TAILLE_MAX = 50_000_000;
-
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
-
-function repondre(res: ServerResponse, statut: number, corps: unknown): void {
-  res.writeHead(statut, { 'Content-Type': 'application/json; charset=utf-8' }).end(JSON.stringify(corps));
-}
-
-async function lireCorps(req: IncomingMessage): Promise<unknown> {
-  const morceaux: Buffer[] = [];
-  let taille = 0;
-  for await (const morceau of req as AsyncIterable<Buffer>) {
-    taille += morceau.length;
-    if (taille > TAILLE_MAX) throw new ErreurHttp(413, 'Requête trop volumineuse.');
-    morceaux.push(morceau);
-  }
-  try {
-    return JSON.parse(Buffer.concat(morceaux).toString('utf-8'));
-  } catch {
-    throw new ErreurHttp(400, 'JSON invalide.');
-  }
-}
-
-async function ecrireJson(chemin: string, valeur: unknown): Promise<void> {
-  const temporaire = `${chemin}.${randomUUID()}.tmp`;
-  await writeFile(temporaire, JSON.stringify(valeur, null, 2), 'utf-8');
-  await rename(temporaire, chemin);
-}
-
-async function lireEpisode(dossier: string): Promise<{ titre: string | null; statut: StatutEpisode | null; message: string | null }> {
-  try {
-    const lu: unknown = JSON.parse(await readFile(path.join(dossier, 'episode.json'), 'utf-8'));
-    if (lu && typeof lu === 'object' && !Array.isArray(lu)) {
-      const e = lu as Record<string, unknown>;
-      return {
-        titre: typeof e.titre === 'string' ? e.titre : null,
-        statut: STATUTS.includes(e.statut as StatutEpisode) ? (e.statut as StatutEpisode) : null,
-        message: typeof e.message === 'string' ? e.message : null,
-      };
-    }
-  } catch {
-    // absent ou illisible : tournage sans statut
-  }
-  return { titre: null, statut: null, message: null };
 }
 
 async function resume(dossier: string): Promise<ResumeTournage> {
@@ -116,17 +63,7 @@ function lireDemandeConsigne(corps: unknown): { texte: string; ancrage: Ancrage 
 
 export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerResponse) => Promise<boolean> {
   function dossierDe(nomEncode: string): string {
-    let nom: string;
-    try {
-      nom = decodeURIComponent(nomEncode);
-    } catch {
-      throw new ErreurHttp(404, 'Tournage introuvable.');
-    }
-    const dossier = path.join(c.racineTournages, nom);
-    if (nom.startsWith('.') || /[\\/]/.test(nom) || !statSync(dossier, { throwIfNoEntry: false })?.isDirectory()) {
-      throw new ErreurHttp(404, `Tournage introuvable : ${nom}`);
-    }
-    return dossier;
+    return dossierTournage(c.racineTournages, nomEncode);
   }
 
   async function charger(dossier: string, brouillon: boolean): Promise<Tournage> {
@@ -285,8 +222,7 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
         repondre(res, 404, { erreur: 'Route inconnue.' });
       }
     } catch (e) {
-      if (e instanceof ErreurHttp) repondre(res, e.statut, { erreur: e.message, ...(e.problemes ? { problemes: e.problemes } : {}) });
-      else repondre(res, 500, { erreur: message(e) });
+      repondreErreur(res, e);
     }
     return true;
   };

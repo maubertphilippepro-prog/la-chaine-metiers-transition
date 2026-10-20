@@ -98,3 +98,22 @@ export async function majStatutEpisode(dossier: string, statut: StatutEpisode, m
 export function urlSource(urlServeur: string, nom: string): string {
   return `${urlServeur}/${encodeURIComponent(nom)}/source.mp4`;
 }
+
+const STATUTS: StatutEpisode[] = ['analyse', 'en-validation', 'valide', 'rendu', 'erreur'];
+
+// episode.json absent ou illisible : tournage sans titre ni statut.
+export async function lireEpisode(dossier: string): Promise<{ titre: string | null; statut: StatutEpisode | null; message: string | null }> {
+  try {
+    const lu: unknown = JSON.parse(await readFile(path.join(dossier, 'episode.json'), 'utf-8'));
+    if (estObjet(lu)) {
+      return {
+        titre: typeof lu.titre === 'string' ? lu.titre : null,
+        statut: STATUTS.includes(lu.statut as StatutEpisode) ? (lu.statut as StatutEpisode) : null,
+        message: typeof lu.message === 'string' ? lu.message : null,
+      };
+    }
+  } catch {
+    // signalé par l'absence de statut
+  }
+  return { titre: null, statut: null, message: null };
+}
