@@ -4,12 +4,15 @@ import { cleVignette, urlsVignette, type Publication, type Vignette, type VideoP
 import { HAUTEUR_VIGNETTE, LARGEUR_VIGNETTE, Vignette as CompositionVignette } from '../../../remotion/composants/Vignette';
 import type { DetailPublication, Pose } from '../../commun';
 import { api } from '../api';
+import { baseVignette } from '../logique/publication';
 
 interface Props {
   nom: string;
   video: VideoPubliee;
   detail: DetailPublication;
   poses: Pose[];
+  // Vignette de la vidéo complète : pose et fond de départ des épisodes.
+  complete: Vignette | null;
   // Instant affiché dans le lecteur de l'écran, en secondes de la source.
   instant: () => number;
   changer: (c: Partial<VideoPubliee>) => void;
@@ -19,15 +22,15 @@ interface Props {
 const arrondi = (t: number) => Math.round(t * 1000) / 1000;
 
 // Pose (banque ou caméra), fond (charte ou écran), accroche ; aperçu immédiat, puis rendu en JPEG par le serveur.
-export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, instant, changer, lancer }) => {
+export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complete, instant, changer, lancer }) => {
   const [erreur, setErreur] = useState<string | null>(null);
   const [extraction, setExtraction] = useState(false);
   const vignette = v.vignette;
   const bases = { tournage: detail.urlTournage, poses: detail.urlPoses };
 
   const composer = (c: Partial<Omit<Vignette, 'fichier'>>) => {
-    const premiere = poses[0];
-    const pose = c.pose ?? vignette?.pose ?? (premiere ? { source: 'banque' as const, fichier: premiere.fichier } : null);
+    const base = baseVignette(vignette, complete, poses[0]?.fichier);
+    const pose = c.pose ?? base.pose;
     if (!pose) {
       setErreur('Aucune pose : ajoutez des photos dans donnees/poses/ ou utilisez la caméra séparée.');
       return;
@@ -36,7 +39,7 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, instant
     changer({
       vignette: {
         pose,
-        fond: c.fond ?? vignette?.fond ?? { source: 'charte' },
+        fond: c.fond ?? base.fond,
         accroche: c.accroche ?? vignette?.accroche ?? v.accroches[0] ?? '',
         fichier: vignette?.fichier ?? null,
       },

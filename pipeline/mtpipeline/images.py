@@ -1,6 +1,7 @@
 """Images de la publication : enregistrements caméra, images extraites d'une vidéo, photos détourées."""
 import os
 import subprocess
+import uuid
 from pathlib import Path
 from typing import Callable
 
@@ -56,6 +57,6 @@ def detourer(entree: Path, sortie: Path, retirer: Retirer) -> None:
         raise ErreurEntree(f"{entree.name} : image illisible ({e}).") from e
     resultat = retirer(source).convert("RGBA")
     sortie.parent.mkdir(parents=True, exist_ok=True)
-    temporaire = sortie.with_name(sortie.name + ".tmp")
+    temporaire = sortie.with_name(f"{sortie.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp")
     resultat.save(temporaire, format="PNG")
     os.replace(temporaire, sortie)

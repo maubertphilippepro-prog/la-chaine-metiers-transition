@@ -219,4 +219,10 @@ describe('banque de poses', () => {
     await fetch(`${url}/api/poses`);
     expect(config.detourer).toHaveBeenCalledTimes(1);
   });
+  it('partage un seul détourage entre des appels simultanés', async () => {
+    await writeFile(path.join(racine, 'poses', 'souriant.jpg'), 'jpg');
+    const reponses = await Promise.all([fetch(`${url}/api/poses`), fetch(`${url}/api/poses`)]);
+    expect(reponses.map(r => r.status)).toEqual([200, 200]);
+    expect(config.detourer).toHaveBeenCalledTimes(1);
+  });
 });

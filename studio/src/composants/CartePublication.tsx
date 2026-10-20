@@ -1,5 +1,5 @@
 import { type FC, useEffect, useState } from 'react';
-import { longueurTags, modifierVideo, PROFILS, type Profil, type Publication, type VideoPubliee } from '../../../noyau/publication';
+import { longueurTags, modifierVideo, PROFILS, type Profil, type Publication, type VideoPubliee, type Vignette } from '../../../noyau/publication';
 import { descriptionYoutube, formatHorodatage } from '../../../noyau/publication-textes';
 import type { DetailPublication, Pose, VideoDisponible } from '../../commun';
 import { api, ErreurApi } from '../api';
@@ -12,6 +12,7 @@ interface Props {
   disponible: VideoDisponible;
   detail: DetailPublication;
   poses: Pose[];
+  complete: Vignette | null;
   instant: () => number;
   modifier: (f: (p: Publication) => Publication) => void;
   executer: (action: () => Promise<Publication>) => Promise<void>;
@@ -19,7 +20,7 @@ interface Props {
 
 const idOuNull = (valeur: string) => (valeur === '' ? null : Number(valeur));
 
-export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail, poses, instant, modifier, executer }) => {
+export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail, poses, complete, instant, modifier, executer }) => {
   const [occupe, setOccupe] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [problemes, setProblemes] = useState<string[]>([]);
@@ -110,7 +111,7 @@ export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail,
             Tags, séparés par des virgules ({longueurTags(tagsDepuisTexte(tags))}/{r.tagsMax})
             <input value={tags} onChange={e => setTags(e.target.value)} onBlur={() => changer({ tags: tagsDepuisTexte(tags) })} />
           </label>
-          <ChoixVignette nom={nom} video={v} detail={detail} poses={poses} instant={instant} changer={changer} lancer={lancer} />
+          <ChoixVignette nom={nom} video={v} detail={detail} poses={poses} complete={complete} instant={instant} changer={changer} lancer={lancer} />
           <button className="principal" disabled={!!occupe} onClick={() => void lancer('Vérification…', () => api.validerVideo(nom, v.cible))}>
             Valider pour la publication
           </button>

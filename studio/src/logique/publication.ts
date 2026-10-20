@@ -1,4 +1,4 @@
-import type { CiblePublication, Profil, Publication, StatutPublication } from '../../../noyau/publication';
+import type { CiblePublication, FondVignette, PoseVignette, Profil, Publication, StatutPublication, Vignette } from '../../../noyau/publication';
 
 export const LIBELLES_PROFIL: Record<Profil, string> = { interne: 'Interne', perso: 'Perso', mixte: 'Mixte' };
 
@@ -28,4 +28,13 @@ export function changerProfilParDefaut(p: Publication, profil: Profil): Publicat
     profilParDefaut: profil,
     videos: p.videos.map(v => (v.profil === p.profilParDefaut ? { ...v, profil } : v)),
   };
+}
+
+// Pose et fond de départ d’une vignette : les siens, sinon ceux de la vidéo complète, sinon la première pose de la banque et la charte.
+export function baseVignette(
+  vignette: Vignette | null, complete: Vignette | null, premierePose: string | undefined,
+): { pose: PoseVignette | null; fond: FondVignette } {
+  const source = vignette ?? complete;
+  if (source) return { pose: source.pose, fond: source.fond };
+  return { pose: premierePose ? { source: 'banque', fichier: premierePose } : null, fond: { source: 'charte' } };
 }

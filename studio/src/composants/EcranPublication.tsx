@@ -20,7 +20,7 @@ export const EcranPublication: FC<{ nom: string }> = ({ nom }) => {
   const [erreurPoses, setErreurPoses] = useState<string | null>(null);
   const lecteur = useRef<HTMLVideoElement>(null);
   useEffect(() => {
-    api.poses().then(setPoses, (e: Error) => setErreurPoses(e.message));
+    api.poses().then(p => { setPoses(p); setErreurPoses(null); }, (e: Error) => setErreurPoses(e.message));
   }, []);
 
   const retour = <a href={`#/${encodeURIComponent(nom)}`}>← Montage</a>;
@@ -56,6 +56,7 @@ export const EcranPublication: FC<{ nom: string }> = ({ nom }) => {
         return disponible && (
           <CartePublication
             key={String(v.cible)} nom={nom} video={v} disponible={disponible} detail={detail} poses={poses ?? []}
+            complete={publication.videos.find(x => x.cible === 'complete')?.vignette ?? null}
             instant={instant} modifier={modifier} executer={executer}
           />
         );

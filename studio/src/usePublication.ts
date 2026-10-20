@@ -22,6 +22,9 @@ export function usePublication(nom: string) {
   derniere.current = publication;
 
   const recevoir = useCallback((p: Publication) => {
+    // Une modification faite pendant une action longue ne doit pas écraser le résultat de l’action par un enregistrement différé.
+    window.clearTimeout(minuteur.current);
+    enAttente.current = null;
     recue.current = p;
     setPublication(p);
   }, []);

@@ -257,7 +257,14 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
   }
 
   // Photos de donnees/poses/, détourées à la première demande puis chaque fois que la photo change.
-  async function poses(): Promise<Pose[]> {
+  // Les appels simultanés (double montage de l’écran) partagent le même passage : un seul détourage par photo.
+  let posesEnCours: Promise<Pose[]> | null = null;
+  function poses(): Promise<Pose[]> {
+    posesEnCours ??= calculerPoses().finally(() => { posesEnCours = null; });
+    return posesEnCours;
+  }
+
+  async function calculerPoses(): Promise<Pose[]> {
     const fichiers = existsSync(c.cheminPoses) ? await readdir(c.cheminPoses) : [];
     const photos = fichiers
       .filter(f => EXTENSIONS_PHOTO.has(path.extname(f).toLowerCase()) && !f.toLowerCase().endsWith('.detoure.png'))
