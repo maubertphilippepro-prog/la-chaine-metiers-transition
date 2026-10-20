@@ -1,11 +1,16 @@
 import {
-  ajouterChapitre, ajouterTerme, basculerCoupe, changerTitre, couperPassage, deciderLongueur, deplacerLimite,
-  fusionnerChapitre, modifierTerme, renommerChapitre, type ChangementTerme,
+  ajouterChapitre, ajouterElement, ajouterTerme, basculerCoupe, changerTitre, couperPassage, deciderLongueur, deplacerLimite,
+  fusionnerChapitre, modifierElement, modifierTerme, prochainIdElement, renommerChapitre, supprimerElement,
+  type ChangementElement, type ChangementTerme, type NouvelElement,
 } from './edition';
-import type { Analyse, Coupe, Montage, Mot, PositionEncart, Segment, StatutTerme } from './types';
+import { HAUTEUR_SOURCE, LARGEUR_SOURCE, problemeDe, type ReglagesElements } from './elements';
+import type {
+  Analyse, Montage, Mot, NatureElement, PositionEncart, PositionTexte, Reglages, Segment, StatutElement, StatutTerme, Zone,
+} from './types';
 
 // Vocabulaire fermé des consignes. Les passages sont désignés par numéros de mots (Mot.id, bornes incluses),
 // un chapitre par le numéro de son premier mot, pour rester stable après une fusion ou un ajout.
+// La zone d'un élément n'est jamais fournie par Claude : le studio la remplit quand l'auteur la trace.
 export type Operation =
   | { type: 'couper'; premierMot: number; dernierMot: number }
   | { type: 'basculerCoupe'; idCoupe: string }
@@ -16,6 +21,15 @@ export type Operation =
   | { type: 'fusionnerChapitre'; premierMotChapitre: number }
   | { type: 'modifierTerme'; terme: string; definition?: string; statut?: StatutTerme; position?: PositionEncart }
   | { type: 'ajouterTerme'; terme: string; definition: string; mots: number[] }
+  | {
+    type: 'ajouterElement'; nature: NatureElement; premierMot: number; dernierMot: number;
+    texte?: string; position?: PositionTexte; zone?: Zone;
+  }
+  | {
+    type: 'modifierElement'; idElement: string; premierMot?: number; dernierMot?: number;
+    texte?: string; position?: PositionTexte; zone?: Zone; statut?: StatutElement;
+  }
+  | { type: 'supprimerElement'; idElement: string }
   | { type: 'titreVideo'; titre: string };
 
 export type TypeOperation = Operation['type'];
@@ -60,9 +74,7 @@ export interface ReponseConsigne {
   nonRealisable: string[];
 }
 
-export interface ReglagesConsignes {
-  definitionMaxCaracteres: number;
-}
+export type ReglagesConsignes = Pick<Reglages, 'definitionMaxCaracteres'> & ReglagesElements;
 
 export type Verification = { montage: Montage } | { probleme: string };
 
@@ -73,6 +85,11 @@ const SANS_EFFET = 'Cette opération ne changerait rien au montage.';
 const motInconnu = (id: number) => `Le mot ${id} n’existe pas dans la transcription.`;
 const coupeInconnue = (id: string) => `La coupe ${id} n’existe pas.`;
 const aucunChapitre = (id: number) => `Aucun chapitre ne commence au mot ${id}.`;
+const elementInconnu = (id: string) => `L’élément ${id} n’existe pas.`;
+const TEXTE_HORS_TEXTE = 'Le texte et la position ne concernent qu’un texte incrusté.';
+const ZONE_HORS_CADRE = 'Une zone ne concerne qu’un zoom ou une mise en avant.';
+// Zone provisoire d'un zoom proposé sans zone : l'image entière, pour vérifier le reste de l'opération.
+const IMAGE_ENTIERE: Zone = { x: 0, y: 0, largeur: LARGEUR_SOURCE, hauteur: HAUTEUR_SOURCE };
 
 const motDe = (analyse: Analyse, id: number): Mot | undefined => analyse.mots.find(m => m.id === id);
 
@@ -97,11 +114,11 @@ function indexChapitre(analyse: Analyse, montage: Montage, premierMot: number): 
   return montage.chapitres.findIndex((_, i) => premierMotDuChapitre(analyse, montage, i) === premierMot);
 }
 
-// Mots dont le milieu est dans la coupe, comme dans le texte du studio ; null pour un blanc entre deux mots.
-export function motsRecouverts(analyse: Analyse, coupe: Coupe): Ancrage | null {
+// Mots dont le milieu est dans le passage (coupe ou élément), comme dans le texte du studio ; null pour un blanc entre deux mots.
+export function motsRecouverts(analyse: Analyse, passage: Segment): Ancrage | null {
   const mots = analyse.mots.filter(m => {
     const milieu = (m.debut + m.fin) / 2;
-    return milieu >= coupe.debut && milieu <= coupe.fin;
+    return milieu >= passage.debut && milieu <= passage.fin;
   });
   const premier = mots[0];
   const dernier = mots[mots.length - 1];
@@ -121,6 +138,41 @@ function problemeDefinition(definition: string, max: number): string | null {
   if (!definition.trim()) return 'La définition est vide.';
   if (definition.length > max) return `La définition dépasse ${max} caractères.`;
   return null;
+}
+
+type OperationAjout = Extract<Operation, { type: 'ajouterElement' }>;
+
+function nouvelElement(op: OperationAjout, passage: Segment): NouvelElement | string {
+  if (op.nature !== 'texte' && (op.texte !== undefined || op.position !== undefined)) return TEXTE_HORS_TEXTE;
+  if (op.nature !== 'zoom' && op.nature !== 'miseEnAvant' && op.zone !== undefined) return ZONE_HORS_CADRE;
+  const commun = { debut: passage.debut, fin: passage.fin, statut: 'valide' as const };
+  switch (op.nature) {
+    case 'texte':
+      if (op.texte === undefined) return 'Le texte à incruster manque.';
+      return { ...commun, nature: op.nature, texte: op.texte, position: op.position ?? 'haut-gauche' };
+    case 'zoom':
+    case 'miseEnAvant':
+      return { ...commun, nature: op.nature, zone: op.zone ?? IMAGE_ENTIERE };
+    case 'camera':
+      return { ...commun, nature: op.nature };
+  }
+}
+
+// Proposition d'un zoom ou d'une mise en avant dont l'auteur doit encore tracer la zone.
+export function zoneATracer(op: Operation): boolean {
+  return op.type === 'ajouterElement' && (op.nature === 'zoom' || op.nature === 'miseEnAvant') && op.zone === undefined;
+}
+
+// Enregistre la zone tracée dans la proposition ; elle sera revérifiée à l'acceptation.
+export function tracerZoneProposition(consigne: Consigne, indice: number, zone: Zone): Consigne {
+  return {
+    ...consigne,
+    propositions: consigne.propositions.map((p, i): Proposition => (
+      i === indice && p.etat === 'en-attente' && p.operation.type === 'ajouterElement'
+        ? { ...p, operation: { ...p.operation, zone } }
+        : p
+    )),
+  };
 }
 
 // Montage modifié, ou la phrase qui explique pourquoi l'opération est impossible.
@@ -201,6 +253,38 @@ function appliquer(analyse: Analyse, m: Montage, op: Operation, r: ReglagesConsi
       }
       return ajouterTerme(m, op.terme, op.definition, occurrences);
     }
+    case 'ajouterElement': {
+      const p = passageEnTemps(analyse, op.premierMot, op.dernierMot);
+      if (typeof p === 'string') return p;
+      const nouvel = nouvelElement(op, p);
+      if (typeof nouvel === 'string') return nouvel;
+      const suivant = ajouterElement(m, nouvel);
+      return problemeDe(analyse, suivant, prochainIdElement(m), r) ?? suivant;
+    }
+    case 'modifierElement': {
+      const e = m.elements.find(x => x.id === op.idElement);
+      if (!e) return elementInconnu(op.idElement);
+      if (e.nature !== 'texte' && (op.texte !== undefined || op.position !== undefined)) return TEXTE_HORS_TEXTE;
+      if (e.nature !== 'zoom' && e.nature !== 'miseEnAvant' && op.zone !== undefined) return ZONE_HORS_CADRE;
+      const changement: ChangementElement = {};
+      if (op.premierMot !== undefined || op.dernierMot !== undefined) {
+        if (op.premierMot === undefined || op.dernierMot === undefined) {
+          return 'Il faut donner le premier et le dernier mot du nouveau passage.';
+        }
+        const p = passageEnTemps(analyse, op.premierMot, op.dernierMot);
+        if (typeof p === 'string') return p;
+        changement.debut = p.debut;
+        changement.fin = p.fin;
+      }
+      if (op.texte !== undefined) changement.texte = op.texte;
+      if (op.position !== undefined) changement.position = op.position;
+      if (op.zone !== undefined) changement.zone = op.zone;
+      if (op.statut !== undefined) changement.statut = op.statut;
+      const suivant = modifierElement(m, op.idElement, changement);
+      return problemeDe(analyse, suivant, op.idElement, r) ?? suivant;
+    }
+    case 'supprimerElement':
+      return m.elements.some(e => e.id === op.idElement) ? supprimerElement(m, op.idElement) : elementInconnu(op.idElement);
     case 'titreVideo':
       return op.titre.trim() ? changerTitre(m, op.titre) : TITRE_VIDE;
   }
@@ -236,7 +320,8 @@ export function accepterPropositions(
   const propositions = [...consigne.propositions];
   for (const i of indices) {
     const p = propositions[i];
-    if (!p || p.etat !== 'en-attente') continue;
+    // Une zone encore à tracer laisse la proposition en attente.
+    if (!p || p.etat !== 'en-attente' || zoneATracer(p.operation)) continue;
     const v = verifierOperation(analyse, courant, p.operation, reglages);
     if ('probleme' in v) {
       propositions[i] = { ...p, etat: 'invalide', probleme: v.probleme };
@@ -263,11 +348,14 @@ export function propositionsEnAttente(consignes: Consigne[]): number {
   return consignes.reduce((total, c) => total + indicesEnAttente(c).length, 0);
 }
 
-type GenreChamp = 'entier' | 'texte' | 'booleen' | 'entiers' | readonly string[];
+type GenreChamp = 'entier' | 'texte' | 'booleen' | 'entiers' | 'zone' | readonly string[];
 interface ChampOperation { genre: GenreChamp; facultatif?: true }
 
 const STATUTS_TERME: readonly string[] = ['a-valider', 'valide', 'ecarte'];
 const POSITIONS_ENCART: readonly string[] = ['bas', 'haut'];
+const NATURES_ELEMENT: readonly string[] = ['zoom', 'miseEnAvant', 'texte', 'camera'];
+const POSITIONS_TEXTE: readonly string[] = ['haut-gauche', 'haut-droite', 'centre', 'bas-centre'];
+const STATUTS_ELEMENT: readonly string[] = ['a-valider', 'valide', 'ecarte'];
 
 // Champs de chaque opération ; la table reste exhaustive sur TypeOperation à la compilation.
 const CHAMPS_OPERATION: Record<TypeOperation, Record<string, ChampOperation>> = {
@@ -285,6 +373,24 @@ const CHAMPS_OPERATION: Record<TypeOperation, Record<string, ChampOperation>> = 
     position: { genre: POSITIONS_ENCART, facultatif: true },
   },
   ajouterTerme: { terme: { genre: 'texte' }, definition: { genre: 'texte' }, mots: { genre: 'entiers' } },
+  ajouterElement: {
+    nature: { genre: NATURES_ELEMENT },
+    premierMot: { genre: 'entier' },
+    dernierMot: { genre: 'entier' },
+    texte: { genre: 'texte', facultatif: true },
+    position: { genre: POSITIONS_TEXTE, facultatif: true },
+    zone: { genre: 'zone', facultatif: true },
+  },
+  modifierElement: {
+    idElement: { genre: 'texte' },
+    premierMot: { genre: 'entier', facultatif: true },
+    dernierMot: { genre: 'entier', facultatif: true },
+    texte: { genre: 'texte', facultatif: true },
+    position: { genre: POSITIONS_TEXTE, facultatif: true },
+    zone: { genre: 'zone', facultatif: true },
+    statut: { genre: STATUTS_ELEMENT, facultatif: true },
+  },
+  supprimerElement: { idElement: { genre: 'texte' } },
   titreVideo: { titre: { genre: 'texte' } },
 };
 const ETATS: EtatProposition[] = ['en-attente', 'acceptee', 'refusee', 'invalide'];
@@ -298,6 +404,8 @@ function valeurConforme(v: unknown, genre: GenreChamp): boolean {
     case 'texte': return typeof v === 'string';
     case 'booleen': return typeof v === 'boolean';
     case 'entiers': return Array.isArray(v) && v.every(estEntier);
+    case 'zone':
+      return estObjet(v) && ['x', 'y', 'largeur', 'hauteur'].every(k => typeof v[k] === 'number' && Number.isFinite(v[k]));
   }
 }
 

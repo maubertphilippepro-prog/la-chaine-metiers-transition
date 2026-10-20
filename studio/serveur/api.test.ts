@@ -249,6 +249,24 @@ describe('relance des suggestions', () => {
 });
 
 describe('consignes', () => {
+  it('enregistre une proposition dont la zone a été tracée, refuse une zone mal formée', async () => {
+    await tournage('a', { 'analyse.json': exemple });
+    const avec = (zone: unknown) => ({
+      version: 1,
+      consignes: [{
+        ...EN_ATTENTE.consignes[0]!,
+        propositions: [{
+          operation: { type: 'ajouterElement', nature: 'zoom', premierMot: 3, dernierMot: 5, zone },
+          explication: 'Zoome sur le bouton.',
+          etat: 'en-attente',
+        }],
+      }],
+    });
+    expect((await envoyerConsignes('a', avec({ x: 480, y: 270, largeur: 960, hauteur: 540 }))).status).toBe(200);
+    const r = await envoyerConsignes('a', avec({ x: 'a' }));
+    expect(r.status).toBe(400);
+    expect((await r.json()).erreur).toBe('consignes invalides : champ zone invalide dans la consigne c1');
+  });
   it('interprète une consigne, vérifie les propositions et l’enregistre', async () => {
     const d = await tournage('a', { 'analyse.json': exemple });
     const r = await donnerConsigne('a', { texte: '  Coupe la salutation ', ancrage: { premierMot: 0, dernierMot: 2 } });

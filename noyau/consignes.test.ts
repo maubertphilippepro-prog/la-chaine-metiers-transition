@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import exemple from '../fixtures/analyse-exemple.json';
+import reglagesJson from '../reglages.json';
 import {
   accepterPropositions, extraitPassage, indicesEnAttente, motsRecouverts, passageEnTemps, premierMotDuChapitre,
-  propositionsEnAttente, proposer, raisonFichierConsignes, refuserPropositions, verifierOperation,
+  propositionsEnAttente, proposer, raisonFichierConsignes, refuserPropositions, tracerZoneProposition, verifierOperation, zoneATracer,
   type Consigne, type Operation, type OperationExpliquee,
 } from './consignes';
-import type { Analyse, Montage } from './types';
+import type { Analyse, Montage, Reglages, Zone } from './types';
 
 const analyse = exemple as Analyse;
-const reglages = { definitionMaxCaracteres: 160 };
+const reglages: Reglages = reglagesJson;
 const base: Montage = {
   version: 1,
   titre: 'Essai',
@@ -286,5 +287,104 @@ describe('longueur des titres de chapitre', () => {
   it('accepte un titre de 60 caractères', () => {
     expect(probleme({ type: 'renommerChapitre', premierMotChapitre: 3, titre: 'x'.repeat(60) })).toBeNull();
     expect(probleme({ type: 'ajouterChapitre', premierMot: 5, titre: 'x'.repeat(60) })).toBeNull();
+  });
+});
+
+describe('éléments à l’écran', () => {
+  const ZONE: Zone = { x: 480, y: 270, largeur: 960, hauteur: 540 };
+  const avecTexte: Montage = {
+    ...base,
+    elements: [{ id: 'se0', debut: 3.0, fin: 4.3, statut: 'a-valider', nature: 'texte', texte: 'SSO', position: 'haut-gauche' }],
+  };
+
+  it('ajoute un élément validé sur un passage, texte en haut à gauche par défaut', () => {
+    expect(montageDe({ type: 'ajouterElement', nature: 'texte', premierMot: 3, dernierMot: 5, texte: 'sso.example.com' }).elements).toEqual([
+      { id: 'e0', debut: 3.0, fin: 4.3, statut: 'valide', nature: 'texte', texte: 'sso.example.com', position: 'haut-gauche' },
+    ]);
+    expect(montageDe({ type: 'ajouterElement', nature: 'camera', premierMot: 3, dernierMot: 5 }, avecTexte).elements[1]).toEqual({
+      id: 'e0', debut: 3.0, fin: 4.3, statut: 'valide', nature: 'camera',
+    });
+  });
+  it('refuse un élément mal formé ou contraire aux règles', () => {
+    expect(probleme({ type: 'ajouterElement', nature: 'texte', premierMot: 3, dernierMot: 5 })).toBe('Le texte à incruster manque.');
+    expect(probleme({ type: 'ajouterElement', nature: 'texte', premierMot: 3, dernierMot: 5, texte: 'x'.repeat(41) })).toBe(
+      'Le texte dépasse 40 caractères.',
+    );
+    expect(probleme({ type: 'ajouterElement', nature: 'camera', premierMot: 3, dernierMot: 5, position: 'centre' })).toBe(
+      'Le texte et la position ne concernent qu’un texte incrusté.',
+    );
+    expect(probleme({ type: 'ajouterElement', nature: 'texte', premierMot: 3, dernierMot: 5, texte: 'A', zone: ZONE })).toBe(
+      'Une zone ne concerne qu’un zoom ou une mise en avant.',
+    );
+    expect(probleme({ type: 'ajouterElement', nature: 'camera', premierMot: 4, dernierMot: 4 })).toBe(
+      'Moins de 1 s à l’écran une fois les coupes retirées.',
+    );
+    expect(probleme({ type: 'ajouterElement', nature: 'texte', premierMot: 3, dernierMot: 5, texte: 'A' }, avecTexte)).toBe(
+      'Chevauche le texte se0, à la même position.',
+    );
+    expect(probleme({ type: 'ajouterElement', nature: 'zoom', premierMot: 3, dernierMot: 9 })).toBe(
+      'Le mot 9 n’existe pas dans la transcription.',
+    );
+  });
+  it('laisse tracer la zone d’un zoom proposé avant de l’accepter', () => {
+    const c = consigneDe([{ type: 'ajouterElement', nature: 'zoom', premierMot: 3, dernierMot: 5, explication: 'Zoome sur le bouton.' }]);
+    expect(c.propositions[0]!.etat).toBe('en-attente');
+    expect(zoneATracer(c.propositions[0]!.operation)).toBe(true);
+    const sansZone = accepterPropositions(analyse, base, c, [0], reglages);
+    expect(sansZone.montage).toBe(base);
+    expect(sansZone.consigne.propositions[0]!.etat).toBe('en-attente');
+
+    const tracee = tracerZoneProposition(c, 0, ZONE);
+    expect(zoneATracer(tracee.propositions[0]!.operation)).toBe(false);
+    const r = accepterPropositions(analyse, base, tracee, [0], reglages);
+    expect(r.consigne.propositions[0]!.etat).toBe('acceptee');
+    expect(r.montage.elements).toEqual([{ id: 'e0', debut: 3.0, fin: 4.3, statut: 'valide', nature: 'zoom', zone: ZONE }]);
+  });
+  it('revérifie la zone tracée à l’acceptation', () => {
+    const c = consigneDe([{ type: 'ajouterElement', nature: 'zoom', premierMot: 3, dernierMot: 5, explication: 'z' }]);
+    const tracee = tracerZoneProposition(c, 0, { x: 0, y: 0, largeur: 400, hauteur: 225 });
+    expect(accepterPropositions(analyse, base, tracee, [0], reglages).consigne.propositions[0]).toMatchObject({
+      etat: 'invalide', probleme: 'La zone d’un zoom doit faire au moins 480 pixels de large.',
+    });
+  });
+  it('modifie un élément : statut, texte, position, passage', () => {
+    expect(montageDe({ type: 'modifierElement', idElement: 'se0', statut: 'valide' }, avecTexte).elements[0]!.statut).toBe('valide');
+    expect(montageDe({ type: 'modifierElement', idElement: 'se0', texte: 'Windows + V', position: 'centre' }, avecTexte).elements[0])
+      .toMatchObject({ texte: 'Windows + V', position: 'centre' });
+    expect(montageDe({ type: 'modifierElement', idElement: 'se0', premierMot: 0, dernierMot: 5 }, avecTexte).elements[0])
+      .toMatchObject({ debut: 0.8, fin: 4.3 });
+    expect(probleme({ type: 'modifierElement', idElement: 'se0', premierMot: 0 }, avecTexte)).toBe(
+      'Il faut donner le premier et le dernier mot du nouveau passage.',
+    );
+    expect(probleme({ type: 'modifierElement', idElement: 'x', statut: 'valide' })).toBe('L’élément x n’existe pas.');
+    expect(probleme({ type: 'modifierElement', idElement: 'se0', zone: ZONE }, avecTexte)).toBe(
+      'Une zone ne concerne qu’un zoom ou une mise en avant.',
+    );
+    expect(probleme({ type: 'modifierElement', idElement: 'se0', statut: 'a-valider' }, avecTexte)).toBe(
+      'Cette opération ne changerait rien au montage.',
+    );
+  });
+  it('refuse d’accepter une suggestion de zoom sans zone, pas de l’écarter', () => {
+    const m: Montage = { ...base, elements: [{ id: 'se1', debut: 3.0, fin: 4.3, statut: 'a-valider', nature: 'zoom', zone: null }] };
+    expect(probleme({ type: 'modifierElement', idElement: 'se1', statut: 'valide' }, m)).toBe('La zone est à tracer.');
+    expect(montageDe({ type: 'modifierElement', idElement: 'se1', statut: 'ecarte' }, m).elements[0]!.statut).toBe('ecarte');
+  });
+  it('supprime un élément', () => {
+    expect(montageDe({ type: 'supprimerElement', idElement: 'se0' }, avecTexte).elements).toEqual([]);
+    expect(probleme({ type: 'supprimerElement', idElement: 'x' })).toBe('L’élément x n’existe pas.');
+  });
+  it('contrôle la forme des opérations sur les éléments dans consignes.json', () => {
+    const avec = (operation: unknown) => raisonFichierConsignes({
+      version: 1,
+      consignes: [{ ...consigneDe([]), propositions: [{ operation, explication: 'e', etat: 'en-attente' }] }],
+    });
+    expect(avec({ type: 'ajouterElement', nature: 'zoom', premierMot: 3, dernierMot: 5, zone: ZONE })).toBeNull();
+    expect(avec({ type: 'modifierElement', idElement: 'se0', statut: 'valide', position: 'centre' })).toBeNull();
+    expect(avec({ type: 'supprimerElement', idElement: 'se0' })).toBeNull();
+    expect(avec({ type: 'ajouterElement', nature: 'zoom', premierMot: 3, dernierMot: 5, zone: { x: 'a' } })).toBe(
+      'champ zone invalide dans la consigne c1',
+    );
+    expect(avec({ type: 'ajouterElement', nature: 'son', premierMot: 3, dernierMot: 5 })).toBe('champ nature invalide dans la consigne c1');
+    expect(avec({ type: 'modifierElement', idElement: 'se0', position: 'bas' })).toBe('champ position invalide dans la consigne c1');
   });
 });
