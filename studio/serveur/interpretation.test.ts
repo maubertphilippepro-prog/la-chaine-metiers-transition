@@ -10,10 +10,14 @@ import { construirePrompt, interpreterConsigne } from './interpretation';
 const analyse = exemple as Analyse;
 const demande: DemandeInterpretation = {
   analyse,
-  montage: montageInitial(analyse, 'Essai'),
+  montage: {
+    ...montageInitial(analyse, 'Essai'),
+    elements: [{ id: 'e0', debut: 3.0, fin: 4.3, statut: 'valide', nature: 'texte', texte: 'sso.example.com', position: 'haut-gauche' }],
+  },
   texte: 'Coupe la salutation',
   ancrage: { premierMot: 0, dernierMot: 2 },
   definitionMax: 160,
+  texteMax: 40,
   modele: 'claude-opus-5-5',
 };
 const REPONSE: ReponseConsigne = {
@@ -40,7 +44,16 @@ describe('construirePrompt', () => {
     expect(prompt).toContain('Coupe la salutation');
     expect(prompt).toContain('mots 0 à 2 (« Bonjour à tous. »)');
     expect(prompt).toContain('160 caractères');
+    expect(prompt).toContain('- e0 · texte · valide · mots 3 à 5 · « sso.example.com » · haut-gauche');
+    expect(prompt).toContain('- ajouterElement : ');
+    expect(prompt).toContain('ne donne jamais de zone');
+    expect(prompt).toContain('40 caractères');
     expect(prompt).toMatchSnapshot();
+  });
+  it('indique l’absence d’élément', () => {
+    expect(construirePrompt({ ...demande, montage: montageInitial(analyse, 'Essai') })).toContain(
+      'Éléments à l\'écran (id · nature · statut · mots couverts · texte · position) :\n(aucun)',
+    );
   });
   it('n’indique pas de passage sans ancrage', () => {
     expect(construirePrompt({ ...demande, ancrage: null })).not.toContain('Passage sélectionné');

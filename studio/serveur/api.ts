@@ -197,6 +197,7 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
         texte,
         ancrage,
         definitionMax: t.reglages.definitionMaxCaracteres,
+        texteMax: t.reglages.elements.texteMaxCaracteres,
         modele: t.reglages.modeles.claude,
       });
     } catch (e) {

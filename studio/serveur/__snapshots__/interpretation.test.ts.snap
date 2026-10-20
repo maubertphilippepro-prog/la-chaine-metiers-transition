@@ -26,6 +26,9 @@ Chapitres (premier mot · titre) :
 Termes à définir (terme · statut · position de l'encart · définition) :
 - SSO · a-valider · bas · Authentification unique : un seul identifiant pour plusieurs applications.
 - API · valide · bas · Interface qui permet à deux logiciels d'échanger des données.
+
+Éléments à l'écran (id · nature · statut · mots couverts · texte · position) :
+- e0 · texte · valide · mots 3 à 5 · « sso.example.com » · haut-gauche
 </montage>
 
 <consigne>
@@ -44,9 +47,12 @@ Opérations possibles. Les passages sont désignés par les numéros de leur pre
 - fusionnerChapitre : fusionner le chapitre premierMotChapitre avec le précédent. Pas le premier chapitre.
 - modifierTerme : changer la définition, le statut (a-valider, valide, ecarte) ou la position de l'encart (bas, haut) d'un terme existant ; ne donne que les champs à changer.
 - ajouterTerme : ajouter un terme à définir, avec sa définition et les numéros de tous les mots où il est prononcé.
+- ajouterElement : poser un élément sur la vidéo pendant le passage premierMot à dernierMot. nature : zoom (agrandir une zone de l'écran partagé), miseEnAvant (assombrir l'image autour d'une zone), texte (incruster un texte court : URL, nom d'outil, raccourci clavier, chiffre clé ; donne texte, et position parmi haut-gauche, haut-droite, centre, bas-centre si l'auteur la précise), camera (passer la caméra en grand pour un aparté face caméra). Tu ne vois pas l'image : ne donne jamais de zone, l'auteur la tracera lui-même.
+- modifierElement : changer le passage (premierMot et dernierMot ensemble), le texte, la position ou le statut (a-valider, valide, ecarte) d'un élément existant (idElement) ; ne donne que les champs à changer. Accepter un élément suggéré : statut = valide.
+- supprimerElement : retirer un élément (idElement).
 - titreVideo : changer le titre de la vidéo complète.
 
-Une définition fait au plus 160 caractères, en une ou deux phrases claires pour un public non spécialiste. Un titre de chapitre est court (60 caractères au plus).
+Une définition fait au plus 160 caractères, en une ou deux phrases claires pour un public non spécialiste. Un titre de chapitre est court (60 caractères au plus). Un texte incrusté fait au plus 40 caractères. Un seul zoom ou caméra en grand à la fois ; pas de mise en avant pendant un zoom ou la caméra en grand ; deux textes affichés en même temps sont à des positions différentes.
 
 Réponds avec :
 - reformulation : ce que tu as compris de la consigne, en une ou deux phrases ; elle sera affichée après « J'ai compris : ».

@@ -294,6 +294,7 @@ describe('consignes', () => {
       texte: 'Coupe la salutation',
       ancrage: { premierMot: 0, dernierMot: 2 },
       definitionMax: 160,
+      texteMax: 40,
       modele: 'claude-opus-5-5',
     }));
     const demande = vi.mocked(config.interpreterConsigne).mock.calls[0]![0];

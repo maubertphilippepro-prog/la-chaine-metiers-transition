@@ -26,6 +26,12 @@ function decrireMontage({ analyse, montage }: DemandeInterpretation): string {
     return `- ${premier === null ? 'aucun mot' : `mot ${premier}`} · ${c.titre}`;
   });
   const termes = montage.termes.map(t => `- ${t.terme} · ${t.statut} · ${t.position} · ${t.definition}`);
+  const elements = montage.elements.map(e => {
+    const mots = motsRecouverts(analyse, e);
+    const ou = mots ? `mots ${mots.premierMot} à ${mots.dernierMot}` : 'aucun mot';
+    const texte = e.nature === 'texte' ? ` · « ${e.texte} » · ${e.position}` : '';
+    return `- ${e.id} · ${e.nature} · ${e.statut} · ${ou}${texte}`;
+  });
   return `Titre de la vidéo : ${montage.titre}
 
 Coupes (id · type · état · mots recouverts) :
@@ -35,7 +41,10 @@ Chapitres (premier mot · titre) :
 ${liste(chapitres, '(aucun)')}
 
 Termes à définir (terme · statut · position de l'encart · définition) :
-${liste(termes, '(aucun)')}`;
+${liste(termes, '(aucun)')}
+
+Éléments à l'écran (id · nature · statut · mots couverts · texte · position) :
+${liste(elements, '(aucun)')}`;
 }
 
 export function construirePrompt(d: DemandeInterpretation): string {
@@ -70,9 +79,12 @@ Opérations possibles. Les passages sont désignés par les numéros de leur pre
 - fusionnerChapitre : fusionner le chapitre premierMotChapitre avec le précédent. Pas le premier chapitre.
 - modifierTerme : changer la définition, le statut (a-valider, valide, ecarte) ou la position de l'encart (bas, haut) d'un terme existant ; ne donne que les champs à changer.
 - ajouterTerme : ajouter un terme à définir, avec sa définition et les numéros de tous les mots où il est prononcé.
+- ajouterElement : poser un élément sur la vidéo pendant le passage premierMot à dernierMot. nature : zoom (agrandir une zone de l'écran partagé), miseEnAvant (assombrir l'image autour d'une zone), texte (incruster un texte court : URL, nom d'outil, raccourci clavier, chiffre clé ; donne texte, et position parmi haut-gauche, haut-droite, centre, bas-centre si l'auteur la précise), camera (passer la caméra en grand pour un aparté face caméra). Tu ne vois pas l'image : ne donne jamais de zone, l'auteur la tracera lui-même.
+- modifierElement : changer le passage (premierMot et dernierMot ensemble), le texte, la position ou le statut (a-valider, valide, ecarte) d'un élément existant (idElement) ; ne donne que les champs à changer. Accepter un élément suggéré : statut = valide.
+- supprimerElement : retirer un élément (idElement).
 - titreVideo : changer le titre de la vidéo complète.
 
-Une définition fait au plus ${d.definitionMax} caractères, en une ou deux phrases claires pour un public non spécialiste. Un titre de chapitre est court (60 caractères au plus).
+Une définition fait au plus ${d.definitionMax} caractères, en une ou deux phrases claires pour un public non spécialiste. Un titre de chapitre est court (60 caractères au plus). Un texte incrusté fait au plus ${d.texteMax} caractères. Un seul zoom ou caméra en grand à la fois ; pas de mise en avant pendant un zoom ou la caméra en grand ; deux textes affichés en même temps sont à des positions différentes.
 
 Réponds avec :
 - reformulation : ce que tu as compris de la consigne, en une ou deux phrases ; elle sera affichée après « J'ai compris : ».
@@ -82,6 +94,7 @@ Réponds avec :
 }
 
 const explication = z.string();
+const positionTexte = z.enum(['haut-gauche', 'haut-droite', 'centre', 'bas-centre']);
 const SchemaOperation = z.discriminatedUnion('type', [
   z.object({ type: z.literal('couper'), premierMot: z.number().int(), dernierMot: z.number().int(), explication }),
   z.object({ type: z.literal('basculerCoupe'), idCoupe: z.string(), explication }),
@@ -101,6 +114,26 @@ const SchemaOperation = z.discriminatedUnion('type', [
     explication,
   }),
   z.object({ type: z.literal('ajouterTerme'), terme: z.string(), definition: z.string(), mots: z.array(z.number().int()), explication }),
+  z.object({
+    type: z.literal('ajouterElement'),
+    nature: z.enum(['zoom', 'miseEnAvant', 'texte', 'camera']),
+    premierMot: z.number().int(),
+    dernierMot: z.number().int(),
+    texte: z.string().optional(),
+    position: positionTexte.optional(),
+    explication,
+  }),
+  z.object({
+    type: z.literal('modifierElement'),
+    idElement: z.string(),
+    premierMot: z.number().int().optional(),
+    dernierMot: z.number().int().optional(),
+    texte: z.string().optional(),
+    position: positionTexte.optional(),
+    statut: z.enum(['a-valider', 'valide', 'ecarte']).optional(),
+    explication,
+  }),
+  z.object({ type: z.literal('supprimerElement'), idElement: z.string(), explication }),
   z.object({ type: z.literal('titreVideo'), titre: z.string(), explication }),
 ]);
 const SchemaReponse = z.object({

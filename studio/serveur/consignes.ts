@@ -11,6 +11,7 @@ export interface DemandeInterpretation {
   texte: string;
   ancrage: Ancrage | null;
   definitionMax: number;
+  texteMax: number;
   modele: string;
 }
 
