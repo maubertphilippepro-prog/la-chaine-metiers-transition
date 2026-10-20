@@ -56,7 +56,7 @@ Une définition fait au plus 160 caractères, en une ou deux phrases claires pou
 
 Réponds avec :
 - reformulation : ce que tu as compris de la consigne, en une ou deux phrases ; elle sera affichée après « J'ai compris : ».
-- operations : les opérations, dans l'ordre où les appliquer, chacune avec une explication d'une phrase pour l'auteur. Chaque opération s'applique au montage laissé par les précédentes.
+- operations : les opérations, dans l'ordre où les appliquer, chacune avec une explication d'une phrase pour l'auteur. Chaque opération donne tous les champs : ceux que son type n'utilise pas sont à null. Chaque opération s'applique au montage laissé par les précédentes.
 - nonRealisable : ce que la consigne demande et qu'aucune opération ne permet, chaque fois avec la raison. N'invente pas d'opération et n'approche pas silencieusement : si une partie de la consigne ne peut pas être faite exactement, mets-la ici.
 "
 `;

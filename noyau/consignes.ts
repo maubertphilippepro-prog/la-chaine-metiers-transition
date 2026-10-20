@@ -409,6 +409,25 @@ function valeurConforme(v: unknown, genre: GenreChamp): boolean {
   }
 }
 
+// Opération rendue par Claude « à plat » : tous les champs possibles, à null quand ils sont sans objet.
+// On ne garde que les champs de son type, contrôlés comme ceux de consignes.json.
+export function operationDepuisPlat(brut: Record<string, unknown>): OperationExpliquee | string {
+  const type = brut.type;
+  if (typeof type !== 'string' || !Object.hasOwn(CHAMPS_OPERATION, type)) return `Opération inconnue : ${String(type)}.`;
+  const operation: Record<string, unknown> = { type };
+  for (const [nom, champ] of Object.entries(CHAMPS_OPERATION[type as TypeOperation])) {
+    const v = brut[nom];
+    if (v === null || v === undefined) {
+      if (champ.facultatif) continue;
+      return `Opération ${type} incomplète : ${nom} manquant.`;
+    }
+    if (!valeurConforme(v, champ.genre)) return `Opération ${type} incomplète : ${nom} invalide.`;
+    operation[nom] = v;
+  }
+  operation.explication = typeof brut.explication === 'string' ? brut.explication : '';
+  return operation as OperationExpliquee;
+}
+
 function estObjet(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }

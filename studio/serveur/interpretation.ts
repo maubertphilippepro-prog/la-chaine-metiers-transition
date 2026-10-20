@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
-import { extraitPassage, motsRecouverts, premierMotDuChapitre, type ReponseConsigne } from '../../noyau/consignes';
+import { extraitPassage, motsRecouverts, operationDepuisPlat, premierMotDuChapitre, type ReponseConsigne } from '../../noyau/consignes';
 import type { Coupe, Mot } from '../../noyau/types';
 import { ErreurInterpretation, type DemandeInterpretation } from './consignes';
 
@@ -88,56 +88,38 @@ Une définition fait au plus ${d.definitionMax} caractères, en une ou deux phra
 
 Réponds avec :
 - reformulation : ce que tu as compris de la consigne, en une ou deux phrases ; elle sera affichée après « J'ai compris : ».
-- operations : les opérations, dans l'ordre où les appliquer, chacune avec une explication d'une phrase pour l'auteur. Chaque opération s'applique au montage laissé par les précédentes.
+- operations : les opérations, dans l'ordre où les appliquer, chacune avec une explication d'une phrase pour l'auteur. Chaque opération donne tous les champs : ceux que son type n'utilise pas sont à null. Chaque opération s'applique au montage laissé par les précédentes.
 - nonRealisable : ce que la consigne demande et qu'aucune opération ne permet, chaque fois avec la raison. N'invente pas d'opération et n'approche pas silencieusement : si une partie de la consigne ne peut pas être faite exactement, mets-la ici.
 `;
 }
 
-// Pas de champ facultatif dans le schéma : chacun double la grammaire de la sortie structurée, que l'API refuse
-// au-delà d'une taille. Un champ sans valeur arrive à null et est retiré avant d'être rendu.
-const explication = z.string();
-const positionTexte = z.enum(['haut-gauche', 'haut-droite', 'centre', 'bas-centre']);
-const SchemaOperation = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('couper'), premierMot: z.number().int(), dernierMot: z.number().int(), explication }),
-  z.object({ type: z.literal('basculerCoupe'), idCoupe: z.string(), explication }),
-  z.object({ type: z.literal('deciderLongueur'), idCoupe: z.string(), accepter: z.boolean(), explication }),
-  z.object({ type: z.literal('renommerChapitre'), premierMotChapitre: z.number().int(), titre: z.string(), explication }),
-  z.object({ type: z.literal('ajouterChapitre'), premierMot: z.number().int(), titre: z.string(), explication }),
-  z.object({
-    type: z.literal('deplacerChapitre'), premierMotChapitre: z.number().int(), nouveauPremierMot: z.number().int(), explication,
-  }),
-  z.object({ type: z.literal('fusionnerChapitre'), premierMotChapitre: z.number().int(), explication }),
-  z.object({
-    type: z.literal('modifierTerme'),
-    terme: z.string(),
-    definition: z.string().nullable(),
-    statut: z.enum(['a-valider', 'valide', 'ecarte']).nullable(),
-    position: z.enum(['bas', 'haut']).nullable(),
-    explication,
-  }),
-  z.object({ type: z.literal('ajouterTerme'), terme: z.string(), definition: z.string(), mots: z.array(z.number().int()), explication }),
-  z.object({
-    type: z.literal('ajouterElement'),
-    nature: z.enum(['zoom', 'miseEnAvant', 'texte', 'camera']),
-    premierMot: z.number().int(),
-    dernierMot: z.number().int(),
-    texte: z.string().nullable(),
-    position: positionTexte.nullable(),
-    explication,
-  }),
-  z.object({
-    type: z.literal('modifierElement'),
-    idElement: z.string(),
-    premierMot: z.number().int().nullable(),
-    dernierMot: z.number().int().nullable(),
-    texte: z.string().nullable(),
-    position: positionTexte.nullable(),
-    statut: z.enum(['a-valider', 'valide', 'ecarte']).nullable(),
-    explication,
-  }),
-  z.object({ type: z.literal('supprimerElement'), idElement: z.string(), explication }),
-  z.object({ type: z.literal('titreVideo'), titre: z.string(), explication }),
-]);
+// Une seule forme d'opération, tous les champs présents et à null quand ils sont sans objet : une union d'objets
+// (une variante par type) fait grossir la grammaire de la sortie structurée au point que l'API la refuse
+// au-delà de onze variantes. operationDepuisPlat ne garde ensuite que les champs du type.
+const entier = z.number().int().nullable();
+const texte = z.string().nullable();
+const SchemaOperation = z.object({
+  type: z.enum([
+    'couper', 'basculerCoupe', 'deciderLongueur', 'renommerChapitre', 'ajouterChapitre', 'deplacerChapitre', 'fusionnerChapitre',
+    'modifierTerme', 'ajouterTerme', 'ajouterElement', 'modifierElement', 'supprimerElement', 'titreVideo',
+  ]),
+  premierMot: entier,
+  dernierMot: entier,
+  idCoupe: texte,
+  accepter: z.boolean().nullable(),
+  premierMotChapitre: entier,
+  nouveauPremierMot: entier,
+  titre: texte,
+  terme: texte,
+  definition: texte,
+  statut: z.enum(['a-valider', 'valide', 'ecarte']).nullable(),
+  position: z.enum(['bas', 'haut', 'haut-gauche', 'haut-droite', 'centre', 'bas-centre']).nullable(),
+  mots: z.array(z.number().int()).nullable(),
+  nature: z.enum(['zoom', 'miseEnAvant', 'texte', 'camera']).nullable(),
+  idElement: texte,
+  texte,
+  explication: z.string(),
+});
 const SchemaReponse = z.object({
   reformulation: z.string(),
   operations: z.array(SchemaOperation),
@@ -179,10 +161,12 @@ export async function interpreterConsigne(d: DemandeInterpretation, client?: Ant
   if (!reponse.parsed_output) {
     throw new ErreurInterpretation(500, `Réponse de Claude inexploitable (arrêt : ${reponse.stop_reason}).`);
   }
-  const { operations, ...reste } = reponse.parsed_output;
-  return { ...reste, operations: operations.map(sansNuls) as ReponseConsigne['operations'] };
-}
-
-function sansNuls(o: object): object {
-  return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null));
+  const { reformulation, operations, nonRealisable } = reponse.parsed_output;
+  const resultat: ReponseConsigne = { reformulation, operations: [], nonRealisable: [...nonRealisable] };
+  for (const brute of operations) {
+    const operation = operationDepuisPlat(brute);
+    if (typeof operation === 'string') resultat.nonRealisable.push(operation);
+    else resultat.operations.push(operation);
+  }
+  return resultat;
 }

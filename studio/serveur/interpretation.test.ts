@@ -69,19 +69,21 @@ describe('interpreterConsigne', () => {
       { headers: { 'anthropic-beta': 'server-side-fallback-2026-07-01' } },
     );
   });
-  it('retire les champs laissés à null par Claude', async () => {
+  it('ne garde que les champs de chaque opération, et met une opération incomplète en non réalisable', async () => {
     const brute = {
       reformulation: 'r',
-      operations: [{
-        type: 'modifierElement', idElement: 'se0', premierMot: null, dernierMot: null,
-        texte: null, position: null, statut: 'valide', explication: 'e',
-      }],
-      nonRealisable: [],
+      operations: [
+        { type: 'modifierElement', idElement: 'se0', premierMot: null, texte: null, statut: 'valide', titre: null, explication: 'e' },
+        { type: 'couper', premierMot: 3, dernierMot: null, explication: 'e' },
+      ],
+      nonRealisable: ['autre'],
     };
     const { client: c } = client(async () => ({ stop_reason: 'end_turn', parsed_output: brute }));
-    expect((await interpreterConsigne(demande, c)).operations).toEqual([
-      { type: 'modifierElement', idElement: 'se0', statut: 'valide', explication: 'e' },
-    ]);
+    expect(await interpreterConsigne(demande, c)).toEqual({
+      reformulation: 'r',
+      operations: [{ type: 'modifierElement', idElement: 'se0', statut: 'valide', explication: 'e' }],
+      nonRealisable: ['autre', 'Opération couper incomplète : dernierMot manquant.'],
+    });
   });
   it('n’envoie aucun champ facultatif dans le schéma (grammaire de taille bornée)', async () => {
     const { client: c, parse } = client(async () => ({ stop_reason: 'end_turn', parsed_output: REPONSE }));

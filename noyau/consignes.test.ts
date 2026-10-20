@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import exemple from '../fixtures/analyse-exemple.json';
 import reglagesJson from '../reglages.json';
 import {
-  accepterPropositions, extraitPassage, indicesEnAttente, motsRecouverts, passageEnTemps, premierMotDuChapitre,
+  accepterPropositions, extraitPassage, indicesEnAttente, motsRecouverts, operationDepuisPlat, passageEnTemps, premierMotDuChapitre,
   propositionsEnAttente, proposer, raisonFichierConsignes, refuserPropositions, tracerZoneProposition, verifierOperation, zoneATracer,
   type Consigne, type Operation, type OperationExpliquee,
 } from './consignes';
@@ -386,5 +386,26 @@ describe('éléments à l’écran', () => {
     );
     expect(avec({ type: 'ajouterElement', nature: 'son', premierMot: 3, dernierMot: 5 })).toBe('champ nature invalide dans la consigne c1');
     expect(avec({ type: 'modifierElement', idElement: 'se0', position: 'bas' })).toBe('champ position invalide dans la consigne c1');
+  });
+});
+
+describe('operationDepuisPlat', () => {
+  const vide = {
+    premierMot: null, dernierMot: null, idCoupe: null, accepter: null, premierMotChapitre: null, nouveauPremierMot: null,
+    titre: null, terme: null, definition: null, statut: null, position: null, mots: null,
+    nature: null, idElement: null, texte: null,
+  };
+  it('ne garde que les champs du type, sans les null', () => {
+    expect(operationDepuisPlat({ ...vide, type: 'modifierElement', idElement: 'se0', statut: 'valide', premierMot: null, explication: 'e' }))
+      .toEqual({ type: 'modifierElement', idElement: 'se0', statut: 'valide', explication: 'e' });
+    expect(operationDepuisPlat({ ...vide, type: 'couper', premierMot: 3, dernierMot: 5, titre: 'ignoré', explication: 'e' }))
+      .toEqual({ type: 'couper', premierMot: 3, dernierMot: 5, explication: 'e' });
+  });
+  it('signale un champ obligatoire manquant ou invalide, et un type inconnu', () => {
+    expect(operationDepuisPlat({ ...vide, type: 'couper', premierMot: 3, explication: 'e' }))
+      .toBe('Opération couper incomplète : dernierMot manquant.');
+    expect(operationDepuisPlat({ ...vide, type: 'modifierTerme', terme: 'SSO', position: 'centre', explication: 'e' }))
+      .toBe('Opération modifierTerme incomplète : position invalide.');
+    expect(operationDepuisPlat({ ...vide, type: 'teleporter', explication: 'e' })).toBe('Opération inconnue : teleporter.');
   });
 });
