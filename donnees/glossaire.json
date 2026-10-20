@@ -2,11 +2,15 @@
   "termes": [
     {
       "terme": "There",
-      "definition": "Logiciel de documents accessible depuis le navigateur ; chaque document peut aussi s'afficher en texte brut au format Markdown."
+      "definition": "Editeur de documents accessible depuis le navigateur."
     },
     {
       "terme": "Windows + V",
       "definition": "Raccourci clavier qui ouvre l'historique du presse-papier : on y retrouve les derniers éléments copiés pour les coller à nouveau."
+    },
+    {
+      "terme": "Markdown",
+      "definition": "Format de texte simple, adapté aux IA, qui utilise des symboles (#, *, |…) pour la mise en forme."
     }
   ]
 }
