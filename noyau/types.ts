@@ -171,6 +171,14 @@ export interface Reglages {
   // Position de la vignette caméra dans la source, en pixels.
   camera: Zone;
   elements: { texteMaxCaracteres: number; dureeMin: number; zoomLargeurMin: number };
-  modeles: { whisper: string; claude: string };
+  // Limites de YouTube et mots refusés dans les textes d'une vidéo publique.
+  publication: {
+    titreMax: number;
+    descriptionMax: number;
+    tagsMax: number;
+    vignetteOctetsMax: number;
+    mentionsInterdites: string[];
+  };
+  modeles: { whisper: string; claude: string; detourage: string };
   definitionMaxCaracteres: number;
 }

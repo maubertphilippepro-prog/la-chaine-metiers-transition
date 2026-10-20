@@ -16,5 +16,8 @@ describe('reglages.json', () => {
     expect(Object.keys(r.charte).some(k => k.startsWith('logo'))).toBe(false);
     expect(r.camera).toEqual({ x: 24, y: 786, largeur: 480, hauteur: 270 });
     expect(r.elements).toEqual({ texteMaxCaracteres: 40, dureeMin: 1, zoomLargeurMin: 480 });
+    expect(r.modeles.detourage).toBe('birefnet-portrait');
+    expect(r.publication).toMatchObject({ titreMax: 100, descriptionMax: 5000, tagsMax: 500, vignetteOctetsMax: 2_000_000 });
+    expect(r.publication.mentionsInterdites.length).toBeGreaterThan(0);
   });
 });
