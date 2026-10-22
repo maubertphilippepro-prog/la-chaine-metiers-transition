@@ -6,7 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import exemple from '../../fixtures/analyse-exemple.json';
-import type { Publication } from '../../noyau/publication';
+import { videoParDefaut, type Publication } from '../../noyau/publication';
+import type { Qualification } from '../../noyau/qualification';
 import { creerApiPublication, type ConfigPublication } from './publication';
 
 const MONTAGE = {
@@ -67,6 +68,7 @@ beforeEach(async () => {
     site: {
       envoyerFichier: vi.fn(async (chemin: string) => (chemin.endsWith('.mp4') ? 'objet-video' : 'objet-vignette')),
       enregistrerVideo: vi.fn(async () => 42),
+      supprimerVideo: vi.fn(async () => {}),
     },
   };
   const api = creerApiPublication(config);
@@ -141,7 +143,7 @@ describe('rédaction', () => {
     const r = await action('a', 'redaction', { cible: 'complete' });
     expect(r.status).toBe(200);
     expect(config.rediger).toHaveBeenCalledWith(expect.objectContaining({
-      titreVideo: 'Essai', chapitres: ['Intro', 'Le SSO'], profil: 'perso',
+      titreVideo: 'Essai', chapitres: ['Intro', 'Le SSO'], qualification: { nature: 'perso', confidentielle: false },
       termes: [{ terme: 'SSO', definition: 'Authentification unique.' }],
     }));
     expect(vi.mocked(config.rediger).mock.calls[0]![0].texte).toContain('Bonjour');
@@ -243,8 +245,13 @@ describe('banque de poses', () => {
 });
 
 const ID = 'dQw4w9WgXcQ';
+const PERSO: Qualification = { nature: 'perso', confidentielle: false };
+const PERSO_CONF: Qualification = { nature: 'perso', confidentielle: true };
+const PRO: Qualification = { nature: 'pro', confidentielle: false };
+const PRO_CONF: Qualification = { nature: 'pro', confidentielle: true };
+const SITE_CHOISI = { replit: { id: null, categorieId: 1, playlistId: null } };
 // Vidéo complète validée, vignette rendue ; `changement` complète ses champs (catégorie du site…).
-async function prete(profil = 'perso', changement: Record<string, unknown> = {}) {
+async function prete(q: Qualification = PERSO, changement: Record<string, unknown> = {}) {
   const dossier = await tournage('a');
   await writeFile(path.join(racine, 'poses', 'surpris.jpg'), 'jpg');
   await writeFile(path.join(racine, 'poses', 'surpris.detoure.png'), 'png');
@@ -253,7 +260,7 @@ async function prete(profil = 'perso', changement: Record<string, unknown> = {})
   await envoyer('a', {
     ...p,
     videos: p.videos.map(v => (v.cible === 'complete'
-      ? { ...v, profil, titre: 'Titre', description: 'Desc', tags: ['sso', 'mot de passe'], vignette, ...changement }
+      ? { ...v, ...q, titre: 'Titre', description: 'Desc', tags: ['sso', 'mot de passe'], vignette, ...changement }
       : v)),
   });
   await action('a', 'vignette', { cible: 'complete' });
@@ -321,12 +328,26 @@ describe('YouTube', () => {
     expect(r.status).toBe(400);
     expect((await r.json()).erreur).toContain('youtu.be/');
   });
-  it('refuse une visibilité publique pour une vidéo Interne', async () => {
-    await prete('interne');
+  it('n’accepte que la visibilité déduite de la qualification', async () => {
+    await prete(PERSO_CONF);
     const r = await envoi();
     expect(r.status).toBe(422);
-    expect((await r.json()).erreur).toBe('Une vidéo Interne reste privée sur YouTube.');
+    expect((await r.json()).erreur).toBe('Une vidéo Perso confidentielle reste privée sur YouTube.');
     expect((await envoi({ visibilite: 'privee' })).status).toBe(200);
+  });
+  it('enregistre une vidéo Pro non confidentielle en Non répertoriée', async () => {
+    await prete(PRO);
+    const r = await envoi({ visibilite: 'non-repertoriee' });
+    expect(r.status).toBe(200);
+    expect(((await r.json()) as Publication).videos[0]!.youtube.visibilite).toBe('non-repertoriee');
+    const d = await (await action('a', 'youtube/preparer', { cible: 'complete' })).json();
+    expect(d.textes.reglages).toContain('Visibilité : Non répertoriée');
+  });
+  it('ne prépare pas pour YouTube une vidéo Pro confidentielle', async () => {
+    await prete(PRO_CONF);
+    const r = await action('a', 'youtube/preparer', { cible: 'complete' });
+    expect(r.status).toBe(422);
+    expect((await r.json()).problemes).toEqual(['Une vidéo Pro confidentielle ne va pas sur YouTube : elle est seulement relayée sur le site.']);
   });
   it('vérifie la visibilité par oEmbed une fois l’URL collée', async () => {
     await prete();
@@ -343,12 +364,11 @@ describe('YouTube', () => {
 });
 
 describe('relais sur le site', () => {
-  const SITE_CHOISI = { replit: { id: null, categorieId: 1, playlistId: null } };
   const relayer = () => action('a', 'relais', { cible: 'complete' });
   const site = () => config.site!;
 
-  it('relaie une vidéo Interne : fichier et vignette dans le stockage, réservée aux comptes autorisés', async () => {
-    const dossier = await prete('interne', SITE_CHOISI);
+  it('relaie une vidéo Pro confidentielle : fichier et vignette dans le stockage, réservée aux comptes autorisés', async () => {
+    const dossier = await prete(PRO_CONF, SITE_CHOISI);
     const r = await relayer();
     expect(r.status).toBe(200);
     expect(((await r.json()) as Publication).videos[0]).toMatchObject({ statut: 'relayee', replit: { id: 42, categorieId: 1 }, erreur: null });
@@ -356,52 +376,51 @@ describe('relais sur le site', () => {
     expect(site().envoyerFichier).toHaveBeenCalledWith(path.join(dossier, 'rendus', 'video-complete.mp4'), 'video/mp4');
     expect(site().enregistrerVideo).toHaveBeenCalledWith(null, expect.objectContaining({
       title: 'Titre', description: 'Desc', tags: ['sso', 'mot de passe'], categoryId: 1, playlistId: null, format: 'long', status: 'published',
-      visibility: 'interne', videoObject: 'objet-video', thumbnailObject: 'objet-vignette', durationSeconds: expect.any(Number),
+      visibility: 'interne', videoObject: 'objet-video', videoUrl: null, thumbnailObject: 'objet-vignette', durationSeconds: expect.any(Number),
     }));
     expect(config.lireVisibiliteYoutube).not.toHaveBeenCalled();
     const enregistree = JSON.parse(await readFile(path.join(dossier, 'publication.json'), 'utf-8')) as Publication;
     expect(enregistree.videos[0]!.replit.id).toBe(42);
   });
   it('met à jour la vidéo du site au relais suivant', async () => {
-    await prete('interne', SITE_CHOISI);
+    await prete(PRO_CONF, SITE_CHOISI);
     await relayer();
     expect((await relayer()).status).toBe(200);
     expect(site().enregistrerVideo).toHaveBeenLastCalledWith(42, expect.anything());
   });
   it('refuse une vidéo Perso, ou sans catégorie, en expliquant pourquoi', async () => {
-    await prete('perso');
+    await prete(PERSO);
     const perso = await relayer();
     expect(perso.status).toBe(422);
     expect((await perso.json()).problemes).toEqual(['Une vidéo Perso n’est pas relayée sur le site.']);
-    await prete('interne');
+    await prete(PRO_CONF);
     expect((await (await relayer()).json()).problemes).toEqual(['Choisissez la catégorie du site.']);
     expect(site().enregistrerVideo).not.toHaveBeenCalled();
   });
   it('refuse tant que le site n’est pas configuré', async () => {
-    await prete('interne', SITE_CHOISI);
+    await prete(PRO_CONF, SITE_CHOISI);
     config.site = null;
     expect((await (await relayer()).json()).problemes)
       .toEqual(['Site non configuré : renseignez REPLIT_SITE_URL et REPLIT_API_KEY dans .env, puis relancez le studio.']);
   });
-  it('relaie une vidéo Mixte une fois lisible publiquement, en intégrant la vidéo YouTube', async () => {
-    await prete('mixte', SITE_CHOISI);
+  it('relaie une vidéo Pro non confidentielle une fois lisible par lien, en intégrant la vidéo YouTube', async () => {
+    await prete(PRO, SITE_CHOISI);
     expect((await (await relayer()).json()).problemes)
-      .toEqual(['Enregistrez d’abord l’envoi sur YouTube : une vidéo Mixte est relayée une fois en ligne.']);
-    await envoi();
+      .toEqual(['Enregistrez d’abord l’envoi sur YouTube : une vidéo Pro non confidentielle est relayée avec son lien YouTube.']);
+    await envoi({ visibilite: 'non-repertoriee' });
     vi.mocked(config.lireVisibiliteYoutube).mockResolvedValueOnce('non-publique');
     const attente = await relayer();
     expect(attente.status).toBe(422);
-    expect((await attente.json()).erreur)
-      .toBe('Vidéo pas encore lisible publiquement : passez-la en public dans YouTube Studio, ou attendez l’heure programmée.');
+    expect((await attente.json()).erreur).toBe('Vidéo pas encore lisible : passez-la en Non répertoriée dans YouTube Studio.');
     expect((await relayer()).status).toBe(200);
     expect(config.lireVisibiliteYoutube).toHaveBeenLastCalledWith(ID);
     expect(site().envoyerFichier).toHaveBeenCalledTimes(1);
     expect(site().enregistrerVideo).toHaveBeenCalledWith(null, expect.objectContaining({
-      visibility: 'public', videoUrl: `https://www.youtube.com/watch?v=${ID}`, thumbnailObject: 'objet-vignette',
+      visibility: 'public', videoUrl: `https://www.youtube.com/watch?v=${ID}`, videoObject: null, thumbnailObject: 'objet-vignette',
     }));
   });
   it('garde le statut et note l’erreur si le site échoue, puis reprend au relais suivant', async () => {
-    const dossier = await prete('interne', SITE_CHOISI);
+    const dossier = await prete(PRO_CONF, SITE_CHOISI);
     vi.mocked(site().enregistrerVideo).mockRejectedValueOnce(new Error('Site injoignable (ECONNREFUSED) : le relais reste à faire, rien n’est perdu.'));
     const r = await relayer();
     expect(r.status).toBe(502);
@@ -409,5 +428,67 @@ describe('relais sur le site', () => {
     const apres = JSON.parse(await readFile(path.join(dossier, 'publication.json'), 'utf-8')) as Publication;
     expect(apres.videos[0]).toMatchObject({ statut: 'prete', erreur: { etape: 'replit' } });
     expect(((await (await relayer()).json()) as Publication).videos[0]).toMatchObject({ statut: 'relayee', erreur: null });
+  });
+});
+
+describe('lecture d’un publication.json en version 1', () => {
+  it('convertit les profils et réécrit le fichier en version 2 au prochain enregistrement', async () => {
+    const dossier = await tournage('a');
+    const { nature: _n, confidentielle: _c, ...base } = videoParDefaut('complete', PERSO);
+    await writeFile(path.join(dossier, 'publication.json'),
+      JSON.stringify({ version: 1, profilParDefaut: 'mixte', videos: [{ ...base, profil: 'interne' }] }), 'utf-8');
+    const p = await lirePublication('a');
+    expect(p.version).toBe(2);
+    expect(p.qualificationParDefaut).toEqual(PRO);
+    expect(p.videos[0]).toMatchObject(PRO_CONF);
+    expect(p.videos[0]).not.toHaveProperty('profil');
+    expect((await envoyer('a', p)).status).toBe(200);
+    expect(JSON.parse(await readFile(path.join(dossier, 'publication.json'), 'utf-8')).version).toBe(2);
+  });
+});
+
+describe('retrait du site', () => {
+  const relayer = () => action('a', 'relais', { cible: 'complete' });
+  const retirer = (q: Qualification = PERSO) => action('a', 'site/retirer', { cible: 'complete', ...q });
+  const site = () => config.site!;
+
+  it('enregistre la qualification, retire la vidéo du site et la ramène à prête', async () => {
+    const dossier = await prete(PRO_CONF, SITE_CHOISI);
+    await relayer();
+    const r = await retirer();
+    expect(r.status).toBe(200);
+    expect(((await r.json()) as Publication).videos[0]).toMatchObject({
+      ...PERSO, statut: 'prete', replit: { id: null, categorieId: null, playlistId: null }, erreur: null,
+    });
+    expect(site().supprimerVideo).toHaveBeenCalledWith(42);
+    const enregistree = JSON.parse(await readFile(path.join(dossier, 'publication.json'), 'utf-8')) as Publication;
+    expect(enregistree.videos[0]).toMatchObject({ ...PERSO, replit: { id: null } });
+  });
+  it('ramène à envoyée une vidéo qui a une URL YouTube', async () => {
+    await prete(PRO, SITE_CHOISI);
+    await envoi({ visibilite: 'non-repertoriee' });
+    await relayer();
+    expect(((await (await retirer(PERSO_CONF)).json()) as Publication).videos[0]).toMatchObject({ statut: 'envoyee-youtube', youtube: { id: ID } });
+  });
+  it('refuse quand il n’y a rien à retirer ou que la qualification est invalide', async () => {
+    await prete(PRO_CONF, SITE_CHOISI);
+    expect((await retirer()).status).toBe(409);
+    await relayer();
+    expect((await retirer(PRO)).status).toBe(409);
+    expect((await action('a', 'site/retirer', { cible: 'complete', nature: 'autre', confidentielle: false })).status).toBe(400);
+    expect(site().supprimerVideo).not.toHaveBeenCalled();
+  });
+  it('garde la qualification et note l’erreur si le site échoue, bloque YouTube, puis reprend', async () => {
+    const dossier = await prete(PRO_CONF, SITE_CHOISI);
+    await relayer();
+    vi.mocked(site().supprimerVideo).mockRejectedValueOnce(new Error('Site injoignable (ECONNREFUSED) : la vidéo y est encore visible.'));
+    const r = await retirer();
+    expect(r.status).toBe(502);
+    expect((await r.json()).erreur).toBe('Retrait du site impossible : Site injoignable (ECONNREFUSED) : la vidéo y est encore visible.');
+    const apres = JSON.parse(await readFile(path.join(dossier, 'publication.json'), 'utf-8')) as Publication;
+    expect(apres.videos[0]).toMatchObject({ ...PERSO, statut: 'relayee', replit: { id: 42 }, erreur: { etape: 'replit' } });
+    expect((await (await action('a', 'youtube/preparer', { cible: 'complete' })).json()).problemes).toContain('Retirez d’abord la vidéo du site.');
+    expect((await envoi()).status).toBe(422);
+    expect(((await (await retirer()).json()) as Publication).videos[0]).toMatchObject({ statut: 'prete', replit: { id: null }, erreur: null });
   });
 });

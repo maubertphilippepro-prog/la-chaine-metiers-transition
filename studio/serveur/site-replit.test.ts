@@ -33,7 +33,7 @@ describe('lireReferencesSite', () => {
 interface Requete { methode: string; chemin: string; entetes: http.IncomingHttpHeaders; corps: Buffer }
 const CORPS: CorpsVideoSite = {
   title: 'Titre', description: 'Desc', tags: [], categoryId: 1, playlistId: null, durationSeconds: 60,
-  format: 'long', status: 'published', visibility: 'interne', videoObject: 'abc', thumbnailObject: 'def',
+  format: 'long', status: 'published', visibility: 'interne', videoObject: 'abc', videoUrl: null, thumbnailObject: 'def',
 };
 
 describe('creerClientSite', () => {
@@ -109,5 +109,20 @@ describe('creerClientSite', () => {
     // fetch ne dit que « fetch failed » : la vraie raison est dans la cause.
     const coupe = vi.fn(async () => { throw new TypeError('fetch failed', { cause: new Error('read ECONNRESET') }); }) as unknown as typeof fetch;
     await expect(creerClientSite(base, 'cle', coupe)!.enregistrerVideo(null, CORPS)).rejects.toThrow('Site injoignable (fetch failed : read ECONNRESET)');
+  });
+  it('supprime une vidéo du site avec la clé, et compte une vidéo déjà absente comme retirée', async () => {
+    reponse = r => (r.methode === 'DELETE' && r.chemin === '/api/videos/42' ? [204, null] : [404, { error: 'Not found' }]);
+    await site().supprimerVideo(42);
+    expect(requetes[0]).toMatchObject({ methode: 'DELETE', chemin: '/api/videos/42' });
+    expect(requetes[0]!.entetes['x-api-key']).toBe('cle-secrete');
+    await expect(site().supprimerVideo(7)).resolves.toBeUndefined();
+  });
+  it('explique un retrait refusé : la vidéo reste visible sur le site', async () => {
+    reponse = () => [500, { error: 'boom' }];
+    await expect(site().supprimerVideo(42)).rejects.toThrow('Suppression refusée par le site (500 : boom) ; la vidéo y est encore visible.');
+    reponse = () => [401, {}];
+    await expect(site().supprimerVideo(42)).rejects.toThrow(
+      'Clé refusée par le site : vérifiez REPLIT_API_KEY dans .env et AUTOMATION_API_KEY sur le site ; la vidéo y est encore visible.',
+    );
   });
 });

@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
-import type { Profil } from '../../noyau/publication';
+import { diffusion, type Qualification } from '../../noyau/qualification';
 import { traduireErreurClaude, verifierCleClaude } from './claude';
 import { ErreurInterpretation } from './consignes';
 
@@ -13,7 +13,7 @@ export interface DemandeRedaction {
   // Titres des chapitres (vidéo complète seulement).
   chapitres: string[];
   termes: { terme: string; definition: string }[];
-  profil: Profil;
+  qualification: Qualification;
   modele: string;
 }
 
@@ -30,9 +30,9 @@ export type Rediger = (d: DemandeRedaction) => Promise<PropositionRedaction>;
 export function construirePromptRedaction(d: DemandeRedaction): string {
   const chapitres = d.chapitres.length > 0 ? `\nChapitres de la vidéo :\n${d.chapitres.map(c => `- ${c}`).join('\n')}\n` : '';
   const termes = d.termes.length > 0 ? `\nTermes définis à l’écran :\n${d.termes.map(t => `- ${t.terme} : ${t.definition}`).join('\n')}\n` : '';
-  const ton = d.profil === 'interne'
+  const ton = diffusion(d.qualification).youtube === 'aucun'
     ? 'Cette vidéo est destinée à un usage interne : ton sobre et professionnel.'
-    : 'Cette vidéo est publique : ne mentionne aucun employeur, client ni organisation, même si la transcription en cite.';
+    : 'Cette vidéo part sur YouTube : ne mentionne aucun employeur, client ni organisation, même si la transcription en cite.';
   return `Tu aides l’auteur de la chaîne YouTube « PMT » (astuces et outils numériques expliqués simplement à un public non spécialiste) à publier une vidéo tournée face caméra, en français. À partir de ce qu’il dit, propose les textes de publication ; il les relira et les corrigera.
 
 Titre de travail : ${d.titreVideo}

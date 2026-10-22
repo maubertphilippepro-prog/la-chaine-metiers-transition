@@ -8,7 +8,7 @@ const demande: DemandeRedaction = {
   texte: 'Bonjour à tous. Aujourd’hui, le presse-papiers.',
   chapitres: ['Le raccourci', 'Épingler'],
   termes: [{ terme: 'Presse-papiers', definition: 'Mémoire de ce qui est copié.' }],
-  profil: 'perso',
+  qualification: { nature: 'perso', confidentielle: false },
   modele: 'claude-opus-5-5',
 };
 const PROPOSITION = {
@@ -34,11 +34,15 @@ describe('construirePromptRedaction', () => {
     expect(prompt).toContain('ne mentionne aucun employeur');
     expect(prompt).toContain('Pas d’horodatage');
   });
-  it('demande un ton sobre pour une vidéo interne, sans la règle de mention', () => {
-    const prompt = construirePromptRedaction({ ...demande, profil: 'interne', chapitres: [] });
+  it('demande un ton sobre pour une vidéo Pro confidentielle, sans la règle de mention', () => {
+    const prompt = construirePromptRedaction({ ...demande, qualification: { nature: 'pro', confidentielle: true }, chapitres: [] });
     expect(prompt).toContain('usage interne');
     expect(prompt).not.toContain('ne mentionne aucun employeur');
     expect(prompt).not.toContain('Chapitres de la vidéo');
+  });
+  it('garde la règle de mention pour toute vidéo envoyée sur YouTube, même privée', () => {
+    const prompt = construirePromptRedaction({ ...demande, qualification: { nature: 'perso', confidentielle: true } });
+    expect(prompt).toContain('ne mentionne aucun employeur');
   });
 });
 

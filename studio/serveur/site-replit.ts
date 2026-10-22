@@ -39,9 +39,11 @@ export async function lireReferencesSite(urlSite: string | undefined, recuperer:
 export interface ClientSite {
   envoyerFichier: (chemin: string, typeContenu: string) => Promise<string>;
   enregistrerVideo: (id: number | null, corps: CorpsVideoSite) => Promise<number>;
+  supprimerVideo: (id: number) => Promise<void>;
 }
 
 const RIEN_PERDU = 'le relais reste à faire, rien n’est perdu';
+const ENCORE_VISIBLE = 'la vidéo y est encore visible';
 // fetch ne dit que « fetch failed » : la raison (coupure, délai, certificat…) est dans la cause.
 function texteErreur(e: unknown): string {
   if (!(e instanceof Error)) return String(e);
@@ -53,23 +55,26 @@ export function creerClientSite(urlSite: string | undefined, cle: string | undef
   const base = urlSite.replace(/\/+$/, '');
   const entetes = { 'Content-Type': 'application/json', 'X-Api-Key': cle };
 
-  async function appeler(chemin: string, methode: string, corps: unknown): Promise<{ statut: number; json: Record<string, unknown> }> {
+  // `suite` dit à l’auteur ce que devient son action après un échec.
+  async function appeler(
+    chemin: string, methode: string, corps: unknown, suite = RIEN_PERDU,
+  ): Promise<{ statut: number; json: Record<string, unknown> }> {
     let reponse: Response;
     try {
       reponse = await recuperer(`${base}${chemin}`, {
-        method: methode, headers: entetes, body: JSON.stringify(corps), signal: AbortSignal.timeout(DELAI),
+        method: methode, headers: entetes, body: corps === undefined ? undefined : JSON.stringify(corps), signal: AbortSignal.timeout(DELAI),
       });
     } catch (e) {
-      throw new Error(`Site injoignable (${texteErreur(e)}) : ${RIEN_PERDU}.`);
+      throw new Error(`Site injoignable (${texteErreur(e)}) : ${suite}.`);
     }
     if (reponse.status === 401 || reponse.status === 403) {
-      throw new Error(`Clé refusée par le site : vérifiez REPLIT_API_KEY dans .env et AUTOMATION_API_KEY sur le site ; ${RIEN_PERDU}.`);
+      throw new Error(`Clé refusée par le site : vérifiez REPLIT_API_KEY dans .env et AUTOMATION_API_KEY sur le site ; ${suite}.`);
     }
     const json: unknown = await reponse.json().catch(() => ({}));
     return { statut: reponse.status, json: estObjet(json) ? json : {} };
   }
-  const refus = (quoi: string, statut: number, json: Record<string, unknown>) =>
-    new Error(`${quoi} refusée par le site (${statut}${typeof json.error === 'string' ? ` : ${json.error}` : ''}) ; ${RIEN_PERDU}.`);
+  const refus = (quoi: string, statut: number, json: Record<string, unknown>, suite = RIEN_PERDU) =>
+    new Error(`${quoi} refusée par le site (${statut}${typeof json.error === 'string' ? ` : ${json.error}` : ''}) ; ${suite}.`);
 
   return {
     async envoyerFichier(chemin, typeContenu) {
@@ -98,6 +103,11 @@ export function creerClientSite(urlSite: string | undefined, cle: string | undef
       if (r === null || r.statut === 404) r = await appeler('/api/videos', 'POST', corps);
       if ((r.statut !== 200 && r.statut !== 201) || typeof r.json.id !== 'number') throw refus('Vidéo', r.statut, r.json);
       return r.json.id;
+    },
+    async supprimerVideo(id) {
+      const { statut, json } = await appeler(`/api/videos/${id}`, 'DELETE', undefined, ENCORE_VISIBLE);
+      // 404 : la vidéo n’est déjà plus sur le site, rien à retirer.
+      if (statut !== 200 && statut !== 204 && statut !== 404) throw refus('Suppression', statut, json, ENCORE_VISIBLE);
     },
   };
 }

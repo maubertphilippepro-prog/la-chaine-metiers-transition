@@ -5,10 +5,11 @@ import path from 'node:path';
 import { decisionsEpisodes, decisionsVideoComplete, dureeEpisode, dureeVideoComplete } from '../../noyau/decisions';
 import {
   accorderPublication, appliquerModifications, cleVignette, fichierRendu, fichierVignette, imageCamera, imageEcran, modifierVideo,
-  poseDetouree, problemesPreparation, raisonPublication, urlsVignette, type CiblePublication, type Publication, type VideoPubliee,
+  migrerPublication, poseDetouree, problemesPreparation, raisonPublication, urlsVignette, type CiblePublication, type Publication, type VideoPubliee,
 } from '../../noyau/publication';
 import { chapitresYoutube, descriptionYoutube, segmentsSecondes, texteConserve } from '../../noyau/publication-textes';
-import { corpsRelais, enregistrerRelais, problemesRelais, raisonLectureRelais, urlYoutube } from '../../noyau/relais';
+import { diffusion, NATURES, type Nature } from '../../noyau/qualification';
+import { corpsRelais, enregistrerRelais, enregistrerRetrait, problemesRelais, raisonLectureRelais, urlYoutube } from '../../noyau/relais';
 import type { Segment } from '../../noyau/types';
 import {
   bilanLecture, dossierYoutube, enregistrerEnvoi, FORMES_URL, idYoutube, problemesEnvoi, raisonEnvoi, textesYoutube,
@@ -60,7 +61,8 @@ async function lirePublication(dossier: string): Promise<Publication | null> {
   if (!existsSync(chemin)) return null;
   let valeur: unknown;
   try {
-    valeur = JSON.parse(await readFile(chemin, 'utf-8'));
+    // Une version 1 est convertie ici et réécrite en version 2 au prochain enregistrement.
+    valeur = migrerPublication(JSON.parse(await readFile(chemin, 'utf-8')));
   } catch (e) {
     throw new ErreurHttp(409, `publication.json illisible : ${message(e)}`);
   }
@@ -169,7 +171,7 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
         texte,
         chapitres: cible === 'complete' ? ctx.videos.filter(v => v.cible !== 'complete').map(v => v.titre) : [],
         termes: montage.termes.filter(t => t.statut === 'valide').map(t => ({ terme: t.terme, definition: t.definition })),
-        profil: videoDe(ctx.publication, cible).profil,
+        qualification: { nature: videoDe(ctx.publication, cible).nature, confidentielle: videoDe(ctx.publication, cible).confidentielle },
         modele: reglages.modeles.claude,
       });
     } catch (e) {
@@ -312,8 +314,8 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
     const o = objet(corps);
     const id = typeof o.url === 'string' ? idYoutube(o.url) : null;
     if (!id) throw new ErreurHttp(400, `URL YouTube non reconnue. ${FORMES_URL}`);
-    if (!['privee', 'publique', 'programmee'].includes(o.visibilite as string)) {
-      throw new ErreurHttp(400, 'visibilite attendue : « privee », « publique » ou « programmee ».');
+    if (!['privee', 'non-repertoriee', 'publique', 'programmee'].includes(o.visibilite as string)) {
+      throw new ErreurHttp(400, 'visibilite attendue : « privee », « non-repertoriee », « publique » ou « programmee ».');
     }
     if (o.programmeeLe !== null && typeof o.programmeeLe !== 'string') throw new ErreurHttp(400, 'programmeeLe attendu : date ISO ou null.');
     const envoi = { id, visibilite: o.visibilite as VisibiliteYoutube, programmeeLe: o.programmeeLe };
@@ -346,7 +348,8 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
     });
     if (problemes.length > 0 || !vignette || !c.site) throw new ErreurHttp(422, 'La vidéo ne peut pas être relayée sur le site.', problemes);
     const idYoutube = video.youtube.id;
-    if (video.profil === 'mixte' && idYoutube) {
+    const lien = diffusion(video).site === 'lien';
+    if (lien && idYoutube) {
       const refus = raisonLectureRelais(video, await c.lireVisibiliteYoutube(idYoutube), new Date());
       if (refus) throw new ErreurHttp(422, refus);
     }
@@ -355,10 +358,10 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
     let id: number;
     try {
       const thumbnailObject = await c.site.envoyerFichier(vignette, 'image/jpeg');
-      // Interne : le fichier est hébergé sur le site ; Mixte : la vidéo YouTube y est intégrée.
-      const fichier = video.profil === 'mixte' && idYoutube
-        ? { videoUrl: urlYoutube(idYoutube) }
-        : { videoObject: await c.site.envoyerFichier(path.join(ctx.dossier, 'rendus', disponible.fichier), 'video/mp4') };
+      // Pro confidentielle : le fichier est hébergé sur le site ; Pro non confidentielle : la vidéo YouTube y est intégrée.
+      const fichier = lien && idYoutube
+        ? { videoUrl: urlYoutube(idYoutube), videoObject: null }
+        : { videoObject: await c.site.envoyerFichier(path.join(ctx.dossier, 'rendus', disponible.fichier), 'video/mp4'), videoUrl: null };
       id = await c.site.enregistrerVideo(video.replit.id, corpsRelais(video, { dureeSecondes: disponible.dureeSecondes, fichier, thumbnailObject }));
     } catch (e) {
       const actuelle = await relire(ctx);
@@ -371,6 +374,40 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
     }
     const actuelle = await relire(ctx);
     const p = modifierVideo(actuelle, cible, enregistrerRelais(videoDe(actuelle, cible), id));
+    await ecrirePublication(ctx.dossier, p);
+    return p;
+  }
+
+  // Requalification qui fait sortir une vidéo du site : la qualification est enregistrée d’abord, pour que la vidéo
+  // reste Perso et le retrait à faire même si le site échoue ; le statut ne change qu’une fois la vidéo retirée.
+  async function retirerDuSite(req: IncomingMessage, ctx: Contexte): Promise<Publication> {
+    const corps = await lireCorps(req);
+    const cible = lireCible(corps, ctx.cibles);
+    const o = objet(corps);
+    if (!NATURES.includes(o.nature as Nature) || typeof o.confidentielle !== 'boolean') {
+      throw new ErreurHttp(400, 'nature (« pro » ou « perso ») et confidentielle (vrai ou faux) attendues.');
+    }
+    const qualification = { nature: o.nature as Nature, confidentielle: o.confidentielle };
+    const id = videoDe(ctx.publication, cible).replit.id;
+    if (id === null || diffusion(qualification).site !== 'aucun') {
+      throw new ErreurHttp(409, 'Rien à retirer : la vidéo n’est pas sur le site, ou sa qualification l’y garde.');
+    }
+    if (!c.site) throw new ErreurHttp(422, 'Site non configuré : renseignez REPLIT_SITE_URL et REPLIT_API_KEY dans .env, puis relancez le studio.');
+    if (relaisEnCours) throw new ErreurHttp(409, 'Un relais est déjà en cours.');
+    relaisEnCours = true;
+    try {
+      await ecrirePublication(ctx.dossier, appliquerModifications(ctx.publication, modifierVideo(ctx.publication, cible, qualification)));
+      await c.site.supprimerVideo(id);
+    } catch (e) {
+      const raison = `Retrait du site impossible : ${message(e)}`;
+      const actuelle = await relire(ctx);
+      await ecrirePublication(ctx.dossier, modifierVideo(actuelle, cible, { erreur: { etape: 'replit', message: raison, le: new Date().toISOString() } }));
+      throw new ErreurHttp(502, raison);
+    } finally {
+      relaisEnCours = false;
+    }
+    const actuelle = await relire(ctx);
+    const p = modifierVideo(actuelle, cible, enregistrerRetrait(videoDe(actuelle, cible)));
     await ecrirePublication(ctx.dossier, p);
     return p;
   }
@@ -407,7 +444,7 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
 
   return async function traiter(req, res) {
     const chemin = new URL(req.url ?? '/', 'http://local').pathname;
-    const route = /^\/api\/tournages\/([^/]+)\/publication(?:\/(redaction|image|vignette|valider|relais|youtube\/(?:preparer|ouvrir|envoi|verifier)))?$/
+    const route = /^\/api\/tournages\/([^/]+)\/publication(?:\/(redaction|image|vignette|valider|relais|site\/retirer|youtube\/(?:preparer|ouvrir|envoi|verifier)))?$/
       .exec(chemin);
     if (!route && chemin !== '/api/poses') return false;
     try {
@@ -429,6 +466,7 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
       else if (action === 'youtube/envoi' && req.method === 'POST') repondre(res, 200, await envoiYoutube(req, ctx));
       else if (action === 'youtube/verifier' && req.method === 'POST') repondre(res, 200, await verifierYoutube(req, ctx));
       else if (action === 'relais' && req.method === 'POST') repondre(res, 200, await relayer(req, ctx));
+      else if (action === 'site/retirer' && req.method === 'POST') repondre(res, 200, await retirerDuSite(req, ctx));
       else repondre(res, 404, { erreur: 'Route inconnue.' });
     } catch (e) {
       repondreErreur(res, e);
