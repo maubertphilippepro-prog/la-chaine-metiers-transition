@@ -121,9 +121,9 @@ export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail,
           <button className="principal" disabled={!!occupe} onClick={() => void lancer('Vérification…', () => api.validerVideo(nom, v.cible))}>
             Valider pour la publication
           </button>
-          {pretePourYoutube(v) && <PanneauYoutube key={v.profil} nom={nom} video={v} synchroniser={synchroniser} executer={executer} />}
+          {pretePourYoutube(v) && <PanneauYoutube key={`youtube-${v.profil}`}nom={nom} video={v} synchroniser={synchroniser} executer={executer} />}
           {pretePourYoutube(v) && v.profil !== 'perso' && (
-            <PanneauSite key={v.profil} nom={nom} video={{ ...v, profil: v.profil }} urlSite={detail.urlSite} synchroniser={synchroniser} executer={executer} />
+            <PanneauSite key={`site-${v.profil}`}nom={nom} video={{ ...v, profil: v.profil }} urlSite={detail.urlSite} synchroniser={synchroniser} executer={executer} />
           )}
         </>
       )}
