@@ -58,7 +58,9 @@ export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail,
         </label>
         {' '}<span className={`statut statut-${v.statut}`}>{LIBELLES_STATUT[v.statut]}</span>
       </h3>
-      {!disponible.rendue && <p className="alerte">Rendu absent : {disponible.fichier}</p>}
+      {disponible.rendue
+        ? <video className="lecteur-publication" src={`${detail.urlTournage}/rendus/${encodeURIComponent(disponible.fichier)}`} controls preload="metadata" />
+        : <p className="alerte">Rendu absent : {disponible.fichier}</p>}
       {v.erreur && <p className="alerte">Dernière erreur ({v.erreur.etape}) : {v.erreur.message}</p>}
       {v.publier && (
         <>

@@ -60,9 +60,7 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
     }
   };
 
-  const urls = vignette ? urlsVignette(vignette, bases) : null;
-  const autres = v.accroches.filter(a => a !== vignette?.accroche);
-  return (
+  const urls = vignette ? urlsVignette(vignette, bases) : null;  return (
     <fieldset className="vignette">
       <legend>Vignette</legend>
       <div className="actions">
@@ -90,10 +88,12 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
         Accroche (3 à 5 mots)
         <input value={vignette?.accroche ?? ''} onChange={e => composer({ accroche: e.target.value })} />
       </label>
-      {autres.length > 0 && (
+      {v.accroches.length > 0 && (
         <div className="actions">
-          <span className="discret">Autres accroches :</span>
-          {autres.map(a => <button key={a} className="lien" onClick={() => composer({ accroche: a })}>{a}</button>)}
+          <span className="discret">Accroches proposées :</span>
+          {v.accroches.map(a => (
+            <button key={a} className={a === vignette?.accroche ? 'choisi' : undefined} onClick={() => composer({ accroche: a })}>{a}</button>
+          ))}
         </div>
       )}
       {extraction && <p className="discret">Extraction de l’image…</p>}

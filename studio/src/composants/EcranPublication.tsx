@@ -18,6 +18,7 @@ export const EcranPublication: FC<{ nom: string }> = ({ nom }) => {
   const { detail, publication, erreur, enregistrement, modifier, executer, synchroniser } = usePublication(nom);
   const [poses, setPoses] = useState<Pose[] | null>(null);
   const [erreurPoses, setErreurPoses] = useState<string | null>(null);
+  const [sourceAbsente, setSourceAbsente] = useState(false);
   const lecteur = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     api.poses().then(p => { setPoses(p); setErreurPoses(null); }, (e: Error) => setErreurPoses(e.message));
@@ -43,8 +44,16 @@ export const EcranPublication: FC<{ nom: string }> = ({ nom }) => {
           </select>
         </label>
         <p className="discret">{EXPLICATIONS_PROFIL[publication.profilParDefaut]}</p>
-        <video ref={lecteur} className="lecteur-publication" src={detail.sourceUrl} controls preload="metadata" />
-        <p className="discret">Placez la vidéo sur l’image voulue, puis prenez-la comme fond ou comme pose dans une vignette.</p>
+        <h3>Images pour les vignettes</h3>
+        <p className="discret">
+          Enregistrement d’origine, avant montage. Placez-le sur l’image voulue, puis, dans la vignette d’une vidéo,
+          « Écran à l’image affichée » la prend comme fond (ou « Caméra à l’image affichée » comme pose).
+        </p>
+        <video
+          ref={lecteur} className="lecteur-publication" src={detail.sourceUrl} controls preload="metadata"
+          onError={() => setSourceAbsente(true)} onLoadedMetadata={() => setSourceAbsente(false)}
+        />
+        {sourceAbsente && <p className="alerte">Enregistrement d’origine illisible : source.mp4 manque dans le dossier du tournage.</p>}
         {poses === null && !erreurPoses && <p className="discret">Préparation de la banque de poses…</p>}
         {erreurPoses && <p className="alerte">Banque de poses : {erreurPoses}</p>}
         {!detail.site && (
