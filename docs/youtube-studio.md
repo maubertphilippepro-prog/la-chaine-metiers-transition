@@ -25,18 +25,23 @@ Le studio prépare tout ; le téléversement se fait à la main dans YouTube Stu
    - « Afficher plus » → Tags : « Copier les tags », puis coller (les virgules séparent les tags) ; vérifier la langue et la catégorie.
 4. Étape **Éléments vidéo** : rien à ajouter (le carton de fin est déjà dans la vidéo).
 5. Étape **Vérifications** : attendre la fin du contrôle des droits d’auteur ; en cas de signalement, ne pas publier et revoir la musique ou les images.
-6. Étape **Visibilité** : selon le profil (voir ci-dessous), puis « Enregistrer » ou « Programmer ».
+6. Étape **Visibilité** : selon la qualification (voir ci-dessous), puis « Enregistrer » ou « Programmer ».
 7. Copier le lien de la vidéo (affiché pendant le téléversement, ou « Partager » sur la vidéo) et le coller dans le studio, champ **URL de la vidéo sur YouTube**. Choisir la visibilité retenue (et la date si elle est programmée), puis **Enregistrer l’envoi**. La vidéo passe à « Envoyée sur YouTube » et le studio vérifie aussitôt ce que voit un visiteur sans compte.
 
-## Parcours par profil
+## Parcours par qualification
 
-- **Interne** : Visibilité **Privée**, jamais « Non répertoriée » (un lien non répertorié est lisible par quiconque l’obtient). Le studio alerte si la vidéo est lisible publiquement. Elle sera ensuite relayée sur le site, fichier compris.
-- **Perso** : **Publique**, ou **Programmer** avec la date et l’heure voulues. Rien n’est relayé sur le site.
-- **Mixte** : **Publique** ou **Programmer**. Le relais sur le site n’est possible qu’une fois la vidéo lisible publiquement ; pour une vidéo programmée, attendre l’heure de mise en ligne puis cliquer « Vérifier la visibilité ».
+La qualification se choisit dans la carte de la vidéo (Nature : Pro ou Perso ; case Confidentielle). Le studio en déduit la visibilité à choisir et la rappelle dans `youtube.txt`.
+
+- **Pro, confidentielle** : rien sur YouTube. Pas de « Préparer pour YouTube » : la vidéo est seulement relayée sur le site (fichier compris), réservée aux comptes autorisés.
+- **Pro, non confidentielle** : Visibilité **Non répertoriée**, jamais Publique. Une fois l’URL enregistrée, la vidéo est relayée sur le site avec son lien YouTube, visible de tous. La vérification du studio voit qu’elle est lisible par lien, mais ne distingue pas Non répertoriée de Publique : contrôler ce réglage dans YouTube Studio.
+- **Perso, confidentielle** : Visibilité **Privée**, jamais « Non répertoriée » (un lien non répertorié est lisible par quiconque l’obtient). Le studio alerte si la vidéo est lisible publiquement. Rien sur le site.
+- **Perso, non confidentielle** : **Publique**, ou **Programmer** avec la date et l’heure voulues. Rien sur le site.
 
 ## Cas courants
 
 - **Modifier le titre, la description ou les tags d’une vidéo en ligne** : corriger dans le studio (la vidéo reste « Envoyée sur YouTube »), « Préparer pour YouTube » de nouveau, puis YouTube Studio → Contenu → la vidéo → Détails : recoller les champs et « Enregistrer ».
 - **Remplacer la vignette** : rendre la nouvelle vignette dans le studio, « Préparer pour YouTube », puis dans Détails → Miniature → « Importer un fichier » → `vignette.jpg`, et « Enregistrer ».
-- **Rattraper une erreur de visibilité** : YouTube Studio → Contenu → colonne Visibilité de la vidéo → choisir la bonne, « Enregistrer ». Dans le studio, recoller l’URL avec la visibilité corrigée (« Enregistrer l’envoi »), puis « Vérifier la visibilité ». Une vidéo Interne passée publique par erreur doit repasser en Privée immédiatement.
+- **Rattraper une erreur de visibilité** : YouTube Studio → Contenu → colonne Visibilité de la vidéo → choisir la bonne, « Enregistrer ». Dans le studio, recoller l’URL avec la visibilité corrigée (« Enregistrer l’envoi »), puis « Vérifier la visibilité ». Une vidéo Perso confidentielle passée publique par erreur doit repasser en Privée immédiatement.
 - **Mauvaise URL collée** : recoller la bonne et « Enregistrer l’envoi » ; l’ancienne est remplacée.
+- **Passer en Perso une vidéo déjà sur le site** : le studio demande confirmation, puis la retire du site (fichier et vignette compris). Si le site est injoignable, la vidéo reste Perso, l’erreur s’affiche et le panneau Replit propose « Retirer du site » ; l’envoi sur YouTube reste bloqué jusque-là.
+- **Vidéo Pro confidentielle déjà envoyée sur YouTube** (ancienne vidéo Interne) : la supprimer dans YouTube Studio → Contenu si elle ne doit plus y être.

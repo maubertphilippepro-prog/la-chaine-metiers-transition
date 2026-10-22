@@ -2,6 +2,8 @@
 
 Date : 2026-10-20. Sous-projet D annoncé par [la conception de la post-production](2026-10-06-post-production-design.md) : à partir des rendus d'un tournage, préparer les vidéos (métadonnées, vignette), les envoyer sur la chaîne YouTube PMT et, selon le cas, les relayer sur le site Replit.
 
+> **Révisé le 2026-10-22** : les profils Interne, Perso et Mixte sont remplacés par une qualification (Pro ou Perso, confidentielle ou non) dont l’app déduit la diffusion ; voir [Qualification des vidéos et sablier](2026-10-22-qualification-diffusion-design.md). Les sections ci-dessous qui parlent de profils sont gardées pour l’historique.
+
 ## Objectif
 
 Pour chaque tournage au statut `rendu`, l'auteur choisit dans le studio quelles vidéos publier (vidéo complète, épisodes) et, pour chacune, un **profil** :
