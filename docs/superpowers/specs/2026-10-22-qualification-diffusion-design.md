@@ -81,7 +81,7 @@ YouTube injoignable : message inchangé.
 
 | Diffusion site | Condition | Envoyé |
 |---|---|---|
-| `fichier` | vidéo `prete` | MP4 et vignette dans le stockage, `visibility: interne` |
+| `fichier` | vidéo `prete`, `envoyee-youtube` ou `relayee` (mise à jour) | MP4 et vignette dans le stockage, `visibility: interne` |
 | `lien` | vidéo `envoyee-youtube` et lisible par oEmbed au moment du relais | `videoUrl` YouTube, vignette dans le stockage, `visibility: public` |
 | `aucun` | refusé : « Une vidéo Perso n’est pas relayée sur le site. » | — |
 
@@ -92,10 +92,10 @@ Le reste du relais (corps envoyé, mise à jour par `PATCH`, erreurs) ne change 
 Une vidéo qui a un `replit.id` et dont la diffusion site devient `aucun` (passage en Perso) est retirée du site :
 
 1. Dans le studio, passer une telle vidéo en Perso demande confirmation : « Cette vidéo est sur le site : la passer en Perso la retirera du site. » Sans confirmation, la qualification ne change pas.
-2. Après confirmation, le studio envoie l'enregistrement en attente (`synchroniser`), puis appelle `POST /api/tournages/<nom>/publication/site/retirer` `{ cible }`.
-3. Le serveur vérifie que `diffusion.site` vaut `aucun` et que `replit.id` existe (sinon 409), puis appelle `DELETE /api/videos/:id` sur le site avec la clé d'API. Une réponse 404 compte comme un retrait réussi : la vidéo n'y est déjà plus.
+2. Après confirmation, le studio envoie l'enregistrement en attente (`synchroniser`), puis appelle `POST /api/tournages/<nom>/publication/site/retirer` `{ cible, nature, confidentielle }` : la nouvelle qualification part avec la demande, le serveur l'enregistre lui-même avant le retrait.
+3. Le serveur vérifie qu'avec cette qualification `diffusion.site` vaut `aucun` et que `replit.id` existe (sinon 409), enregistre la qualification, puis appelle `DELETE /api/videos/:id` sur le site avec la clé d'API. Une réponse 404 compte comme un retrait réussi : la vidéo n'y est déjà plus.
 4. En cas de succès : `replit.id`, `replit.categorieId` et `replit.playlistId` repassent à `null`, `erreur` à `null`, et le statut `relayee` devient `envoyee-youtube` si `youtube.id` existe, `prete` sinon.
-5. En cas d'échec (site injoignable, clé refusée) : `statut: erreur`, `erreur.etape: 'replit'` avec le message « Retrait du site impossible : … ; la vidéo y est encore visible. » ; `replit.id` est gardé. Le panneau Site reste affiché pour cette vidéo avec un seul bouton **Retirer du site**, qui relance l'étape 3.
+5. En cas d'échec (site injoignable, clé refusée) : comme pour un relais raté, le statut ne change pas (`relayee` : la vidéo est toujours sur le site) et `erreur` garde l'étape `replit` et le message « Retrait du site impossible : … : la vidéo y est encore visible. » ; `replit.id` est gardé. Le panneau Site reste affiché pour cette vidéo avec un seul bouton **Retirer du site**, qui relance l'étape 3.
 
 Aucune vidéo Perso n'est envoyée sur YouTube tant qu'un retrait est en échec : « Préparer pour YouTube » et « Enregistrer l'envoi » sont refusés avec « Retirez d’abord la vidéo du site. »
 
@@ -105,19 +105,22 @@ Faite par l'agent Replit, puis vérifiée en lisant le code et en appelant l'API
 
 - `DELETE /api/videos/:id`, réservé à la clé d'API ou à un administrateur (401 sinon), supprime la vidéo, ses rattachements aux playlists et ses statistiques, ainsi que ses objets dans le stockage (`videoObject`, `thumbnailObject`). Réponse 204 ; 404 si la vidéo n'existe pas.
 - Si la route existe déjà, seul le nettoyage du stockage est vérifié et ajouté au besoin.
+- `VideoInput` et `VideoUpdate` acceptent `videoUrl: null` et `videoObject: null`, qui effacent le champ ; un objet effacé ou remplacé est supprimé du stockage. Le studio envoie toujours les deux champs, l'un renseigné, l'autre à `null` : une vidéo qui passe de fichier à lien (ou l'inverse) ne garde rien de son ancienne forme.
 - L'OpenAPI du site est mis à jour en premier, puis le code est régénéré.
 
 ## Studio
 
 - La carte de chaque vidéo remplace le choix du profil par deux contrôles : **Pro / Perso** et une case **Confidentielle**. Sous les contrôles, une ligne résume la diffusion déduite, par exemple « YouTube : Non répertoriée · Site : lien YouTube, visible de tous ».
 - La qualification par défaut du tournage se règle de la même façon, à la place du profil par défaut.
+- Une vidéo Pro confidentielle qui a déjà un `youtube.id` (convertie depuis Interne) affiche : « Cette vidéo a déjà été envoyée sur YouTube : supprimez-la dans YouTube Studio si elle ne doit plus y être. »
+- Changer la qualification par défaut ne touche pas les vidéos présentes sur le site (`replit.id` renseigné) : elles se requalifient une par une, avec la confirmation ci-dessous.
 - Le panneau YouTube n'apparaît que si `diffusion.youtube` ≠ `aucun` ; le panneau Site que si `diffusion.site` ≠ `aucun`, ou si un retrait du site reste à faire. Catégorie et playlist du site ne sont demandées que pour les vidéos Pro.
 
 ## Sablier
 
 Toute action du studio qui fait attendre l'auteur affiche un **sablier** animé :
 
-- le bouton qui l'a lancée est désactivé et montre le sablier à côté de son libellé d'attente (par exemple « Rendu de la vignette… ») ;
+- le bouton qui l'a lancée est désactivé, et le libellé d'attente (par exemple « Rendu de la vignette… ») s'affiche précédé du sablier : à côté du bouton dans la carte d'une vidéo, en bas du panneau dans les panneaux YouTube et Site ;
 - pendant le rendu de la vignette, la zone « Rendu » de l'aperçu montre aussi le sablier à la place de l'image ou de « Pas encore rendue. ».
 
 Un seul composant `Sablier` (CSS, sans dépendance), qui respecte `prefers-reduced-motion` (sablier fixe, sans rotation). Il remplace les textes d'attente actuels :
