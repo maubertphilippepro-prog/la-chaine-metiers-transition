@@ -5,6 +5,7 @@ import type { DetailPublication, Pose, VideoDisponible } from '../../commun';
 import { api, ErreurApi } from '../api';
 import { EXPLICATIONS_PROFIL, libelleCible, LIBELLES_PROFIL, LIBELLES_STATUT, tagsDepuisTexte, texteDepuisTags } from '../logique/publication';
 import { pretePourYoutube } from '../../../noyau/youtube';
+import { Attente } from './Attente';
 import { ChoixVignette } from './ChoixVignette';
 import { PanneauSite } from './PanneauSite';
 import { PanneauYoutube } from './PanneauYoutube';
@@ -21,6 +22,9 @@ interface Props {
   executer: (action: () => Promise<Publication>) => Promise<void>;
   synchroniser: () => Promise<void>;
 }
+
+const REDACTION = 'Rédaction par Claude…';
+const VERIFICATION = 'Vérification…';
 
 
 export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail, poses, complete, instant, modifier, executer, synchroniser }) => {
@@ -69,9 +73,12 @@ export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail,
             </select>
           </label>
           <p className="discret">{EXPLICATIONS_PROFIL[v.profil]}</p>
-          <button disabled={!!occupe} onClick={() => void lancer('Rédaction par Claude…', () => api.rediger(nom, v.cible))}>
-            Proposer les textes avec Claude
-          </button>
+          <div className="actions">
+            <button disabled={!!occupe} onClick={() => void lancer(REDACTION, () => api.rediger(nom, v.cible))}>
+              Proposer les textes avec Claude
+            </button>
+            {occupe === REDACTION && <Attente libelle={REDACTION} />}
+          </div>
           <label>
             Titre ({v.titre.trim().length}/{r.titreMax})
             <input value={v.titre} onChange={e => changer({ titre: e.target.value })} />
@@ -93,17 +100,19 @@ export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail,
             Tags, séparés par des virgules ({longueurTags(tagsDepuisTexte(tags))}/{r.tagsMax})
             <input value={tags} onChange={e => setTags(e.target.value)} onBlur={() => changer({ tags: tagsDepuisTexte(tags) })} />
           </label>
-          <ChoixVignette nom={nom} video={v} detail={detail} poses={poses} complete={complete} instant={instant} changer={changer} lancer={lancer} />
-          <button className="principal" disabled={!!occupe} onClick={() => void lancer('Vérification…', () => api.validerVideo(nom, v.cible))}>
-            Valider pour la publication
-          </button>
+          <ChoixVignette nom={nom} video={v} detail={detail} poses={poses} complete={complete} instant={instant} changer={changer} lancer={lancer} occupe={occupe} />
+          <div className="actions">
+            <button className="principal" disabled={!!occupe} onClick={() => void lancer(VERIFICATION, () => api.validerVideo(nom, v.cible))}>
+              Valider pour la publication
+            </button>
+            {occupe === VERIFICATION && <Attente libelle={VERIFICATION} />}
+          </div>
           {pretePourYoutube(v) && <PanneauYoutube key={`youtube-${v.profil}`}nom={nom} video={v} synchroniser={synchroniser} executer={executer} />}
           {pretePourYoutube(v) && v.profil !== 'perso' && (
             <PanneauSite key={`site-${v.profil}`} nom={nom} video={{ ...v, profil: v.profil }} urlSite={detail.urlSite} site={detail.site} changer={changer} synchroniser={synchroniser} executer={executer} />
           )}
         </>
       )}
-      {occupe && <p className="discret">{occupe}</p>}
       {erreur && <p className="alerte">{erreur}</p>}
       {problemes.length > 0 && <ul>{problemes.map(p => <li key={p}>{p}</li>)}</ul>}
     </section>

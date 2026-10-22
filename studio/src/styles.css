@@ -94,3 +94,17 @@ button.lien { background: none; border: none; padding: 0; text-align: left; curs
 .pose img { height: 64px; display: block; }
 .apercus-vignette { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .vignette-rendue { width: 100%; }
+
+/* Sablier : toute action qui fait attendre l’auteur. */
+.attente { display: inline-flex; align-items: center; gap: 6px; color: var(--discret); font-size: 13px; }
+.sablier { display: inline-block; animation: sablier 1.6s ease-in-out infinite; }
+@keyframes sablier {
+  0%, 40% { transform: rotate(0deg); }
+  50%, 90% { transform: rotate(180deg); }
+  100% { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) { .sablier { animation: none; } }
+.rendu-en-cours {
+  display: flex; align-items: center; justify-content: center; aspect-ratio: 16 / 9;
+  border: 1px dashed var(--bleu-gris); border-radius: 6px;
+}

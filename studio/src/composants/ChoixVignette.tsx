@@ -5,6 +5,9 @@ import { HAUTEUR_VIGNETTE, LARGEUR_VIGNETTE, Vignette as CompositionVignette } f
 import type { DetailPublication, Pose } from '../../commun';
 import { api } from '../api';
 import { baseVignette } from '../logique/publication';
+import { Attente } from './Attente';
+
+export const RENDU_VIGNETTE = 'Rendu de la vignette…';
 
 interface Props {
   nom: string;
@@ -17,12 +20,14 @@ interface Props {
   instant: () => number;
   changer: (c: Partial<VideoPubliee>) => void;
   lancer: (libelle: string, action: () => Promise<Publication>) => Promise<void>;
+  // Libellé de l’action en cours sur la carte, null si aucune.
+  occupe: string | null;
 }
 
 const arrondi = (t: number) => Math.round(t * 1000) / 1000;
 
 // Pose (banque ou caméra), fond (charte ou écran), accroche ; aperçu immédiat, puis rendu en JPEG par le serveur.
-export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complete, instant, changer, lancer }) => {
+export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complete, instant, changer, lancer, occupe }) => {
   const [erreur, setErreur] = useState<string | null>(null);
   const [extraction, setExtraction] = useState(false);
   const vignette = v.vignette;
@@ -96,7 +101,7 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
           ))}
         </div>
       )}
-      {extraction && <p className="discret">Extraction de l’image…</p>}
+      {extraction && <p><Attente libelle="Extraction de l’image…" /></p>}
       {erreur && <p className="alerte">{erreur}</p>}
       {vignette && urls && (
         <div className="apercus-vignette">
@@ -115,15 +120,20 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
           </div>
           <div>
             <p className="discret">Rendu</p>
-            {vignette.fichier
-              ? <img className="vignette-rendue" src={`${detail.urlTournage}/${vignette.fichier}?v=${encodeURIComponent(cleVignette(vignette))}`} alt="Vignette rendue" />
-              : <p className="discret">Pas encore rendue.</p>}
+            {occupe === RENDU_VIGNETTE
+              ? <div className="rendu-en-cours"><Attente libelle={RENDU_VIGNETTE} /></div>
+              : vignette.fichier
+                ? <img className="vignette-rendue" src={`${detail.urlTournage}/${vignette.fichier}?v=${encodeURIComponent(cleVignette(vignette))}`} alt="Vignette rendue" />
+                : <p className="discret">Pas encore rendue.</p>}
           </div>
         </div>
       )}
       {vignette && (
         <>
-          <button onClick={() => void lancer('Rendu de la vignette…', () => api.rendreVignette(nom, v.cible))}>Rendre la vignette</button>
+          <div className="actions">
+            <button disabled={!!occupe} onClick={() => void lancer(RENDU_VIGNETTE, () => api.rendreVignette(nom, v.cible))}>Rendre la vignette</button>
+            {occupe === RENDU_VIGNETTE && <Attente libelle={RENDU_VIGNETTE} />}
+          </div>
           <p className="discret">
             L’aperçu est calculé par le navigateur ; le rendu fabrique le fichier JPEG 1280×720 qui sera téléversé sur YouTube.
             À refaire après chaque changement de pose, de fond ou d’accroche, avant de valider.

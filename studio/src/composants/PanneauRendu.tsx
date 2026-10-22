@@ -7,6 +7,7 @@ import type { EtatRendu } from '../../commun';
 import { api, ErreurApi } from '../api';
 import { cibleDuFichier } from '../logique/rendu';
 import type { EtatEnregistrement } from '../useMontage';
+import { Attente } from './Attente';
 
 interface Props {
   nom: string;
@@ -69,14 +70,12 @@ export const PanneauRendu: FC<Props> = ({ nom, analyse, montage, reglages, consi
       >
         Valider et lancer le rendu
       </button>
-      {enCours && !ici && <p className="discret">Rendu en cours pour « {etat?.nom} ».</p>}
+      {enCours && !ici && <p><Attente libelle={`Rendu en cours pour « ${etat?.nom ?? ''} ».`} /></p>}
       {erreur && <p className="alerte">{erreur}</p>}
       {problemesServeur.length > 0 && <ul>{problemesServeur.map(p => <li key={p}>{p}</li>)}</ul>}
-      {ici?.enCours && (
-        <p>
-          {ici.fichier ?? 'Préparation…'} : {Math.round(ici.progression * 100)} %
-        </p>
-      )}
+      {ici?.enCours && (ici.fichier
+        ? <p>{ici.fichier} : {Math.round(ici.progression * 100)} %</p>
+        : <p><Attente libelle="Préparation du rendu…" /></p>)}
       {ici?.erreur && <p className="alerte">{ici.erreur}</p>}
       {ici && !ici.enCours && ici.resultats.map(r => {
         const cible = cibleDuFichier(r.fichier);

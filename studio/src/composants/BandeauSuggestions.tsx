@@ -1,6 +1,7 @@
 import { type FC, useState } from 'react';
 import type { DetailTournage } from '../../commun';
 import { api } from '../api';
+import { Attente } from './Attente';
 
 // Affiché quand l'analyse s'est terminée sans les suggestions de Claude (spec §7).
 export const BandeauSuggestions: FC<{ nom: string; erreur: string; onRelance: (d: DetailTournage) => void }> = ({ nom, erreur, onRelance }) => {
@@ -17,7 +18,8 @@ export const BandeauSuggestions: FC<{ nom: string; erreur: string; onRelance: (d
     <section className="alerte">
       <div>Suggestions de Claude indisponibles : {erreur}</div>
       <div className="actions">
-        <button disabled={enCours} onClick={relancer}>{enCours ? 'Relance en cours…' : 'Relancer les suggestions'}</button>
+        <button disabled={enCours} onClick={relancer}>Relancer les suggestions</button>
+        {enCours && <Attente libelle="Relance en cours…" />}
         {echec && <span>{echec}</span>}
       </div>
     </section>

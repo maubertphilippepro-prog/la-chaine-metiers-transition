@@ -6,6 +6,7 @@ import { changerProfilParDefaut, EXPLICATIONS_PROFIL, LIBELLES_PROFIL } from '..
 import { usePublication } from '../usePublication';
 import type { EtatEnregistrement } from '../useMontage';
 import { CartePublication } from './CartePublication';
+import { Attente } from './Attente';
 
 const LIBELLES_ENREGISTREMENT: Record<EtatEnregistrement, string> = {
   'a-jour': 'Enregistré',
@@ -34,7 +35,9 @@ export const EcranPublication: FC<{ nom: string }> = ({ nom }) => {
       <header className="entete">
         {retour}
         <h2>Publication — {detail.titre}</h2>
-        <span className="discret">{LIBELLES_ENREGISTREMENT[enregistrement]}</span>
+        {enregistrement === 'en-attente'
+          ? <Attente libelle={LIBELLES_ENREGISTREMENT[enregistrement]} />
+          : <span className="discret">{LIBELLES_ENREGISTREMENT[enregistrement]}</span>}
       </header>
       <section className="panneau">
         <label>
@@ -54,7 +57,7 @@ export const EcranPublication: FC<{ nom: string }> = ({ nom }) => {
           onError={() => setSourceAbsente(true)} onLoadedMetadata={() => setSourceAbsente(false)}
         />
         {sourceAbsente && <p className="alerte">Enregistrement d’origine illisible : source.mp4 manque dans le dossier du tournage.</p>}
-        {poses === null && !erreurPoses && <p className="discret">Préparation de la banque de poses…</p>}
+        {poses === null && !erreurPoses && <p><Attente libelle="Préparation de la banque de poses…" /></p>}
         {erreurPoses && <p className="alerte">Banque de poses : {erreurPoses}</p>}
         {!detail.site && (
           <p className="discret">Site Replit injoignable ou adresse absente (REPLIT_SITE_URL dans .env) : catégories et playlists indisponibles.</p>

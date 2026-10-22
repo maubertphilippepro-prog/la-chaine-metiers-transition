@@ -4,6 +4,7 @@ import { visibilitesIndiquees, type VisibiliteYoutube } from '../../../noyau/you
 import type { DossierYoutube, VerificationYoutube } from '../../commun';
 import { api, ErreurApi } from '../api';
 import { isoDepuisLocal, LIBELLES_VISIBILITE, localDepuisIso } from '../logique/publication';
+import { Attente } from './Attente';
 
 interface Props {
   nom: string;
@@ -15,6 +16,8 @@ interface Props {
 const CHAMPS: [keyof DossierYoutube['textes'], string][] = [['titre', 'le titre'], ['description', 'la description'], ['tags', 'les tags']];
 
 // Téléversement à la main : dossier préparé, champs à copier dans YouTube Studio, puis URL collée et visibilité vérifiée.
+const COPIE = 'Copie…';
+
 export const PanneauYoutube: FC<Props> = ({ nom, video: v, synchroniser, executer }) => {
   const [dossier, setDossier] = useState<DossierYoutube | null>(null);
   const [url, setUrl] = useState(v.youtube.id ? `https://youtu.be/${v.youtube.id}` : '');
@@ -53,7 +56,7 @@ export const PanneauYoutube: FC<Props> = ({ nom, video: v, synchroniser, execute
     await executer(() => api.envoiYoutube(nom, v.cible, { url, visibilite: choisie, programmeeLe }));
     setVerification(await api.verifierYoutube(nom, v.cible));
   });
-  const copier = (libelle: string, texte: string) => lancer('Copie…', async () => {
+  const copier = (libelle: string, texte: string) => lancer(COPIE, async () => {
     await navigator.clipboard.writeText(texte);
     setCopie(libelle);
   });
@@ -111,7 +114,8 @@ export const PanneauYoutube: FC<Props> = ({ nom, video: v, synchroniser, execute
         </div>
       )}
       {verification && <p className={verification.alerte ? 'alerte' : 'discret'}>{verification.message}</p>}
-      {occupe && <p className="discret">{occupe}</p>}
+      {/* Une copie dans le presse-papiers est quasi instantanée : pas de sablier. */}
+      {occupe && occupe !== COPIE && <p><Attente libelle={occupe} /></p>}
       {erreur && <p className="alerte">{erreur}</p>}
       {problemes.length > 0 && <ul>{problemes.map(p => <li key={p}>{p}</li>)}</ul>}
     </div>

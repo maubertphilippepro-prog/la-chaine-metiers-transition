@@ -17,6 +17,7 @@ import { PanneauRendu } from './PanneauRendu';
 import { PanneauTermes } from './PanneauTermes';
 import { Texte, type SaisieTexte } from './Texte';
 import type { Dessin } from './TraceurZone';
+import { Attente } from './Attente';
 
 const LIBELLES_ENREGISTREMENT: Record<EtatEnregistrement, string> = {
   'a-jour': 'Enregistré',
@@ -147,7 +148,9 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
           aria-label="Titre de la vidéo complète"
           onChange={e => { const titre = e.target.value; modifier(m => ({ ...m, titre })); }}
         />
-        <span className="discret">{LIBELLES_ENREGISTREMENT[enregistrement]}</span>
+        {enregistrement === 'en-attente'
+          ? <Attente libelle={LIBELLES_ENREGISTREMENT[enregistrement]} />
+          : <span className="discret">{LIBELLES_ENREGISTREMENT[enregistrement]}</span>}
         {detail.statut === 'rendu' && <a href={`#/${encodeURIComponent(nom)}/publication`}>Publication →</a>}
       </header>
       <main className="texte">

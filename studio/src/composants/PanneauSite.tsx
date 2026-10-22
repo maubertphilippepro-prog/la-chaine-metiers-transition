@@ -3,6 +3,7 @@ import type { Publication, VideoPubliee } from '../../../noyau/publication';
 import type { ReferencesSite } from '../../serveur/site-replit';
 import { api, ErreurApi } from '../api';
 import { EXPLICATIONS_RELAIS } from '../logique/publication';
+import { Attente } from './Attente';
 
 interface Props {
   nom: string;
@@ -76,9 +77,7 @@ export const PanneauSite: FC<Props> = ({ nom, video: v, urlSite, site, changer, 
         )}
       </div>
       {occupe && (
-        <p className="discret">
-          Relais en cours…{v.profil === 'interne' && ' L’envoi du fichier vidéo peut prendre plusieurs minutes.'}
-        </p>
+        <p><Attente libelle={`Relais en cours…${v.profil === 'interne' ? ' L’envoi du fichier vidéo peut prendre plusieurs minutes.' : ''}`} /></p>
       )}
       {erreur && <p className="alerte">{erreur}</p>}
       {problemes.length > 0 && <ul>{problemes.map(p => <li key={p}>{p}</li>)}</ul>}

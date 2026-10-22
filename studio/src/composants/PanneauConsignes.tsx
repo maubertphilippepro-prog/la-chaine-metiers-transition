@@ -7,6 +7,7 @@ import type { Analyse, Montage } from '../../../noyau/types';
 import { api } from '../api';
 import { bilan, demandeUneZone, passageDeProposition } from '../logique/consignes';
 import type { EtatEnregistrement } from '../useMontage';
+import { Attente } from './Attente';
 
 interface Props {
   nom: string;
@@ -160,8 +161,8 @@ export const PanneauConsignes: FC<Props> = props => {
         <button className="principal" disabled={envoi || !texte.trim() || !pret} onClick={() => void envoyer()}>
           Envoyer
         </button>
-        {envoi && <span className="discret">Claude interprète la consigne…</span>}
-        {!envoi && !pret && <span className="discret">En attente de l’enregistrement du montage…</span>}
+        {envoi && <Attente libelle="Claude interprète la consigne…" />}
+        {!envoi && !pret && <Attente libelle="En attente de l’enregistrement du montage…" />}
         {!envoi && pret && <span className="discret">Ctrl+Entrée</span>}
       </div>
       {erreur && <p className="alerte">{erreur}</p>}
