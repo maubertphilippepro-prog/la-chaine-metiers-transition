@@ -29,7 +29,7 @@ export const PanneauYoutube: FC<Props> = ({ nom, video: v, synchroniser, execute
   const [erreur, setErreur] = useState<string | null>(null);
   const [problemes, setProblemes] = useState<string[]>([]);
 
-  const permises = visibilitesIndiquees(v.profil);
+  const permises = visibilitesIndiquees(v);
   const choisie = permises.includes(visibilite) ? visibilite : permises[0]!;
 
   const lancer = async (libelle: string, action: () => Promise<void>) => {

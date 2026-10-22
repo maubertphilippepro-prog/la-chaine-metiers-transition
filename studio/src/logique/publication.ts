@@ -1,20 +1,37 @@
-import type { CiblePublication, FondVignette, PoseVignette, Profil, Publication, StatutPublication, Vignette } from '../../../noyau/publication';
+import type { CiblePublication, FondVignette, PoseVignette, Publication, StatutPublication, VideoPubliee, Vignette } from '../../../noyau/publication';
+import { diffusion, memeQualification, type Diffusion, type DiffusionSite, type DiffusionYoutube, type Nature, type Qualification } from '../../../noyau/qualification';
 import type { VisibiliteYoutube } from '../../../noyau/youtube';
 
-export const LIBELLES_PROFIL: Record<Profil, string> = { interne: 'Interne', perso: 'Perso', mixte: 'Mixte' };
+export const LIBELLES_NATURE: Record<Nature, string> = { pro: 'Pro', perso: 'Perso' };
 
-export const EXPLICATIONS_PROFIL: Record<Profil, string> = {
-  interne: 'Contenu confidentiel : privée sur YouTube, fichier envoyé sur le site, réservé aux comptes autorisés.',
-  perso: 'Contenu personnel : publique sur YouTube, rien sur le site.',
-  mixte: 'Contenu sans risque : publique sur YouTube, puis relayée sur le site.',
+const RESUME_YOUTUBE: Record<DiffusionYoutube, string> = {
+  aucun: 'aucun envoi',
+  'non-repertoriee': 'Non répertoriée',
+  privee: 'Privée',
+  publique: 'Publique ou Programmée',
+};
+const RESUME_SITE: Record<DiffusionSite, string> = {
+  fichier: 'fichier vidéo, réservé aux comptes autorisés',
+  lien: 'lien YouTube, visible de tous',
+  aucun: 'rien',
 };
 
-export const EXPLICATIONS_RELAIS: Record<Exclude<Profil, 'perso'>, string> = {
-  interne: 'Le fichier vidéo et la vignette sont envoyés sur le site, visibles des seuls comptes autorisés. '
+// Diffusion déduite de la qualification, en une ligne sous ses contrôles.
+export const resumeDiffusion = (d: Diffusion) => `YouTube : ${RESUME_YOUTUBE[d.youtube]} · Site : ${RESUME_SITE[d.site]}`;
+
+export const EXPLICATIONS_RELAIS: Record<Exclude<DiffusionSite, 'aucun'>, string> = {
+  fichier: 'Le fichier vidéo et la vignette sont envoyés sur le site, visibles des seuls comptes autorisés. '
     + 'Un nouveau relais renvoie le fichier et met à jour la fiche.',
-  mixte: 'La vidéo YouTube est intégrée au site, visible de tous, une fois lisible publiquement sur YouTube. '
+  lien: 'La vidéo YouTube est intégrée au site, visible de tous, une fois lisible par lien sur YouTube. '
     + 'Un nouveau relais met à jour la fiche.',
 };
+
+export const EXPLICATION_RETRAIT = 'Vidéo passée en Perso : elle doit être retirée du site, où elle est encore visible.';
+export const CONFIRMATION_RETRAIT = 'Cette vidéo est sur le site : la passer en Perso la retirera du site.';
+
+// Une requalification qui fait sortir du site une vidéo qui y est demande confirmation, puis le retrait.
+export const requalificationRetire = (v: VideoPubliee, q: Qualification) =>
+  v.replit.id !== null && diffusion(v).site !== 'aucun' && diffusion(q).site === 'aucun';
 
 export const LIBELLES_STATUT: Record<StatutPublication, string> = {
   'a-preparer': 'À préparer',
@@ -29,12 +46,13 @@ export const libelleCible = (c: CiblePublication) => (c === 'complete' ? 'Vidéo
 export const tagsDepuisTexte = (texte: string) => texte.split(',').map(t => t.trim()).filter(t => t !== '');
 export const texteDepuisTags = (tags: string[]) => tags.join(', ');
 
-// Les vidéos qui suivaient l'ancien profil par défaut prennent le nouveau ; les autres gardent le leur.
-export function changerProfilParDefaut(p: Publication, profil: Profil): Publication {
+// Les vidéos qui suivaient l’ancienne qualification par défaut prennent la nouvelle, sauf celles déjà sur le site :
+// elles se requalifient une par une, avec confirmation du retrait.
+export function changerQualificationParDefaut(p: Publication, q: Qualification): Publication {
   return {
     ...p,
-    profilParDefaut: profil,
-    videos: p.videos.map(v => (v.profil === p.profilParDefaut ? { ...v, profil } : v)),
+    qualificationParDefaut: q,
+    videos: p.videos.map(v => (memeQualification(v, p.qualificationParDefaut) && v.replit.id === null ? { ...v, ...q } : v)),
   };
 }
 
@@ -47,7 +65,9 @@ export function baseVignette(
   return { pose: premierePose ? { source: 'banque', fichier: premierePose } : null, fond: { source: 'charte' } };
 }
 
-export const LIBELLES_VISIBILITE: Record<VisibiliteYoutube, string> = { privee: 'Privée', publique: 'Publique', programmee: 'Programmée' };
+export const LIBELLES_VISIBILITE: Record<VisibiliteYoutube, string> = {
+  privee: 'Privée', 'non-repertoriee': 'Non répertoriée', publique: 'Publique', programmee: 'Programmée',
+};
 
 // Champ « datetime-local » (heure locale, sans fuseau) ↔ date ISO enregistrée.
 export function isoDepuisLocal(valeur: string): string | null {

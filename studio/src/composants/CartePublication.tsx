@@ -1,10 +1,13 @@
 import { type FC, useEffect, useState } from 'react';
-import { longueurTags, modifierVideo, PROFILS, type Profil, type Publication, type VideoPubliee, type Vignette } from '../../../noyau/publication';
+import { longueurTags, modifierVideo, retraitAFaire, type Publication, type VideoPubliee, type Vignette } from '../../../noyau/publication';
+import { diffusion, NATURES, type Nature, type Qualification } from '../../../noyau/qualification';
 import { descriptionYoutube, formatHorodatage } from '../../../noyau/publication-textes';
+import { pretePourYoutube, validee } from '../../../noyau/youtube';
 import type { DetailPublication, Pose, VideoDisponible } from '../../commun';
 import { api, ErreurApi } from '../api';
-import { EXPLICATIONS_PROFIL, libelleCible, LIBELLES_PROFIL, LIBELLES_STATUT, tagsDepuisTexte, texteDepuisTags } from '../logique/publication';
-import { pretePourYoutube } from '../../../noyau/youtube';
+import {
+  CONFIRMATION_RETRAIT, libelleCible, LIBELLES_NATURE, LIBELLES_STATUT, requalificationRetire, resumeDiffusion, tagsDepuisTexte, texteDepuisTags,
+} from '../logique/publication';
 import { Attente } from './Attente';
 import { ChoixVignette } from './ChoixVignette';
 import { PanneauSite } from './PanneauSite';
@@ -25,6 +28,7 @@ interface Props {
 
 const REDACTION = 'Rédaction par Claude…';
 const VERIFICATION = 'Vérification…';
+const RETRAIT = 'Retrait du site…';
 
 
 export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail, poses, complete, instant, modifier, executer, synchroniser }) => {
@@ -49,6 +53,18 @@ export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail,
     }
   };
 
+  // Une vidéo déjà sur le site qui n’y a plus sa place en est retirée, après confirmation, par le serveur
+  // (qui enregistre lui-même la nouvelle qualification) ; sinon la qualification change comme un autre champ.
+  const requalifier = (q: Qualification) => {
+    if (!requalificationRetire(v, q)) {
+      changer(q);
+      return;
+    }
+    if (!window.confirm(CONFIRMATION_RETRAIT)) return;
+    void lancer(RETRAIT, () => api.retirerDuSite(nom, v.cible, q));
+  };
+  const d = diffusion(v);
+
   const r = detail.reglages;
   const descriptionFinale = descriptionYoutube(v.description, disponible.chapitres);
   return (
@@ -66,13 +82,23 @@ export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail,
       {v.erreur && <p className="alerte">Dernière erreur ({v.erreur.etape}) : {v.erreur.message}</p>}
       {v.publier && (
         <>
-          <label>
-            Profil{' '}
-            <select value={v.profil} onChange={e => changer({ profil: e.target.value as Profil })}>
-              {PROFILS.map(p => <option key={p} value={p}>{LIBELLES_PROFIL[p]}</option>)}
-            </select>
-          </label>
-          <p className="discret">{EXPLICATIONS_PROFIL[v.profil]}</p>
+          <div className="actions">
+            <label>
+              Nature{' '}
+              <select value={v.nature} disabled={!!occupe} onChange={e => requalifier({ nature: e.target.value as Nature, confidentielle: v.confidentielle })}>
+                {NATURES.map(n => <option key={n} value={n}>{LIBELLES_NATURE[n]}</option>)}
+              </select>
+            </label>
+            <label>
+              <input
+                type="checkbox" checked={v.confidentielle} disabled={!!occupe}
+                onChange={e => requalifier({ nature: v.nature, confidentielle: e.target.checked })}
+              />
+              {' '}Confidentielle
+            </label>
+            {occupe === RETRAIT && <Attente libelle={RETRAIT} />}
+          </div>
+          <p className="discret">{resumeDiffusion(d)}</p>
           <div className="actions">
             <button disabled={!!occupe} onClick={() => void lancer(REDACTION, () => api.rediger(nom, v.cible))}>
               Proposer les textes avec Claude
@@ -107,9 +133,17 @@ export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail,
             </button>
             {occupe === VERIFICATION && <Attente libelle={VERIFICATION} />}
           </div>
-          {pretePourYoutube(v) && <PanneauYoutube key={`youtube-${v.profil}`}nom={nom} video={v} synchroniser={synchroniser} executer={executer} />}
-          {pretePourYoutube(v) && v.profil !== 'perso' && (
-            <PanneauSite key={`site-${v.profil}`} nom={nom} video={{ ...v, profil: v.profil }} urlSite={detail.urlSite} site={detail.site} changer={changer} synchroniser={synchroniser} executer={executer} />
+          {pretePourYoutube(v) && (
+            <PanneauYoutube key={`youtube-${d.youtube}`} nom={nom} video={v} synchroniser={synchroniser} executer={executer} />
+          )}
+          {d.youtube === 'aucun' && v.youtube.id && (
+            <p className="discret">Cette vidéo a déjà été envoyée sur YouTube : supprimez-la dans YouTube Studio si elle ne doit plus y être.</p>
+          )}
+          {((validee(v) && d.site !== 'aucun') || retraitAFaire(v)) && (
+            <PanneauSite
+              key={`site-${d.site}`} nom={nom} video={v} urlSite={detail.urlSite} site={detail.site}
+              changer={changer} synchroniser={synchroniser} executer={executer}
+            />
           )}
         </>
       )}

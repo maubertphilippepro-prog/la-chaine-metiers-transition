@@ -1,13 +1,14 @@
 import { type FC, useState } from 'react';
-import type { Publication, VideoPubliee } from '../../../noyau/publication';
+import { retraitAFaire, type Publication, type VideoPubliee } from '../../../noyau/publication';
+import { diffusion } from '../../../noyau/qualification';
 import type { ReferencesSite } from '../../serveur/site-replit';
 import { api, ErreurApi } from '../api';
-import { EXPLICATIONS_RELAIS } from '../logique/publication';
+import { EXPLICATION_RETRAIT, EXPLICATIONS_RELAIS } from '../logique/publication';
 import { Attente } from './Attente';
 
 interface Props {
   nom: string;
-  video: VideoPubliee & { profil: 'interne' | 'mixte' };
+  video: VideoPubliee;
   urlSite: string | null;
   site: ReferencesSite | null;
   changer: (c: Partial<VideoPubliee>) => void;
@@ -17,7 +18,7 @@ interface Props {
 
 const idOuNull = (valeur: string) => (valeur === '' ? null : Number(valeur));
 
-// Catégorie, playlist et relais d’une vidéo Interne ou Mixte sur le site ; le serveur vérifie les conditions et explique un refus.
+// Relais d’une vidéo Pro sur le site (catégorie, playlist), ou retrait d’une vidéo passée en Perso ; le serveur vérifie et explique un refus.
 export const PanneauSite: FC<Props> = ({ nom, video: v, urlSite, site, changer, synchroniser, executer }) => {
   const [occupe, setOccupe] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -26,13 +27,13 @@ export const PanneauSite: FC<Props> = ({ nom, video: v, urlSite, site, changer, 
   // Playlists de la catégorie choisie (toutes tant qu’aucune n’est choisie).
   const playlists = site?.playlists.filter(p => v.replit.categorieId === null || p.categorieId === v.replit.categorieId) ?? [];
 
-  const relayer = async () => {
+  const agir = async (action: () => Promise<Publication>) => {
     setOccupe(true);
     setErreur(null);
     setProblemes([]);
     try {
       await synchroniser();
-      await executer(() => api.relayer(nom, v.cible));
+      await executer(action);
     } catch (e) {
       setErreur(e instanceof Error ? e.message : String(e));
       if (e instanceof ErreurApi) setProblemes(e.problemes);
@@ -40,11 +41,39 @@ export const PanneauSite: FC<Props> = ({ nom, video: v, urlSite, site, changer, 
       setOccupe(false);
     }
   };
+  const relayer = () => agir(() => api.relayer(nom, v.cible));
+  const retirer = () => agir(() => api.retirerDuSite(nom, v.cible, { nature: v.nature, confidentielle: v.confidentielle }));
+
+  const formeSite = diffusion(v).site;
+  const lienSite = v.replit.id && urlSite
+    ? <a href={`${urlSite.replace(/\/+$/, '')}/video/${v.replit.id}`} target="_blank" rel="noreferrer">Voir sur le site</a>
+    : null;
+  const retour = (
+    <>
+      {erreur && <p className="alerte">{erreur}</p>}
+      {problemes.length > 0 && <ul>{problemes.map(p => <li key={p}>{p}</li>)}</ul>}
+    </>
+  );
+
+  if (retraitAFaire(v)) {
+    return (
+      <div className="site">
+        <h4>Replit</h4>
+        <p className="alerte">{EXPLICATION_RETRAIT}</p>
+        <div className="actions">
+          <button className="principal" disabled={occupe} onClick={() => void retirer()}>Retirer du site</button>
+          {lienSite}
+        </div>
+        {occupe && <p><Attente libelle="Retrait du site…" /></p>}
+        {retour}
+      </div>
+    );
+  }
 
   return (
     <div className="site">
       <h4>Replit</h4>
-      <p className="discret">{EXPLICATIONS_RELAIS[v.profil]}</p>
+      {formeSite !== 'aucun' && <p className="discret">{EXPLICATIONS_RELAIS[formeSite]}</p>}
       {site ? (
         <div className="actions">
           <label>
@@ -72,15 +101,12 @@ export const PanneauSite: FC<Props> = ({ nom, video: v, urlSite, site, changer, 
         <button className="principal" disabled={occupe} onClick={() => void relayer()}>
           {v.replit.id ? 'Mettre à jour sur le site' : 'Relayer sur le site'}
         </button>
-        {v.replit.id && urlSite && (
-          <a href={`${urlSite.replace(/\/+$/, '')}/video/${v.replit.id}`} target="_blank" rel="noreferrer">Voir sur le site</a>
-        )}
+        {lienSite}
       </div>
       {occupe && (
-        <p><Attente libelle={`Relais en cours…${v.profil === 'interne' ? ' L’envoi du fichier vidéo peut prendre plusieurs minutes.' : ''}`} /></p>
+        <p><Attente libelle={`Relais en cours…${formeSite === 'fichier' ? ' L’envoi du fichier vidéo peut prendre plusieurs minutes.' : ''}`} /></p>
       )}
-      {erreur && <p className="alerte">{erreur}</p>}
-      {problemes.length > 0 && <ul>{problemes.map(p => <li key={p}>{p}</li>)}</ul>}
+      {retour}
     </div>
   );
 };

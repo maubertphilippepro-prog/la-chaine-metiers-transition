@@ -1,6 +1,7 @@
 import type { Ancrage, Consigne, FichierConsignes } from '../../noyau/consignes';
 import type { Montage } from '../../noyau/types';
 import type { CiblePublication, Publication } from '../../noyau/publication';
+import type { Qualification } from '../../noyau/qualification';
 import type { Cible } from '../../remotion/scripts/rendu';
 import type { VisibiliteYoutube } from '../../noyau/youtube';
 import type { DetailPublication, DetailTournage, DossierYoutube, EtatRendu, Pose, ResumeTournage, VerificationYoutube } from '../commun';
@@ -42,6 +43,8 @@ export const api = {
     await appeler<{ ok: true }>(`${chemin(nom)}/consignes`, enJson('PUT', fichier));
   },
   rendre: (nom: string, cible: Cible) => appeler<EtatRendu>(`${chemin(nom)}/rendu`, enJson('POST', { cible })),
+  retirerDuSite: (nom: string, cible: CiblePublication, q: Qualification) =>
+    appeler<Publication>(`${chemin(nom)}/publication/site/retirer`, enJson('POST', { cible, ...q })),
   etatRendu: () => appeler<EtatRendu>('/api/rendu'),
   publication: (nom: string) => appeler<DetailPublication>(`${chemin(nom)}/publication`),
   enregistrerPublication: (nom: string, p: Publication) => appeler<Publication>(`${chemin(nom)}/publication`, enJson('PUT', p)),

@@ -1,8 +1,8 @@
 import { type FC, useEffect, useRef, useState } from 'react';
-import { PROFILS, type Profil } from '../../../noyau/publication';
+import { diffusion, NATURES, type Nature } from '../../../noyau/qualification';
 import type { Pose } from '../../commun';
 import { api } from '../api';
-import { changerProfilParDefaut, EXPLICATIONS_PROFIL, LIBELLES_PROFIL } from '../logique/publication';
+import { changerQualificationParDefaut, LIBELLES_NATURE, resumeDiffusion } from '../logique/publication';
 import { usePublication } from '../usePublication';
 import type { EtatEnregistrement } from '../useMontage';
 import { CartePublication } from './CartePublication';
@@ -40,13 +40,25 @@ export const EcranPublication: FC<{ nom: string }> = ({ nom }) => {
           : <span className="discret">{LIBELLES_ENREGISTREMENT[enregistrement]}</span>}
       </header>
       <section className="panneau">
-        <label>
-          Profil par défaut{' '}
-          <select value={publication.profilParDefaut} onChange={e => modifier(p => changerProfilParDefaut(p, e.target.value as Profil))}>
-            {PROFILS.map(p => <option key={p} value={p}>{LIBELLES_PROFIL[p]}</option>)}
+        <div className="actions">
+          <span>Qualification par défaut :</span>
+          <select
+            value={publication.qualificationParDefaut.nature}
+            onChange={e => modifier(p => changerQualificationParDefaut(p, { ...p.qualificationParDefaut, nature: e.target.value as Nature }))}
+          >
+            {NATURES.map(n => <option key={n} value={n}>{LIBELLES_NATURE[n]}</option>)}
           </select>
-        </label>
-        <p className="discret">{EXPLICATIONS_PROFIL[publication.profilParDefaut]}</p>
+          <label>
+            <input
+              type="checkbox" checked={publication.qualificationParDefaut.confidentielle}
+              onChange={e => modifier(p => changerQualificationParDefaut(p, { ...p.qualificationParDefaut, confidentielle: e.target.checked }))}
+            />
+            {' '}Confidentielle
+          </label>
+        </div>
+        <p className="discret">
+          {resumeDiffusion(diffusion(publication.qualificationParDefaut))}. S’applique aux vidéos qui suivaient la précédente, sauf celles déjà sur le site.
+        </p>
         <h3>Images pour les vignettes</h3>
         <p className="discret">
           Enregistrement d’origine, avant montage. Placez-le sur l’image voulue, puis, dans la vignette d’une vidéo,
