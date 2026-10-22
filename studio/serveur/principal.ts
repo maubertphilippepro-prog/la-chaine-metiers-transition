@@ -13,7 +13,7 @@ import { requeteAutorisee } from './origine';
 import { detourerImage, extraireImage } from './pipeline';
 import { creerApiPublication } from './publication';
 import { redigerPublication } from './redaction';
-import { lireReferencesSite } from './site-replit';
+import { creerClientSite, lireReferencesSite } from './site-replit';
 import { relancerSuggestions } from './suggestions';
 import { SuiviRendu } from './suivi-rendu';
 import { lireVisibiliteYoutube, ouvrirDansExplorateur } from './youtube';
@@ -54,6 +54,8 @@ async function main(): Promise<void> {
     rendreVignette: (props, sortie, octetsMax) => rendreVignette(props, sortie, octetsMax),
     lireVisibiliteYoutube: id => lireVisibiliteYoutube(id),
     ouvrirDossier: ouvrirDansExplorateur,
+    // Clé d’API du site (REPLIT_API_KEY dans .env), égale au secret AUTOMATION_API_KEY du site.
+    site: creerClientSite(process.env.REPLIT_SITE_URL, process.env.REPLIT_API_KEY),
   });
 
   const serveur = http.createServer();

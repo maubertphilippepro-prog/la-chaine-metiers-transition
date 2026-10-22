@@ -56,6 +56,7 @@ export interface DetailPublication {
   videos: VideoDisponible[];
   camera: string | null;    // nom du fichier caméra dans bruts/
   site: ReferencesSite | null;
+  urlSite: string | null;   // adresse du site, pour ouvrir une vidéo relayée
   reglages: ReglagesPublication;
 }
 // Dossier « Préparer pour YouTube » : chemins absolus ; rendu est la vidéo placée dans le dossier.
