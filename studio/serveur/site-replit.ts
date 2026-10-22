@@ -42,7 +42,11 @@ export interface ClientSite {
 }
 
 const RIEN_PERDU = 'le relais reste à faire, rien n’est perdu';
-const texteErreur = (e: unknown) => (e instanceof Error ? e.message : String(e));
+// fetch ne dit que « fetch failed » : la raison (coupure, délai, certificat…) est dans la cause.
+function texteErreur(e: unknown): string {
+  if (!(e instanceof Error)) return String(e);
+  return e.cause instanceof Error ? `${e.message} : ${e.cause.message}` : e.message;
+}
 
 export function creerClientSite(urlSite: string | undefined, cle: string | undefined, recuperer: typeof fetch = fetch): ClientSite | null {
   if (!urlSite || !cle) return null;

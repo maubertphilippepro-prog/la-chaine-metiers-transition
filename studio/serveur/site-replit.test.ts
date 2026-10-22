@@ -106,5 +106,8 @@ describe('creerClientSite', () => {
     await expect(site().envoyerFichier(fichier, 'image/jpeg')).rejects.toThrow('Fichier refusé par le stockage du site (403)');
     const injoignable = vi.fn(async () => { throw new Error('ECONNREFUSED'); }) as unknown as typeof fetch;
     await expect(creerClientSite(base, 'cle', injoignable)!.enregistrerVideo(null, CORPS)).rejects.toThrow('Site injoignable (ECONNREFUSED)');
+    // fetch ne dit que « fetch failed » : la vraie raison est dans la cause.
+    const coupe = vi.fn(async () => { throw new TypeError('fetch failed', { cause: new Error('read ECONNRESET') }); }) as unknown as typeof fetch;
+    await expect(creerClientSite(base, 'cle', coupe)!.enregistrerVideo(null, CORPS)).rejects.toThrow('Site injoignable (fetch failed : read ECONNRESET)');
   });
 });

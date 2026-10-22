@@ -42,7 +42,7 @@ export const PanneauSite: FC<Props> = ({ nom, video: v, urlSite, site, changer, 
 
   return (
     <div className="site">
-      <h4>Site</h4>
+      <h4>Replit</h4>
       <p className="discret">{EXPLICATIONS_RELAIS[v.profil]}</p>
       {site ? (
         <div className="actions">
