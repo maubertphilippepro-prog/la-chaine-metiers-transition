@@ -59,5 +59,6 @@ export const api = {
     appeler<Publication>(`${chemin(nom)}/publication/youtube/envoi`, enJson('POST', { cible, ...envoi })),
   verifierYoutube: (nom: string, cible: CiblePublication) =>
     appeler<VerificationYoutube>(`${chemin(nom)}/publication/youtube/verifier`, enJson('POST', { cible })),
+  relayer: (nom: string, cible: CiblePublication) => appeler<Publication>(`${chemin(nom)}/publication/relais`, enJson('POST', { cible })),
   poses: () => appeler<Pose[]>('/api/poses'),
 };

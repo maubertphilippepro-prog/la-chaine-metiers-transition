@@ -6,6 +6,7 @@ import { api, ErreurApi } from '../api';
 import { EXPLICATIONS_PROFIL, libelleCible, LIBELLES_PROFIL, LIBELLES_STATUT, tagsDepuisTexte, texteDepuisTags } from '../logique/publication';
 import { pretePourYoutube } from '../../../noyau/youtube';
 import { ChoixVignette } from './ChoixVignette';
+import { PanneauSite } from './PanneauSite';
 import { PanneauYoutube } from './PanneauYoutube';
 
 interface Props {
@@ -121,6 +122,9 @@ export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail,
             Valider pour la publication
           </button>
           {pretePourYoutube(v) && <PanneauYoutube key={v.profil} nom={nom} video={v} synchroniser={synchroniser} executer={executer} />}
+          {pretePourYoutube(v) && v.profil !== 'perso' && (
+            <PanneauSite key={v.profil} nom={nom} video={{ ...v, profil: v.profil }} urlSite={detail.urlSite} synchroniser={synchroniser} executer={executer} />
+          )}
         </>
       )}
       {occupe && <p className="discret">{occupe}</p>}

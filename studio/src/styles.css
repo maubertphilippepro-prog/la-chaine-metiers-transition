@@ -86,7 +86,7 @@ button.lien { background: none; border: none; padding: 0; text-align: left; curs
 .statut-prete { background: #d1fae5; }
 .statut-erreur { background: #fee2e2; }
 .statut-envoyee-youtube, .statut-relayee { background: #dbeafe; }
-.carte-publication .youtube { border-top: 1px solid #e5e7eb; margin-top: 1rem; padding-top: 0.5rem; }
+.carte-publication .youtube, .carte-publication .site { border-top: 1px solid #e5e7eb; margin-top: 1rem; padding-top: 0.5rem; }
 .carte-publication .youtube pre { white-space: pre-wrap; }
 .vignette { border: 1px solid #d1d5db; border-radius: 6px; padding: 0.5rem 1rem; margin: 1rem 0; }
 .pose { padding: 2px; background: #f3f4f6; border: 2px solid transparent; }

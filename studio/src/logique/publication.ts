@@ -9,6 +9,13 @@ export const EXPLICATIONS_PROFIL: Record<Profil, string> = {
   mixte: 'Contenu sans risque : publique sur YouTube, puis relayée sur le site.',
 };
 
+export const EXPLICATIONS_RELAIS: Record<Exclude<Profil, 'perso'>, string> = {
+  interne: 'Le fichier vidéo et la vignette sont envoyés sur le site, visibles des seuls comptes autorisés. '
+    + 'Un nouveau relais renvoie le fichier et met à jour la fiche.',
+  mixte: 'La vidéo YouTube est intégrée au site, visible de tous, une fois lisible publiquement sur YouTube. '
+    + 'Un nouveau relais met à jour la fiche.',
+};
+
 export const LIBELLES_STATUT: Record<StatutPublication, string> = {
   'a-preparer': 'À préparer',
   prete: 'Prête',

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { accorderPublication, modifierVideo } from '../../../noyau/publication';
-import { baseVignette, changerProfilParDefaut, isoDepuisLocal, libelleCible, LIBELLES_VISIBILITE, localDepuisIso, tagsDepuisTexte, texteDepuisTags } from './publication';
+import { baseVignette, changerProfilParDefaut, EXPLICATIONS_RELAIS, isoDepuisLocal, libelleCible, LIBELLES_VISIBILITE, localDepuisIso, tagsDepuisTexte, texteDepuisTags } from './publication';
 
 describe('tags', () => {
   it('découpe sur les virgules et retire les vides', () => {
@@ -53,5 +53,13 @@ describe('dates de programmation', () => {
   });
   it('nomme les visibilités comme YouTube Studio', () => {
     expect(LIBELLES_VISIBILITE).toEqual({ privee: 'Privée', publique: 'Publique', programmee: 'Programmée' });
+  });
+});
+
+describe('relais sur le site', () => {
+  it('explique le relais des seuls profils relayés', () => {
+    expect(Object.keys(EXPLICATIONS_RELAIS)).toEqual(['interne', 'mixte']);
+    expect(EXPLICATIONS_RELAIS.interne).toContain('comptes autorisés');
+    expect(EXPLICATIONS_RELAIS.mixte).toContain('lisible publiquement');
   });
 });
