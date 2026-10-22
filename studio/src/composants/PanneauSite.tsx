@@ -1,5 +1,6 @@
 import { type FC, useState } from 'react';
 import type { Publication, VideoPubliee } from '../../../noyau/publication';
+import type { ReferencesSite } from '../../serveur/site-replit';
 import { api, ErreurApi } from '../api';
 import { EXPLICATIONS_RELAIS } from '../logique/publication';
 
@@ -7,15 +8,22 @@ interface Props {
   nom: string;
   video: VideoPubliee & { profil: 'interne' | 'mixte' };
   urlSite: string | null;
+  site: ReferencesSite | null;
+  changer: (c: Partial<VideoPubliee>) => void;
   synchroniser: () => Promise<void>;
   executer: (action: () => Promise<Publication>) => Promise<void>;
 }
 
-// Relais d’une vidéo Interne ou Mixte sur le site ; le serveur vérifie les conditions et explique un refus.
-export const PanneauSite: FC<Props> = ({ nom, video: v, urlSite, synchroniser, executer }) => {
+const idOuNull = (valeur: string) => (valeur === '' ? null : Number(valeur));
+
+// Catégorie, playlist et relais d’une vidéo Interne ou Mixte sur le site ; le serveur vérifie les conditions et explique un refus.
+export const PanneauSite: FC<Props> = ({ nom, video: v, urlSite, site, changer, synchroniser, executer }) => {
   const [occupe, setOccupe] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [problemes, setProblemes] = useState<string[]>([]);
+
+  // Playlists de la catégorie choisie (toutes tant qu’aucune n’est choisie).
+  const playlists = site?.playlists.filter(p => v.replit.categorieId === null || p.categorieId === v.replit.categorieId) ?? [];
 
   const relayer = async () => {
     setOccupe(true);
@@ -36,6 +44,29 @@ export const PanneauSite: FC<Props> = ({ nom, video: v, urlSite, synchroniser, e
     <div className="site">
       <h4>Site</h4>
       <p className="discret">{EXPLICATIONS_RELAIS[v.profil]}</p>
+      {site ? (
+        <div className="actions">
+          <label>
+            Catégorie{' '}
+            <select
+              value={v.replit.categorieId ?? ''}
+              onChange={e => changer({ replit: { ...v.replit, categorieId: idOuNull(e.target.value), playlistId: null } })}
+            >
+              <option value="">—</option>
+              {site.categories.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+            </select>
+          </label>
+          <label>
+            Playlist{' '}
+            <select value={v.replit.playlistId ?? ''} onChange={e => changer({ replit: { ...v.replit, playlistId: idOuNull(e.target.value) } })}>
+              <option value="">— aucune —</option>
+              {playlists.map(p => <option key={p.id} value={p.id}>{p.nom}</option>)}
+            </select>
+          </label>
+        </div>
+      ) : (
+        <p className="alerte">Site injoignable : catégories et playlists indisponibles, relais impossible pour l’instant.</p>
+      )}
       <div className="actions">
         <button className="principal" disabled={occupe} onClick={() => void relayer()}>
           {v.replit.id ? 'Mettre à jour sur le site' : 'Relayer sur le site'}

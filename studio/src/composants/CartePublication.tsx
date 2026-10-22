@@ -22,7 +22,6 @@ interface Props {
   synchroniser: () => Promise<void>;
 }
 
-const idOuNull = (valeur: string) => (valeur === '' ? null : Number(valeur));
 
 export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail, poses, complete, instant, modifier, executer, synchroniser }) => {
   const [occupe, setOccupe] = useState<string | null>(null);
@@ -47,9 +46,7 @@ export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail,
   };
 
   const r = detail.reglages;
-  const site = detail.site;
   const descriptionFinale = descriptionYoutube(v.description, disponible.chapitres);
-  const playlists = site?.playlists.filter(p => v.replit.categorieId === null || p.categorieId === v.replit.categorieId) ?? [];
   return (
     <section className="panneau carte-publication">
       <h3>
@@ -72,27 +69,6 @@ export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail,
             </select>
           </label>
           <p className="discret">{EXPLICATIONS_PROFIL[v.profil]}</p>
-          {v.profil !== 'perso' && site && (
-            <div className="actions">
-              <label>
-                Catégorie du site{' '}
-                <select
-                  value={v.replit.categorieId ?? ''}
-                  onChange={e => changer({ replit: { ...v.replit, categorieId: idOuNull(e.target.value), playlistId: null } })}
-                >
-                  <option value="">—</option>
-                  {site.categories.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
-                </select>
-              </label>
-              <label>
-                Playlist du site{' '}
-                <select value={v.replit.playlistId ?? ''} onChange={e => changer({ replit: { ...v.replit, playlistId: idOuNull(e.target.value) } })}>
-                  <option value="">—</option>
-                  {playlists.map(p => <option key={p.id} value={p.id}>{p.nom}</option>)}
-                </select>
-              </label>
-            </div>
-          )}
           <button disabled={!!occupe} onClick={() => void lancer('Rédaction par Claude…', () => api.rediger(nom, v.cible))}>
             Proposer les textes avec Claude
           </button>
@@ -123,7 +99,7 @@ export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail,
           </button>
           {pretePourYoutube(v) && <PanneauYoutube key={`youtube-${v.profil}`}nom={nom} video={v} synchroniser={synchroniser} executer={executer} />}
           {pretePourYoutube(v) && v.profil !== 'perso' && (
-            <PanneauSite key={`site-${v.profil}`}nom={nom} video={{ ...v, profil: v.profil }} urlSite={detail.urlSite} synchroniser={synchroniser} executer={executer} />
+            <PanneauSite key={`site-${v.profil}`} nom={nom} video={{ ...v, profil: v.profil }} urlSite={detail.urlSite} site={detail.site} changer={changer} synchroniser={synchroniser} executer={executer} />
           )}
         </>
       )}
