@@ -85,13 +85,33 @@ YouTube injoignable : message inchangé.
 | `lien` | vidéo `envoyee-youtube` et lisible par oEmbed au moment du relais | `videoUrl` YouTube, vignette dans le stockage, `visibility: public` |
 | `aucun` | refusé : « Une vidéo Perso n’est pas relayée sur le site. » | — |
 
-Le reste du relais (corps envoyé, mise à jour par `PATCH`, erreurs) ne change pas. Une vidéo relayée dont la qualification change ensuite n'est pas retirée du site : le relais suivant met à jour sa visibilité sur le site selon la nouvelle diffusion.
+Le reste du relais (corps envoyé, mise à jour par `PATCH`, erreurs) ne change pas. Une vidéo relayée qui passe de Pro confidentielle à Pro non confidentielle, ou l'inverse, reste sur le site : le relais suivant la met à jour selon la nouvelle diffusion (fichier ou lien, visibilité).
+
+### Retrait d'une vidéo requalifiée en Perso
+
+Une vidéo qui a un `replit.id` et dont la diffusion site devient `aucun` (passage en Perso) est retirée du site :
+
+1. Dans le studio, passer une telle vidéo en Perso demande confirmation : « Cette vidéo est sur le site : la passer en Perso la retirera du site. » Sans confirmation, la qualification ne change pas.
+2. Après confirmation, le studio envoie l'enregistrement en attente (`synchroniser`), puis appelle `POST /api/tournages/<nom>/publication/site/retirer` `{ cible }`.
+3. Le serveur vérifie que `diffusion.site` vaut `aucun` et que `replit.id` existe (sinon 409), puis appelle `DELETE /api/videos/:id` sur le site avec la clé d'API. Une réponse 404 compte comme un retrait réussi : la vidéo n'y est déjà plus.
+4. En cas de succès : `replit.id`, `replit.categorieId` et `replit.playlistId` repassent à `null`, `erreur` à `null`, et le statut `relayee` devient `envoyee-youtube` si `youtube.id` existe, `prete` sinon.
+5. En cas d'échec (site injoignable, clé refusée) : `statut: erreur`, `erreur.etape: 'replit'` avec le message « Retrait du site impossible : … ; la vidéo y est encore visible. » ; `replit.id` est gardé. Le panneau Site reste affiché pour cette vidéo avec un seul bouton **Retirer du site**, qui relance l'étape 3.
+
+Aucune vidéo Perso n'est envoyée sur YouTube tant qu'un retrait est en échec : « Préparer pour YouTube » et « Enregistrer l'envoi » sont refusés avec « Retirez d’abord la vidéo du site. »
+
+### Modification du site
+
+Faite par l'agent Replit, puis vérifiée en lisant le code et en appelant l'API, comme au plan 8 :
+
+- `DELETE /api/videos/:id`, réservé à la clé d'API ou à un administrateur (401 sinon), supprime la vidéo, ses rattachements aux playlists et ses statistiques, ainsi que ses objets dans le stockage (`videoObject`, `thumbnailObject`). Réponse 204 ; 404 si la vidéo n'existe pas.
+- Si la route existe déjà, seul le nettoyage du stockage est vérifié et ajouté au besoin.
+- L'OpenAPI du site est mis à jour en premier, puis le code est régénéré.
 
 ## Studio
 
 - La carte de chaque vidéo remplace le choix du profil par deux contrôles : **Pro / Perso** et une case **Confidentielle**. Sous les contrôles, une ligne résume la diffusion déduite, par exemple « YouTube : Non répertoriée · Site : lien YouTube, visible de tous ».
 - La qualification par défaut du tournage se règle de la même façon, à la place du profil par défaut.
-- Le panneau YouTube n'apparaît que si `diffusion.youtube` ≠ `aucun` ; le panneau Site que si `diffusion.site` ≠ `aucun`. Catégorie et playlist du site ne sont demandées que pour les vidéos Pro.
+- Le panneau YouTube n'apparaît que si `diffusion.youtube` ≠ `aucun` ; le panneau Site que si `diffusion.site` ≠ `aucun`, ou si un retrait du site reste à faire. Catégorie et playlist du site ne sont demandées que pour les vidéos Pro.
 
 ## Sablier
 
@@ -107,7 +127,7 @@ Un seul composant `Sablier` (CSS, sans dépendance), qui respecte `prefers-reduc
 | Publication, carte | rédaction par Claude, vérification avant validation, rendu de la vignette |
 | Publication, choix de la vignette | extraction d'une image de la caméra ou de l'écran |
 | Panneau YouTube | préparation du dossier, ouverture du dossier, enregistrement de l'envoi, vérification sur YouTube |
-| Panneau Site | relais sur le site |
+| Panneau Site | relais sur le site, retrait du site |
 | Montage | relance des suggestions, envoi d'une consigne à Claude |
 | Rendu | préparation avant la première progression (la barre de progression reste ensuite) |
 | Enregistrements différés | « Enregistrement… » des écrans Montage et Publication |
@@ -122,11 +142,11 @@ Les copies dans le presse-papiers, quasi instantanées, n'en affichent pas.
 
 ## Tests
 
-- **noyau** : `diffusion` pour les quatre qualifications ; conversion d'un `publication.json` v1 (trois profils, `profilParDefaut`) ; refus de « Préparer pour YouTube » sans YouTube ; visibilités acceptées à l'envoi ; bilan oEmbed des trois diffusions YouTube ; conditions du relais `fichier` et `lien` ; mentions interdites contrôlées pour la non répertoriée.
-- **serveur du studio** : routes YouTube et relais avec les nouvelles qualifications, oEmbed et site simulés.
-- **studio** : libellés de la diffusion déduite.
-- **essai réel guidé** : sur `zz-essai-plan7`, conversion du fichier v1, puis une vidéo Pro non confidentielle téléversée en Non répertoriée, URL collée, vérification et relais.
+- **noyau** : `diffusion` pour les quatre qualifications ; conversion d'un `publication.json` v1 (trois profils, `profilParDefaut`) ; refus de « Préparer pour YouTube » sans YouTube ; visibilités acceptées à l'envoi ; bilan oEmbed des trois diffusions YouTube ; conditions du relais `fichier` et `lien` ; mentions interdites contrôlées pour la non répertoriée ; état après un retrait réussi ou échoué, statut rendu selon `youtube.id`.
+- **serveur du studio** : routes YouTube, relais et retrait avec les nouvelles qualifications, oEmbed et site simulés (204, 404 compté comme réussi, 401, site injoignable) ; refus de l'envoi YouTube tant qu'un retrait est en échec.
+- **studio** : libellés de la diffusion déduite ; confirmation demandée avant de passer en Perso une vidéo présente sur le site.
+- **essai réel guidé** : sur `zz-essai-plan7`, conversion du fichier v1, puis une vidéo Pro non confidentielle téléversée en Non répertoriée, URL collée, vérification et relais ; enfin passage de cette vidéo en Perso et contrôle qu'elle a disparu du site et de son stockage.
 
 ## Hors périmètre
 
-Contrôle réel de la visibilité Non répertoriée (il faudrait l'API YouTube), retrait automatique d'une vidéo du site quand sa qualification passe à Perso.
+Contrôle réel de la visibilité Non répertoriée (il faudrait l'API YouTube).
