@@ -1,7 +1,7 @@
 import { nomFichierEpisode } from './nommage';
+import { diffusion, memeQualification, NATURES, QUALIFICATION_PAR_DEFAUT, qualificationDepuisProfil, type Nature, type Qualification } from './qualification';
 import type { Reglages } from './types';
 
-export type Profil = 'interne' | 'perso' | 'mixte';
 export type StatutPublication = 'a-preparer' | 'prete' | 'envoyee-youtube' | 'relayee' | 'erreur';
 // Vidéo complète ou numéro d'épisode (1, 2…), comme la cible du rendu.
 export type CiblePublication = 'complete' | number;
@@ -20,7 +20,9 @@ export interface Vignette {
 export interface VideoPubliee {
   cible: CiblePublication;
   publier: boolean;
-  profil: Profil;
+  // Qualification choisie par l’auteur ; la diffusion s’en déduit (noyau/qualification.ts).
+  nature: Nature;
+  confidentielle: boolean;
   statut: StatutPublication;
   titre: string;
   variantesTitre: string[];
@@ -28,14 +30,14 @@ export interface VideoPubliee {
   tags: string[];
   accroches: string[];
   vignette: Vignette | null;
-  youtube: { id: string | null; visibilite: 'privee' | 'publique' | 'programmee'; programmeeLe: string | null; playlistId: string | null };
+  youtube: { id: string | null; visibilite: 'privee' | 'non-repertoriee' | 'publique' | 'programmee'; programmeeLe: string | null; playlistId: string | null };
   replit: { id: number | null; categorieId: number | null; playlistId: number | null };
   erreur: { etape: 'vignette' | 'youtube' | 'replit'; message: string; le: string } | null;
 }
 
 export interface Publication {
-  version: 1;
-  profilParDefaut: Profil;
+  version: 2;
+  qualificationParDefaut: Qualification;
   videos: VideoPubliee[];
 }
 
@@ -47,14 +49,14 @@ export interface BasesImages {
   poses: string;
 }
 
-export const PROFILS: Profil[] = ['interne', 'perso', 'mixte'];
 const STATUTS: StatutPublication[] = ['a-preparer', 'prete', 'envoyee-youtube', 'relayee', 'erreur'];
 
-export function videoParDefaut(cible: CiblePublication, profil: Profil): VideoPubliee {
+export function videoParDefaut(cible: CiblePublication, q: Qualification): VideoPubliee {
   return {
     cible,
     publier: cible === 'complete',
-    profil,
+    nature: q.nature,
+    confidentielle: q.confidentielle,
     statut: 'a-preparer',
     titre: '',
     variantesTitre: [],
@@ -70,11 +72,11 @@ export function videoParDefaut(cible: CiblePublication, profil: Profil): VideoPu
 
 // Une entrée par vidéo rendue, dans l'ordre des cibles : les vidéos d'un montage précédent qui n'existent plus disparaissent.
 export function accorderPublication(p: Publication | null, cibles: CiblePublication[]): Publication {
-  const profil = p?.profilParDefaut ?? 'perso';
+  const q = p?.qualificationParDefaut ?? QUALIFICATION_PAR_DEFAUT;
   return {
-    version: 1,
-    profilParDefaut: profil,
-    videos: cibles.map(c => p?.videos.find(v => v.cible === c) ?? videoParDefaut(c, profil)),
+    version: 2,
+    qualificationParDefaut: { ...q },
+    videos: cibles.map(c => p?.videos.find(v => v.cible === c) ?? videoParDefaut(c, q)),
   };
 }
 
@@ -96,10 +98,10 @@ export function appliquerModifications(ancienne: Publication, nouvelle: Publicat
   return {
     ...nouvelle,
     videos: nouvelle.videos.map(n => {
-      const a = ancienne.videos.find(v => v.cible === n.cible) ?? videoParDefaut(n.cible, nouvelle.profilParDefaut);
+      const a = ancienne.videos.find(v => v.cible === n.cible) ?? videoParDefaut(n.cible, nouvelle.qualificationParDefaut);
       const memeImage = cleVignette(a.vignette) === cleVignette(n.vignette);
       const vignette = n.vignette && { ...n.vignette, fichier: memeImage ? (a.vignette?.fichier ?? null) : null };
-      const change = a.profil !== n.profil || a.titre !== n.titre || a.description !== n.description
+      const change = !memeQualification(a, n) || a.titre !== n.titre || a.description !== n.description
         || a.tags.join('\n') !== n.tags.join('\n') || !memeImage;
       return {
         ...n,
@@ -113,11 +115,33 @@ export function appliquerModifications(ancienne: Publication, nouvelle: Publicat
   };
 }
 
+// Vidéo encore sur le site alors que sa qualification ne l’y met plus (passée en Perso) : à retirer.
+export const retraitAFaire = (v: VideoPubliee) => diffusion(v).site === 'aucun' && v.replit.id !== null;
+
 const estObjet = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const estTexte = (v: unknown): v is string => typeof v === 'string';
 const listeDeTextes = (v: unknown) => Array.isArray(v) && v.every(estTexte);
 const estInstant = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
 const estId = (v: unknown) => v === null || (typeof v === 'number' && Number.isInteger(v));
+
+const estQualification = (q: unknown) => estObjet(q) && NATURES.includes(q.nature as Nature) && typeof q.confidentielle === 'boolean';
+
+// publication.json version 1 (profils Interne, Perso, Mixte) lu comme une version 2 ; il est réécrit en version 2
+// au prochain enregistrement. Une forme inattendue est rendue telle quelle : raisonPublication dira ce qui ne va pas.
+export function migrerPublication(valeur: unknown): unknown {
+  if (!estObjet(valeur) || valeur.version !== 1 || !Array.isArray(valeur.videos)) return valeur;
+  const { profilParDefaut, ...reste } = valeur;
+  return {
+    ...reste,
+    version: 2,
+    qualificationParDefaut: qualificationDepuisProfil(profilParDefaut) ?? profilParDefaut,
+    videos: valeur.videos.map((v: unknown) => {
+      if (!estObjet(v)) return v;
+      const { profil, ...autres } = v;
+      return { ...autres, ...(qualificationDepuisProfil(profil) ?? {}) };
+    }),
+  };
+}
 
 function raisonVignette(v: unknown): string | null {
   if (v === null) return null;
@@ -134,15 +158,16 @@ function raisonVignette(v: unknown): string | null {
 
 export function raisonPublication(p: unknown): string | null {
   if (!estObjet(p)) return 'objet attendu';
-  if (p.version !== 1) return 'version 1 attendue';
-  if (!PROFILS.includes(p.profilParDefaut as Profil)) return 'profilParDefaut invalide';
+  if (p.version !== 2) return 'version 2 attendue';
+  if (!estQualification(p.qualificationParDefaut)) return 'qualificationParDefaut invalide';
   if (!Array.isArray(p.videos)) return 'videos doit être une liste';
   for (const [i, v] of p.videos.entries()) {
     const ou = `videos[${i}]`;
     if (!estObjet(v)) return `${ou} : objet attendu`;
     if (v.cible !== 'complete' && !(Number.isInteger(v.cible) && (v.cible as number) >= 1)) return `${ou} : cible invalide`;
     if (typeof v.publier !== 'boolean') return `${ou} : publier doit être vrai ou faux`;
-    if (!PROFILS.includes(v.profil as Profil)) return `${ou} : profil invalide`;
+    if (!NATURES.includes(v.nature as Nature)) return `${ou} : nature invalide`;
+    if (typeof v.confidentielle !== 'boolean') return `${ou} : confidentielle doit être vrai ou faux`;
     if (!STATUTS.includes(v.statut as StatutPublication)) return `${ou} : statut invalide`;
     for (const champ of ['titre', 'description']) if (!estTexte(v[champ])) return `${ou} : ${champ} doit être un texte`;
     for (const champ of ['variantesTitre', 'tags', 'accroches']) if (!listeDeTextes(v[champ])) return `${ou} : ${champ} doit être une liste de textes`;
@@ -214,9 +239,10 @@ export function problemesPreparation(
   if (tags > r.tagsMax) problemes.push(`Tags trop longs : ${tags} caractères, ${r.tagsMax} au plus.`);
   if (!v.vignette) problemes.push('Vignette à composer.');
   else if (!v.vignette.fichier || !vignettePresente) problemes.push('Vignette à rendre.');
-  if (v.profil !== 'interne') {
+  // Tout ce qui part sur YouTube, même privé ou non répertorié, peut être vu hors du cercle prévu.
+  if (diffusion(v).youtube !== 'aucun') {
     for (const m of mentionsTrouvees([v.titre, descriptionFinale, ...v.tags, v.vignette?.accroche ?? ''], r.mentionsInterdites)) {
-      problemes.push(`Mention interdite pour une vidéo publique : « ${m} ».`);
+      problemes.push(`Mention interdite pour une vidéo envoyée sur YouTube : « ${m} ».`);
     }
   }
   return problemes;

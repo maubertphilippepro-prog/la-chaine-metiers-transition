@@ -1,4 +1,5 @@
-import { nomCible, problemesPreparation, type CiblePublication, type Profil, type ReglagesPublication, type VideoPubliee } from './publication';
+import { nomCible, problemesPreparation, retraitAFaire, type CiblePublication, type ReglagesPublication, type VideoPubliee } from './publication';
+import { diffusion, type DiffusionYoutube, type Qualification } from './qualification';
 
 export type VisibiliteYoutube = VideoPubliee['youtube']['visibilite'];
 // Résultat de la vérification par oEmbed : lisible sans compte, non lisible (privée, programmée, supprimée), ou YouTube injoignable.
@@ -19,7 +20,11 @@ export interface TextesYoutube {
 }
 
 const ID = /^[A-Za-z0-9_-]{11}$/;
-const STATUTS_ENVOI: VideoPubliee['statut'][] = ['prete', 'envoyee-youtube', 'relayee'];
+const STATUTS_VALIDES: VideoPubliee['statut'][] = ['prete', 'envoyee-youtube', 'relayee'];
+type AvecYoutube = Exclude<DiffusionYoutube, 'aucun'>;
+
+export const SANS_YOUTUBE = 'Une vidéo Pro confidentielle ne va pas sur YouTube : elle est seulement relayée sur le site.';
+export const RETRAIT_D_ABORD = 'Retirez d’abord la vidéo du site.';
 
 export const FORMES_URL = 'Formes acceptées : youtube.com/watch?v=…, youtu.be/…, youtube.com/shorts/…, '
   + 'studio.youtube.com/video/…/edit, ou l’identifiant seul de 11 caractères.';
@@ -43,20 +48,30 @@ export function idYoutube(texte: string): string | null {
   return id && ID.test(id) ? id : null;
 }
 
-export const visibilitesIndiquees = (profil: Profil): VisibiliteYoutube[] =>
-  (profil === 'interne' ? ['privee'] : ['publique', 'programmee']);
+const VISIBILITES: Record<DiffusionYoutube, VisibiliteYoutube[]> = {
+  aucun: [],
+  'non-repertoriee': ['non-repertoriee'],
+  privee: ['privee'],
+  publique: ['publique', 'programmee'],
+};
 
-export const pretePourYoutube = (v: VideoPubliee) => v.publier && STATUTS_ENVOI.includes(v.statut);
+export const visibilitesIndiquees = (q: Qualification): VisibiliteYoutube[] => VISIBILITES[diffusion(q).youtube];
+
+// Cochée et validée : prête à partir sur YouTube ou sur le site, ou à y être mise à jour.
+export const validee = (v: VideoPubliee) => v.publier && STATUTS_VALIDES.includes(v.statut);
+
+export const pretePourYoutube = (v: VideoPubliee) => validee(v) && diffusion(v).youtube !== 'aucun' && !retraitAFaire(v);
 
 export const dossierYoutube = (c: CiblePublication) => `publication/${nomCible(c)}`;
 
-export function problemesEnvoi(
+// Contrôles communs à l’envoi sur YouTube et au relais sur le site.
+export function problemesDiffusion(
   v: VideoPubliee, descriptionFinale: string, r: ReglagesPublication,
   etat: { rendu: { fichier: string; present: boolean }; octetsVignette: number | null },
 ): string[] {
   const problemes: string[] = [];
   if (!v.publier) problemes.push('Vidéo non cochée pour la publication.');
-  if (!STATUTS_ENVOI.includes(v.statut)) problemes.push('Vidéo pas encore validée pour la publication.');
+  if (!STATUTS_VALIDES.includes(v.statut)) problemes.push('Vidéo pas encore validée pour la publication.');
   if (!etat.rendu.present) problemes.push(`Rendu absent : ${etat.rendu.fichier}.`);
   problemes.push(...problemesPreparation(v, descriptionFinale, r, etat.octetsVignette !== null));
   if (etat.octetsVignette !== null && etat.octetsVignette > r.vignetteOctetsMax) {
@@ -65,20 +80,33 @@ export function problemesEnvoi(
   return problemes;
 }
 
-const CONSIGNE_VISIBILITE: Record<Profil, string> = {
-  interne: 'Privée (profil Interne : jamais publique ni non répertoriée)',
-  perso: 'Publique, ou Programmée à la date voulue (profil Perso)',
-  mixte: 'Publique, ou Programmée à la date voulue (profil Mixte : relayée sur le site une fois en ligne)',
+export function problemesEnvoi(
+  v: VideoPubliee, descriptionFinale: string, r: ReglagesPublication,
+  etat: { rendu: { fichier: string; present: boolean }; octetsVignette: number | null },
+): string[] {
+  return [
+    ...(diffusion(v).youtube === 'aucun' ? [SANS_YOUTUBE] : []),
+    ...(retraitAFaire(v) ? [RETRAIT_D_ABORD] : []),
+    ...problemesDiffusion(v, descriptionFinale, r, etat),
+  ];
+}
+
+const CONSIGNE_VISIBILITE: Record<AvecYoutube, string> = {
+  'non-repertoriee': 'Non répertoriée (Pro non confidentielle : jamais publique ; relayée sur le site une fois l’URL enregistrée)',
+  privee: 'Privée (Perso confidentielle : jamais publique ni non répertoriée)',
+  publique: 'Publique, ou Programmée à la date voulue (Perso non confidentielle)',
 };
 
 export function textesYoutube(
   v: VideoPubliee, descriptionFinale: string, o: { playlist: string | null; cheminRendu: string },
 ): TextesYoutube {
+  const d = diffusion(v).youtube;
+  if (d === 'aucun') throw new Error(SANS_YOUTUBE);
   const reglages = [
     'Réglages à choisir dans YouTube Studio',
     '',
     `Fichier vidéo : ${o.cheminRendu}`,
-    `Visibilité : ${CONSIGNE_VISIBILITE[v.profil]}`,
+    `Visibilité : ${CONSIGNE_VISIBILITE[d]}`,
     'Catégorie : Science et technologie',
     'Langue de la vidéo : Français',
     'Audience : Non, cette vidéo n’est pas conçue pour les enfants',
@@ -93,11 +121,18 @@ export function ficheYoutube(t: TextesYoutube): string {
   return `${sections.map(([nom, texte]) => `=== ${nom} ===\n${texte}`).join('\n\n')}\n`;
 }
 
+const REFUS_VISIBILITE: Record<AvecYoutube, string> = {
+  'non-repertoriee': 'Une vidéo Pro non confidentielle est non répertoriée sur YouTube.',
+  privee: 'Une vidéo Perso confidentielle reste privée sur YouTube.',
+  publique: 'Une vidéo Perso non confidentielle est publique ou programmée sur YouTube.',
+};
+
 export function raisonEnvoi(v: VideoPubliee, e: EnvoiYoutube): string | null {
-  if (!pretePourYoutube(v)) return 'Validez d’abord la vidéo pour la publication.';
-  if (!visibilitesIndiquees(v.profil).includes(e.visibilite)) {
-    return v.profil === 'interne' ? 'Une vidéo Interne reste privée sur YouTube.' : 'Une vidéo Perso ou Mixte est publique ou programmée sur YouTube.';
-  }
+  if (!validee(v)) return 'Validez d’abord la vidéo pour la publication.';
+  const d = diffusion(v).youtube;
+  if (d === 'aucun') return SANS_YOUTUBE;
+  if (retraitAFaire(v)) return RETRAIT_D_ABORD;
+  if (!VISIBILITES[d].includes(e.visibilite)) return REFUS_VISIBILITE[d];
   if (e.visibilite === 'programmee') {
     if (!e.programmeeLe || Number.isNaN(Date.parse(e.programmeeLe))) return 'Date et heure de mise en ligne attendues.';
   } else if (e.programmeeLe !== null) {
@@ -117,9 +152,17 @@ export function enregistrerEnvoi(v: VideoPubliee, e: EnvoiYoutube): Partial<Vide
 export function bilanLecture(v: VideoPubliee, lecture: LectureYoutube, maintenant: Date): { alerte: boolean; message: string } {
   if (lecture === 'inconnue') return { alerte: true, message: 'Vérification impossible : YouTube ne répond pas, réessayez plus tard.' };
   const publique = lecture === 'publique';
-  if (v.profil === 'interne') {
+  const d = diffusion(v).youtube;
+  if (d === 'non-repertoriee') {
+    // oEmbed lit une vidéo non répertoriée comme une publique : le réglage se vérifie dans YouTube Studio.
     return publique
-      ? { alerte: true, message: 'Vidéo Interne lisible publiquement : passez-la en privé dans YouTube Studio.' }
+      ? { alerte: false, message: 'Vidéo lisible par lien. Vérifiez dans YouTube Studio qu’elle est bien Non répertoriée.' }
+      : { alerte: true, message: 'Vidéo pas encore lisible : passez-la en Non répertoriée dans YouTube Studio.' };
+  }
+  // Privée, ou Pro confidentielle déjà envoyée sur YouTube avant sa requalification : elle doit rester privée.
+  if (d === 'privee' || d === 'aucun') {
+    return publique
+      ? { alerte: true, message: 'Vidéo lisible publiquement : passez-la en privé dans YouTube Studio.' }
       : { alerte: false, message: 'Vidéo privée : elle n’est pas lisible publiquement.' };
   }
   if (publique) return { alerte: false, message: 'Vidéo en ligne, lisible publiquement.' };

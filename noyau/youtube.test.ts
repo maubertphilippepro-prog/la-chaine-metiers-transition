@@ -3,14 +3,20 @@ import reglagesJson from '../reglages.json';
 import { videoParDefaut, type VideoPubliee } from './publication';
 import type { Reglages } from './types';
 import {
-  bilanLecture, dossierYoutube, enregistrerEnvoi, FORMES_URL, idYoutube, pretePourYoutube, problemesEnvoi, raisonEnvoi,
-  ficheYoutube, textesYoutube, visibilitesIndiquees,
+  bilanLecture, dossierYoutube, enregistrerEnvoi, FORMES_URL, idYoutube, pretePourYoutube, problemesDiffusion, problemesEnvoi, raisonEnvoi,
+  RETRAIT_D_ABORD, SANS_YOUTUBE, validee, ficheYoutube, textesYoutube, visibilitesIndiquees,
 } from './youtube';
+import type { Qualification } from './qualification';
+
+const PERSO: Qualification = { nature: 'perso', confidentielle: false };
+const PERSO_CONF: Qualification = { nature: 'perso', confidentielle: true };
+const PRO: Qualification = { nature: 'pro', confidentielle: false };
+const PRO_CONF: Qualification = { nature: 'pro', confidentielle: true };
 
 const R = (reglagesJson as Reglages).publication;
 const ID = 'dQw4w9WgXcQ';
 const prete = (changement: Partial<VideoPubliee> = {}): VideoPubliee => ({
-  ...videoParDefaut('complete', 'perso'),
+  ...videoParDefaut('complete', PERSO),
   statut: 'prete',
   titre: 'Le SSO expliqué',
   description: 'Desc',
@@ -45,10 +51,11 @@ describe('idYoutube', () => {
 });
 
 describe('visibilités et statuts', () => {
-  it('indique Privée pour Interne, Publique ou Programmée sinon', () => {
-    expect(visibilitesIndiquees('interne')).toEqual(['privee']);
-    expect(visibilitesIndiquees('perso')).toEqual(['publique', 'programmee']);
-    expect(visibilitesIndiquees('mixte')).toEqual(['publique', 'programmee']);
+  it('indique la visibilité déduite de la qualification', () => {
+    expect(visibilitesIndiquees(PRO_CONF)).toEqual([]);
+    expect(visibilitesIndiquees(PRO)).toEqual(['non-repertoriee']);
+    expect(visibilitesIndiquees(PERSO_CONF)).toEqual(['privee']);
+    expect(visibilitesIndiquees(PERSO)).toEqual(['publique', 'programmee']);
   });
   it('ne prépare que les vidéos cochées et validées', () => {
     expect(pretePourYoutube(prete())).toBe(true);
@@ -57,6 +64,9 @@ describe('visibilités et statuts', () => {
     expect(pretePourYoutube(prete({ statut: 'a-preparer' }))).toBe(false);
     expect(pretePourYoutube(prete({ statut: 'erreur' }))).toBe(false);
     expect(pretePourYoutube(prete({ publier: false }))).toBe(false);
+    expect(validee(prete({ ...PRO_CONF }))).toBe(true);
+    expect(pretePourYoutube(prete({ ...PRO_CONF }))).toBe(false);
+    expect(pretePourYoutube(prete({ statut: 'relayee', replit: { id: 42, categorieId: 1, playlistId: null } }))).toBe(false);
   });
   it('range le dossier par cible', () => {
     expect(dossierYoutube('complete')).toBe('publication/complete');
@@ -81,6 +91,16 @@ describe('problemesEnvoi', () => {
   });
 });
 
+describe('problemesEnvoi : diffusion', () => {
+  it('refuse une vidéo Pro confidentielle et une vidéo encore sur le site', () => {
+    expect(problemesEnvoi(prete({ ...PRO_CONF }), 'Desc', R, { rendu: RENDU, octetsVignette: 1000 })).toEqual([SANS_YOUTUBE]);
+    expect(problemesDiffusion(prete({ ...PRO_CONF }), 'Desc', R, { rendu: RENDU, octetsVignette: 1000 })).toEqual([]);
+    expect(problemesEnvoi(prete({ statut: 'relayee', replit: { id: 42, categorieId: 1, playlistId: null } }), 'Desc', R, {
+      rendu: RENDU, octetsVignette: 1000,
+    })).toEqual([RETRAIT_D_ABORD]);
+  });
+});
+
 describe('textesYoutube', () => {
   it('donne les champs à copier et les réglages d’une vidéo publique', () => {
     const t = textesYoutube(prete(), 'Desc\n\nChapitres :\n0:00 Intro', { playlist: 'Essai', cheminRendu: 'C:\\t\\rendus\\video-complete.mp4' });
@@ -94,10 +114,12 @@ describe('textesYoutube', () => {
     expect(t.reglages).toContain('Non, cette vidéo n’est pas conçue pour les enfants');
     expect(t.reglages).toContain('Playlist : Essai');
   });
-  it('indique Privée pour une vidéo Interne et omet la playlist si elle est seule', () => {
-    const t = textesYoutube(prete({ profil: 'interne' }), 'Desc', { playlist: null, cheminRendu: 'x.mp4' });
-    expect(t.reglages).toContain('Visibilité : Privée');
-    expect(t.reglages).not.toContain('Playlist');
+  it('indique la visibilité déduite et omet la playlist si la vidéo est seule', () => {
+    const consigne = (q: Qualification) => textesYoutube(prete({ ...q }), 'Desc', { playlist: null, cheminRendu: 'x.mp4' }).reglages;
+    expect(consigne(PERSO_CONF)).toContain('Visibilité : Privée');
+    expect(consigne(PRO)).toContain('Visibilité : Non répertoriée');
+    expect(consigne(PRO)).not.toContain('Playlist');
+    expect(() => consigne(PRO_CONF)).toThrow(SANS_YOUTUBE);
   });
   it('rassemble les champs dans une seule fiche, dans l’ordre de YouTube Studio', () => {
     const fiche = ficheYoutube({ titre: 'Titre', description: 'Desc\n\nSuite', tags: 'a, b', reglages: 'Réglages' });
@@ -107,15 +129,20 @@ describe('textesYoutube', () => {
 
 describe('envoi', () => {
   const envoi = { id: ID, visibilite: 'publique' as const, programmeeLe: null };
-  it('accepte un envoi conforme au profil', () => {
+  it('accepte un envoi conforme à la qualification', () => {
     expect(raisonEnvoi(prete(), envoi)).toBeNull();
     expect(raisonEnvoi(prete(), { id: ID, visibilite: 'programmee', programmeeLe: '2026-10-21T16:00:00.000Z' })).toBeNull();
-    expect(raisonEnvoi(prete({ profil: 'interne' }), { ...envoi, visibilite: 'privee' })).toBeNull();
+    expect(raisonEnvoi(prete({ ...PERSO_CONF }), { ...envoi, visibilite: 'privee' })).toBeNull();
+    expect(raisonEnvoi(prete({ ...PRO }), { ...envoi, visibilite: 'non-repertoriee' })).toBeNull();
   });
-  it('refuse une vidéo non validée, une visibilité contraire au profil et une date incohérente', () => {
+  it('refuse une vidéo non validée, une visibilité contraire à la qualification et une date incohérente', () => {
     expect(raisonEnvoi(prete({ statut: 'a-preparer' }), envoi)).toBe('Validez d’abord la vidéo pour la publication.');
-    expect(raisonEnvoi(prete({ profil: 'interne' }), envoi)).toBe('Une vidéo Interne reste privée sur YouTube.');
-    expect(raisonEnvoi(prete(), { ...envoi, visibilite: 'privee' })).toBe('Une vidéo Perso ou Mixte est publique ou programmée sur YouTube.');
+    expect(raisonEnvoi(prete({ ...PRO_CONF }), envoi)).toBe(SANS_YOUTUBE);
+    expect(raisonEnvoi(prete({ statut: 'relayee', replit: { id: 42, categorieId: 1, playlistId: null } }), envoi)).toBe(RETRAIT_D_ABORD);
+    expect(raisonEnvoi(prete({ ...PERSO_CONF }), envoi)).toBe('Une vidéo Perso confidentielle reste privée sur YouTube.');
+    expect(raisonEnvoi(prete({ ...PRO }), envoi)).toBe('Une vidéo Pro non confidentielle est non répertoriée sur YouTube.');
+    expect(raisonEnvoi(prete(), { ...envoi, visibilite: 'non-repertoriee' }))
+      .toBe('Une vidéo Perso non confidentielle est publique ou programmée sur YouTube.');
     expect(raisonEnvoi(prete(), { ...envoi, visibilite: 'programmee' })).toBe('Date et heure de mise en ligne attendues.');
     expect(raisonEnvoi(prete(), { ...envoi, visibilite: 'programmee', programmeeLe: 'demain' })).toBe('Date et heure de mise en ligne attendues.');
     expect(raisonEnvoi(prete(), { ...envoi, programmeeLe: '2026-10-21T16:00:00.000Z' })).toBe('Date de mise en ligne réservée à une vidéo programmée.');
@@ -130,27 +157,37 @@ describe('envoi', () => {
 
 describe('bilanLecture', () => {
   const maintenant = new Date('2026-10-20T12:00:00Z');
-  const envoyee = (profil: VideoPubliee['profil'], youtube: Partial<VideoPubliee['youtube']> = {}) =>
-    prete({ profil, statut: 'envoyee-youtube', youtube: { id: ID, visibilite: 'publique', programmeeLe: null, playlistId: null, ...youtube } });
-  it('alerte si une vidéo Interne est lisible publiquement', () => {
-    expect(bilanLecture(envoyee('interne', { visibilite: 'privee' }), 'publique', maintenant)).toEqual({
-      alerte: true, message: 'Vidéo Interne lisible publiquement : passez-la en privé dans YouTube Studio.',
+  const envoyee = (q: Qualification, youtube: Partial<VideoPubliee['youtube']> = {}) =>
+    prete({ ...q, statut: 'envoyee-youtube', youtube: { id: ID, visibilite: 'publique', programmeeLe: null, playlistId: null, ...youtube } });
+  it('alerte si une vidéo privée est lisible publiquement', () => {
+    expect(bilanLecture(envoyee(PERSO_CONF, { visibilite: 'privee' }), 'publique', maintenant)).toEqual({
+      alerte: true, message: 'Vidéo lisible publiquement : passez-la en privé dans YouTube Studio.',
     });
-    expect(bilanLecture(envoyee('interne', { visibilite: 'privee' }), 'non-publique', maintenant).alerte).toBe(false);
+    expect(bilanLecture(envoyee(PERSO_CONF, { visibilite: 'privee' }), 'non-publique', maintenant)).toEqual({
+      alerte: false, message: 'Vidéo privée : elle n’est pas lisible publiquement.',
+    });
+  });
+  it('confirme une vidéo non répertoriée lisible par lien, sans pouvoir vérifier qu’elle n’est pas publique', () => {
+    expect(bilanLecture(envoyee(PRO, { visibilite: 'non-repertoriee' }), 'publique', maintenant)).toEqual({
+      alerte: false, message: 'Vidéo lisible par lien. Vérifiez dans YouTube Studio qu’elle est bien Non répertoriée.',
+    });
+    expect(bilanLecture(envoyee(PRO, { visibilite: 'non-repertoriee' }), 'non-publique', maintenant)).toEqual({
+      alerte: true, message: 'Vidéo pas encore lisible : passez-la en Non répertoriée dans YouTube Studio.',
+    });
   });
   it('confirme une vidéo publique en ligne', () => {
-    expect(bilanLecture(envoyee('mixte'), 'publique', maintenant)).toEqual({ alerte: false, message: 'Vidéo en ligne, lisible publiquement.' });
+    expect(bilanLecture(envoyee(PERSO), 'publique', maintenant)).toEqual({ alerte: false, message: 'Vidéo en ligne, lisible publiquement.' });
   });
   it('attend l’heure d’une vidéo programmée, alerte sinon', () => {
-    const programmee = bilanLecture(envoyee('perso', { visibilite: 'programmee', programmeeLe: '2026-10-21T16:00:00.000Z' }), 'non-publique', maintenant);
+    const programmee = bilanLecture(envoyee(PERSO, { visibilite: 'programmee', programmeeLe: '2026-10-21T16:00:00.000Z' }), 'non-publique', maintenant);
     expect(programmee.alerte).toBe(false);
     expect(programmee.message).toContain('pas encore en ligne');
-    expect(bilanLecture(envoyee('perso'), 'non-publique', maintenant)).toEqual({
+    expect(bilanLecture(envoyee(PERSO), 'non-publique', maintenant)).toEqual({
       alerte: true, message: 'Vidéo pas encore lisible publiquement : passez-la en public dans YouTube Studio, ou attendez l’heure programmée.',
     });
   });
   it('signale une vérification impossible', () => {
-    expect(bilanLecture(envoyee('perso'), 'inconnue', maintenant)).toEqual({
+    expect(bilanLecture(envoyee(PERSO), 'inconnue', maintenant)).toEqual({
       alerte: true, message: 'Vérification impossible : YouTube ne répond pas, réessayez plus tard.',
     });
   });

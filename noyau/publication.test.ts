@@ -2,12 +2,16 @@ import { describe, expect, it } from 'vitest';
 import reglagesJson from '../reglages.json';
 import {
   accorderPublication, appliquerModifications, cleVignette, fichierRendu, fichierVignette, imageCamera, imageEcran,
-  longueurTags, mentionsTrouvees, modifierVideo, nomCible, poseDetouree, problemesPreparation, raisonPublication,
+  longueurTags, mentionsTrouvees, migrerPublication, modifierVideo, nomCible, poseDetouree, problemesPreparation, raisonPublication, retraitAFaire,
   urlsVignette, videoParDefaut, type Publication, type Vignette,
 } from './publication';
+import type { Qualification } from './qualification';
 import type { Reglages } from './types';
 
 const R = (reglagesJson as Reglages).publication;
+const PERSO: Qualification = { nature: 'perso', confidentielle: false };
+const PRO: Qualification = { nature: 'pro', confidentielle: false };
+const PRO_CONF: Qualification = { nature: 'pro', confidentielle: true };
 const VIGNETTE: Vignette = {
   pose: { source: 'banque', fichier: 'surpris.jpg' },
   fond: { source: 'ecran', instant: 12.3456 },
@@ -15,25 +19,25 @@ const VIGNETTE: Vignette = {
   fichier: 'rendus/vignettes/complete.jpg',
 };
 const prete = (): Publication => ({
-  version: 1,
-  profilParDefaut: 'perso',
-  videos: [{ ...videoParDefaut('complete', 'perso'), statut: 'prete', titre: 'Titre', description: 'Desc', tags: ['windows'], vignette: VIGNETTE }],
+  version: 2,
+  qualificationParDefaut: PERSO,
+  videos: [{ ...videoParDefaut('complete', PERSO), statut: 'prete', titre: 'Titre', description: 'Desc', tags: ['windows'], vignette: VIGNETTE }],
 });
 
 describe('accorderPublication', () => {
   it('crée une entrée par vidéo rendue, seule la vidéo complète cochée', () => {
     const p = accorderPublication(null, ['complete', 1, 2]);
-    expect(p.profilParDefaut).toBe('perso');
+    expect(p.qualificationParDefaut).toEqual(PERSO);
     expect(p.videos.map(v => [v.cible, v.publier, v.statut])).toEqual([
       ['complete', true, 'a-preparer'], [1, false, 'a-preparer'], [2, false, 'a-preparer'],
     ]);
   });
-  it('garde les entrées existantes, ajoute les nouvelles au profil par défaut et retire celles qui n’existent plus', () => {
+  it('garde les entrées existantes, ajoute les nouvelles à la qualification par défaut et retire celles qui n’existent plus', () => {
     const avant: Publication = {
-      version: 1, profilParDefaut: 'mixte', videos: [{ ...videoParDefaut(1, 'interne'), titre: 'Gardé' }, videoParDefaut(3, 'perso')],
+      version: 2, qualificationParDefaut: PRO, videos: [{ ...videoParDefaut(1, PRO_CONF), titre: 'Gardé' }, videoParDefaut(3, PERSO)],
     };
-    expect(accorderPublication(avant, ['complete', 1]).videos.map(v => [v.cible, v.profil, v.titre])).toEqual([
-      ['complete', 'mixte', ''], [1, 'interne', 'Gardé'],
+    expect(accorderPublication(avant, ['complete', 1]).videos.map(v => [v.cible, v.nature, v.confidentielle, v.titre])).toEqual([
+      ['complete', 'pro', false, ''], [1, 'pro', true, 'Gardé'],
     ]);
   });
 });
@@ -66,8 +70,11 @@ describe('raisonPublication', () => {
     expect(raisonPublication(accorderPublication(null, ['complete', 1]))).toBeNull();
   });
   it('refuse une forme invalide', () => {
-    expect(raisonPublication({ ...prete(), version: 2 })).toBe('version 1 attendue');
-    expect(raisonPublication({ ...prete(), profilParDefaut: 'pro' })).toBe('profilParDefaut invalide');
+    expect(raisonPublication({ ...prete(), version: 1 })).toBe('version 2 attendue');
+    expect(raisonPublication({ ...prete(), qualificationParDefaut: { nature: 'interne', confidentielle: false } })).toBe('qualificationParDefaut invalide');
+    expect(raisonPublication({ ...prete(), videos: [{ ...prete().videos[0]!, nature: 'mixte' }] })).toBe('videos[0] : nature invalide');
+    expect(raisonPublication({ ...prete(), videos: [{ ...prete().videos[0]!, confidentielle: 'oui' }] }))
+      .toBe('videos[0] : confidentielle doit être vrai ou faux');
     const v = prete().videos[0]!;
     expect(raisonPublication({ ...prete(), videos: [{ ...v, cible: 0 }] })).toBe('videos[0] : cible invalide');
     expect(raisonPublication({ ...prete(), videos: [{ ...v, tags: 'a,b' }] })).toBe('videos[0] : tags doit être une liste de textes');
@@ -119,15 +126,18 @@ describe('problemesPreparation', () => {
     expect(problemesPreparation({ ...v, tags: ['x'.repeat(501)] }, 'Desc', R, true)).toEqual(['Tags trop longs : 501 caractères, 500 au plus.']);
     expect(problemesPreparation(v, 'Desc', R, false)).toEqual(['Vignette à rendre.']);
   });
-  it('refuse une mention interdite dans une vidéo publique, pas dans une vidéo interne', () => {
+  it('refuse une mention interdite dans une vidéo envoyée sur YouTube, même privée ou non répertoriée, pas dans une vidéo Pro confidentielle', () => {
     const mention = R.mentionsInterdites[0]!;
     const avec = { ...v, description: `Vidéo pour ${mention.toUpperCase()}.` };
-    expect(problemesPreparation(avec, avec.description, R, true)).toEqual([`Mention interdite pour une vidéo publique : « ${mention} ».`]);
-    expect(problemesPreparation({ ...avec, profil: 'interne' }, avec.description, R, true)).toEqual([]);
+    expect(problemesPreparation(avec, avec.description, R, true)).toEqual([`Mention interdite pour une vidéo envoyée sur YouTube : « ${mention} ».`]);
+    expect(problemesPreparation({ ...avec, ...PRO_CONF }, avec.description, R, true)).toEqual([]);
+    for (const q of [PRO, { nature: 'perso' as const, confidentielle: true }]) {
+      expect(problemesPreparation({ ...avec, ...q }, avec.description, R, true)).toHaveLength(1);
+    }
   });
   it('cherche les mentions aussi dans l’accroche et dans les chapitres, sans tenir compte des accents', () => {
     const mention = R.mentionsInterdites[0]!;
-    const attendu = [`Mention interdite pour une vidéo publique : « ${mention} ».`];
+    const attendu = [`Mention interdite pour une vidéo envoyée sur YouTube : « ${mention} ».`];
     const accroche = { ...v, vignette: { ...VIGNETTE, accroche: `Chez ${mention}` } };
     expect(problemesPreparation(accroche, 'Desc', R, true)).toEqual(attendu);
     expect(problemesPreparation(v, `Desc\n0:00 ${mention}`, R, true)).toEqual(attendu);
@@ -138,5 +148,42 @@ describe('problemesPreparation', () => {
     expect(longueurTags(['ia', 'presse papiers'])).toBe(2 + 1 + 14 + 2);
     expect(longueurTags([])).toBe(0);
     expect(mentionsTrouvees(['Bonjour', 'ABC def'], ['abc', 'xyz'])).toEqual(['abc']);
+  });
+});
+
+describe('migrerPublication', () => {
+  const v1 = (profil: string) => {
+    const { nature: _n, confidentielle: _c, ...base } = videoParDefaut('complete', PERSO);
+    return { ...base, profil };
+  };
+  it('convertit une version 1 : profils en qualifications', () => {
+    const p = migrerPublication({ version: 1, profilParDefaut: 'mixte', videos: [v1('interne'), { ...v1('perso'), cible: 1 }] }) as Publication;
+    expect(p.version).toBe(2);
+    expect(p.qualificationParDefaut).toEqual(PRO);
+    expect(p.videos.map(v => [v.nature, v.confidentielle])).toEqual([['pro', true], ['perso', false]]);
+    expect(p).not.toHaveProperty('profilParDefaut');
+    expect(p.videos[0]).not.toHaveProperty('profil');
+    expect(raisonPublication(p)).toBeNull();
+  });
+  it('laisse une version 2 telle quelle, et un profil inconnu à raisonPublication', () => {
+    const v2 = prete();
+    expect(migrerPublication(v2)).toBe(v2);
+    expect(raisonPublication(migrerPublication({ version: 1, profilParDefaut: 'perso', videos: [v1('autre')] })))
+      .toBe('videos[0] : nature invalide');
+    expect(raisonPublication(migrerPublication({ version: 1, profilParDefaut: 'autre', videos: [] }))).toBe('qualificationParDefaut invalide');
+  });
+});
+
+describe('requalification', () => {
+  it('remet à préparer une vidéo prête dont la qualification change', () => {
+    const p = prete();
+    const q = appliquerModifications(p, modifierVideo(p, 'complete', PRO));
+    expect(q.videos[0]).toMatchObject({ nature: 'pro', confidentielle: false, statut: 'a-preparer' });
+  });
+  it('signale un retrait du site à faire quand une vidéo sur le site n’y a plus sa place', () => {
+    const v = { ...prete().videos[0]!, replit: { id: 42, categorieId: 1, playlistId: null } };
+    expect(retraitAFaire(v)).toBe(true);
+    expect(retraitAFaire({ ...v, ...PRO })).toBe(false);
+    expect(retraitAFaire({ ...v, replit: { id: null, categorieId: null, playlistId: null } })).toBe(false);
   });
 });
