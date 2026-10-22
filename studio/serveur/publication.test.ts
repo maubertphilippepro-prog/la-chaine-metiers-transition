@@ -478,6 +478,21 @@ describe('retrait du site', () => {
     expect((await action('a', 'site/retirer', { cible: 'complete', nature: 'autre', confidentielle: false })).status).toBe(400);
     expect(site().supprimerVideo).not.toHaveBeenCalled();
   });
+  it('garde la requalification quand un enregistrement concurrent la remet en Pro pendant le retrait', async () => {
+    const dossier = await prete(PRO_CONF, SITE_CHOISI);
+    await relayer();
+    vi.mocked(site().supprimerVideo).mockImplementationOnce(async () => {
+      const en_cours = JSON.parse(await readFile(path.join(dossier, 'publication.json'), 'utf-8')) as Publication;
+      expect(en_cours.videos[0]).toMatchObject(PERSO);
+      const revert = { ...en_cours, videos: en_cours.videos.map(v => ({ ...v, ...PRO, titre: 'Titre modifié' })) };
+      expect((await envoyer('a', revert)).status).toBe(200);
+    });
+    const r = await retirer();
+    expect(r.status).toBe(200);
+    const apres = JSON.parse(await readFile(path.join(dossier, 'publication.json'), 'utf-8')) as Publication;
+    expect(apres.videos[0]).toMatchObject({ ...PERSO, titre: 'Titre modifié', statut: 'prete', replit: { id: null } });
+    expect(((await r.json()) as Publication).videos[0]).toMatchObject({ ...PERSO, replit: { id: null } });
+  });
   it('garde la qualification et note l’erreur si le site échoue, bloque YouTube, puis reprend', async () => {
     const dossier = await prete(PRO_CONF, SITE_CHOISI);
     await relayer();

@@ -78,9 +78,18 @@ export function usePublication(nom: string) {
 
   const executer = useCallback(async (action: () => Promise<Publication>) => {
     await synchroniser();
-    recevoir(await action());
+    let resultat: Publication;
+    try {
+      resultat = await action();
+    } catch (e) {
+      // Une action ratée a pu modifier la publication sur le serveur (retrait du site : qualification Perso enregistrée,
+      // erreur notée). On la recharge pour que l’écran et le prochain enregistrement la reprennent, puis l’erreur reste affichée.
+      try { recevoir((await api.publication(nom)).publication); } catch { /* l’erreur d’origine prime */ }
+      throw e;
+    }
+    recevoir(resultat);
     setEnregistrement('a-jour');
-  }, [synchroniser, recevoir]);
+  }, [synchroniser, recevoir, nom]);
 
   return { detail, publication, erreur, enregistrement, modifier, executer, synchroniser };
 }

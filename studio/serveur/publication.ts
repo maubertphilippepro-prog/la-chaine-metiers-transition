@@ -407,7 +407,8 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
       relaisEnCours = false;
     }
     const actuelle = await relire(ctx);
-    const p = modifierVideo(actuelle, cible, enregistrerRetrait(videoDe(actuelle, cible)));
+    // La qualification demandée est réappliquée : un enregistrement concurrent (titre, tags) pendant le retrait a pu la remettre en Pro.
+    const p = modifierVideo(actuelle, cible, { ...qualification, ...enregistrerRetrait(videoDe(actuelle, cible)) });
     await ecrirePublication(ctx.dossier, p);
     return p;
   }
