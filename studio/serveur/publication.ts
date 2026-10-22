@@ -172,7 +172,11 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
       throw new ErreurHttp(500, `Rédaction impossible : ${message(e)}`);
     }
     const actuelle = await relire(ctx);
-    const p = appliquerModifications(actuelle, modifierVideo(actuelle, cible, proposition));
+    // La première accroche va dans la vignette déjà composée ; les autres restent à essayer.
+    const vignette = videoDe(actuelle, cible).vignette;
+    const accroche = proposition.accroches[0];
+    const changement = vignette && accroche ? { ...proposition, vignette: { ...vignette, accroche } } : proposition;
+    const p = appliquerModifications(actuelle, modifierVideo(actuelle, cible, changement));
     await ecrirePublication(ctx.dossier, p);
     return p;
   }

@@ -61,6 +61,7 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
   };
 
   const urls = vignette ? urlsVignette(vignette, bases) : null;
+  const autres = v.accroches.filter(a => a !== vignette?.accroche);
   return (
     <fieldset className="vignette">
       <legend>Vignette</legend>
@@ -89,9 +90,10 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
         Accroche (3 à 5 mots)
         <input value={vignette?.accroche ?? ''} onChange={e => composer({ accroche: e.target.value })} />
       </label>
-      {v.accroches.length > 0 && (
+      {autres.length > 0 && (
         <div className="actions">
-          {v.accroches.map(a => <button key={a} className="lien" onClick={() => composer({ accroche: a })}>{a}</button>)}
+          <span className="discret">Autres accroches :</span>
+          {autres.map(a => <button key={a} className="lien" onClick={() => composer({ accroche: a })}>{a}</button>)}
         </div>
       )}
       {extraction && <p className="discret">Extraction de l’image…</p>}
@@ -120,7 +122,13 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
         </div>
       )}
       {vignette && (
-        <button onClick={() => void lancer('Rendu de la vignette…', () => api.rendreVignette(nom, v.cible))}>Rendre la vignette</button>
+        <>
+          <button onClick={() => void lancer('Rendu de la vignette…', () => api.rendreVignette(nom, v.cible))}>Rendre la vignette</button>
+          <p className="discret">
+            L’aperçu est calculé par le navigateur ; le rendu fabrique le fichier JPEG 1280×720 qui sera téléversé sur YouTube.
+            À refaire après chaque changement de pose, de fond ou d’accroche, avant de valider.
+          </p>
+        </>
       )}
     </fieldset>
   );

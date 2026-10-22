@@ -143,6 +143,14 @@ describe('rédaction', () => {
     const p = (await r.json()) as Publication;
     expect(p.videos[0]).toMatchObject({ titre: 'Le SSO expliqué', variantesTitre: ['A', 'B'], accroches: ['Un seul mot de passe'] });
   });
+  it('met la première accroche proposée dans la vignette déjà composée, à rendre de nouveau', async () => {
+    await tournage('a');
+    const p = await lirePublication('a');
+    const vignette = { pose: { source: 'banque', fichier: 'surpris.jpg' }, fond: { source: 'charte' }, accroche: 'Ancienne', fichier: 'rendus/vignettes/complete.jpg' };
+    await envoyer('a', { ...p, videos: p.videos.map(v => (v.cible === 'complete' ? { ...v, vignette } : v)) });
+    const r = await action('a', 'redaction', { cible: 'complete' });
+    expect(((await r.json()) as Publication).videos[0]!.vignette).toMatchObject({ accroche: 'Un seul mot de passe', fichier: null });
+  });
   it('refuse une cible inconnue', async () => {
     await tournage('a');
     expect((await action('a', 'redaction', { cible: 9 })).status).toBe(400);
