@@ -30,6 +30,9 @@ const arrondi = (t: number) => Math.round(t * 1000) / 1000;
 export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complete, instant, changer, lancer, occupe }) => {
   const [erreur, setErreur] = useState<string | null>(null);
   const [extraction, setExtraction] = useState(false);
+  // Repère du dernier rendu : un nouveau rendu de la même vignette (logo ou charte changés) garde le même nom de fichier,
+  // le navigateur réafficherait sinon l’ancienne image.
+  const [tirage, setTirage] = useState(() => Date.now());
   const vignette = v.vignette;
   const bases = { tournage: detail.urlTournage, poses: detail.urlPoses };
 
@@ -123,7 +126,7 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
             {occupe === RENDU_VIGNETTE
               ? <div className="rendu-en-cours"><Attente libelle={RENDU_VIGNETTE} /></div>
               : vignette.fichier
-                ? <img className="vignette-rendue" src={`${detail.urlTournage}/${vignette.fichier}?v=${encodeURIComponent(cleVignette(vignette))}`} alt="Vignette rendue" />
+                ? <img className="vignette-rendue" src={`${detail.urlTournage}/${vignette.fichier}?v=${encodeURIComponent(cleVignette(vignette))}&t=${tirage}`} alt="Vignette rendue" />
                 : <p className="discret">Pas encore rendue.</p>}
           </div>
         </div>
@@ -131,7 +134,11 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
       {vignette && (
         <>
           <div className="actions">
-            <button disabled={!!occupe} onClick={() => void lancer(RENDU_VIGNETTE, () => api.rendreVignette(nom, v.cible))}>Rendre la vignette</button>
+            <button disabled={!!occupe} onClick={() => void lancer(RENDU_VIGNETTE, async () => {
+              const p = await api.rendreVignette(nom, v.cible);
+              setTirage(Date.now());
+              return p;
+            })}>Rendre la vignette</button>
             {occupe === RENDU_VIGNETTE && <Attente libelle={RENDU_VIGNETTE} />}
           </div>
           <p className="discret">
