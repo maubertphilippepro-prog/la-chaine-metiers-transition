@@ -10,17 +10,17 @@ Le studio prépare tout ; le téléversement se fait à la main dans YouTube Stu
    - Onglet « Paramètres avancés » : Catégorie « Science et technologie », Langue de la vidéo « Français ».
    - Enregistrer.
    - L’audience (« conçue pour les enfants ») se confirme à chaque vidéo : la cocher par erreur désactive commentaires, écrans de fin et playlists.
-3. **Playlists** : rien à créer d’avance. Quand plusieurs vidéos d’un même tournage sont publiées, `reglages-youtube.txt` suggère une playlist au nom du tournage, créée au premier téléversement (étape « Détails » → Playlists → « Nouvelle playlist »).
+3. **Playlists** : rien à créer d’avance. Quand plusieurs vidéos d’un même tournage sont publiées, la section RÉGLAGES de `youtube.txt` suggère une playlist au nom du tournage, créée au premier téléversement (étape « Détails » → Playlists → « Nouvelle playlist »).
 
 ## À chaque vidéo
 
-1. Dans le studio, écran Publication : la vidéo doit être « Prête ». Cliquer **Préparer pour YouTube**. Le studio écrit `donnees/tournages/<tournage>/publication/<complete|episode-NN>/` (vignette, titre, description, tags, réglages) et affiche le chemin du MP4 dans `rendus/`. **Ouvrir le dossier** l’affiche dans l’Explorateur.
-2. YouTube Studio → **Créer** → **Importer des vidéos** → sélectionner le MP4 indiqué.
+1. Dans le studio, écran Publication : la vidéo doit être « Prête ». Cliquer **Préparer pour YouTube**. Le studio écrit `donnees/tournages/<tournage>/publication/<complete|episode-NN>/` : le MP4 à téléverser, `vignette.jpg` et `youtube.txt`, qui rassemble titre, description, tags et réglages à copier. **Ouvrir le dossier** l’affiche dans l’Explorateur.
+2. YouTube Studio → **Créer** → **Importer des vidéos** → sélectionner le MP4 du dossier.
 3. Étape **Détails** :
    - Titre : bouton « Copier le titre » du studio, puis coller.
    - Description : « Copier la description » (chapitres compris), puis coller.
    - Miniature : « Importer un fichier » → `vignette.jpg` du dossier.
-   - Playlists : celle indiquée dans `reglages-youtube.txt`, s’il y en a une.
+   - Playlists : celle indiquée dans la section RÉGLAGES de `youtube.txt`, s’il y en a une.
    - Audience : « Non, elle n’est pas conçue pour les enfants ».
    - « Afficher plus » → Tags : « Copier les tags », puis coller (les virgules séparent les tags) ; vérifier la langue et la catégorie.
 4. Étape **Éléments vidéo** : rien à ajouter (le carton de fin est déjà dans la vidéo).

@@ -58,7 +58,7 @@ export interface DetailPublication {
   site: ReferencesSite | null;
   reglages: ReglagesPublication;
 }
-// Dossier « Préparer pour YouTube » : chemins absolus, le MP4 reste dans rendus/.
+// Dossier « Préparer pour YouTube » : chemins absolus ; rendu est la vidéo placée dans le dossier.
 export interface DossierYoutube {
   dossier: string;
   rendu: string;

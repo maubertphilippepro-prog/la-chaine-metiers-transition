@@ -265,13 +265,15 @@ describe('YouTube', () => {
     const d = await r.json();
     const sortie = path.join(dossier, 'publication', 'complete');
     expect(d.dossier).toBe(sortie);
-    expect(d.rendu).toBe(path.join(dossier, 'rendus', 'video-complete.mp4'));
+    expect(d.rendu).toBe(path.join(sortie, 'video-complete.mp4'));
     expect(d.textes).toMatchObject({ titre: 'Titre', description: 'Desc', tags: 'sso, mot de passe' });
-    expect(await readFile(path.join(sortie, 'titre.txt'), 'utf-8')).toBe('Titre');
+    expect(await readFile(d.rendu, 'utf-8')).toBe(await readFile(path.join(dossier, 'rendus', 'video-complete.mp4'), 'utf-8'));
     expect(await readFile(path.join(sortie, 'vignette.jpg'), 'utf-8')).toBe('jpg');
-    const reglages = await readFile(path.join(sortie, 'reglages-youtube.txt'), 'utf-8');
-    expect(reglages).toContain('Science et technologie');
-    expect(reglages).not.toContain('Playlist');
+    const fiche = await readFile(path.join(sortie, 'youtube.txt'), 'utf-8');
+    expect(fiche).toContain('=== TITRE ===\nTitre\n');
+    expect(fiche).toContain(`Fichier vidéo : ${d.rendu}`);
+    expect(fiche).toContain('Science et technologie');
+    expect(fiche).not.toContain('Playlist');
   });
   it('suggère une playlist au nom du tournage quand plusieurs vidéos sont publiées', async () => {
     await prete();

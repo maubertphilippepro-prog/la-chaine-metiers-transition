@@ -283,10 +283,11 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
     const rendu = path.join(ctx.dossier, 'rendus', disponible.fichier);
     // Une playlist par tournage n’a de sens que si plusieurs de ses vidéos sont publiées.
     const plusieurs = ctx.publication.videos.filter(v => v.publier).length > 1;
-    const textes = textesYoutube(video, descriptionFinale, { playlist: plusieurs ? ctx.tournage.titre : null, cheminRendu: rendu });
     const dossier = path.join(ctx.dossier, dossierYoutube(cible));
-    await ecrireDossierYoutube(dossier, textes, vignette);
-    return { dossier, rendu, textes };
+    const aTeleverser = path.join(dossier, disponible.fichier);
+    const textes = textesYoutube(video, descriptionFinale, { playlist: plusieurs ? ctx.tournage.titre : null, cheminRendu: aTeleverser });
+    await ecrireDossierYoutube(dossier, textes, vignette, rendu);
+    return { dossier, rendu: aTeleverser, textes };
   }
 
   async function ouvrirYoutube(req: IncomingMessage, ctx: Contexte): Promise<{ ok: true }> {

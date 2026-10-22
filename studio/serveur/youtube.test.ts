@@ -1,8 +1,9 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { ecrireDossierYoutube, lireVisibiliteYoutube } from './youtube';
+import { ficheYoutube } from '../../noyau/youtube';
 
 const ID = 'dQw4w9WgXcQ';
 const reponse = (status: number) => ({ ok: status >= 200 && status < 300, status, json: async () => ({}) }) as Response;
@@ -24,19 +25,21 @@ describe('lireVisibiliteYoutube', () => {
 });
 
 describe('ecrireDossierYoutube', () => {
-  it('écrit la vignette et les textes, en remplaçant une préparation précédente', async () => {
+  it('met la vidéo, la vignette et la fiche dans le dossier, en remplaçant une préparation précédente', async () => {
     const racine = await mkdtemp(path.join(os.tmpdir(), 'pmt-youtube-'));
     const vignette = path.join(racine, 'complete.jpg');
+    const video = path.join(racine, 'video-complete.mp4');
     await writeFile(vignette, 'jpg');
+    await writeFile(video, 'mp4');
     const dossier = path.join(racine, 'publication', 'complete');
     const textes = { titre: 'Titre', description: 'Desc', tags: 'a, b', reglages: 'Réglages' };
-    await ecrireDossierYoutube(dossier, { ...textes, titre: 'Ancien' }, vignette);
-    await ecrireDossierYoutube(dossier, textes, vignette);
+    await ecrireDossierYoutube(dossier, { ...textes, titre: 'Ancien' }, vignette, video);
+    await writeFile(path.join(dossier, 'titre.txt'), 'ancien format');
+    await ecrireDossierYoutube(dossier, textes, vignette, video);
     const lire = (f: string) => readFile(path.join(dossier, f), 'utf-8');
+    expect((await readdir(dossier)).sort()).toEqual(['video-complete.mp4', 'vignette.jpg', 'youtube.txt']);
+    expect(await lire('video-complete.mp4')).toBe('mp4');
     expect(await lire('vignette.jpg')).toBe('jpg');
-    expect(await lire('titre.txt')).toBe('Titre');
-    expect(await lire('description.txt')).toBe('Desc');
-    expect(await lire('tags.txt')).toBe('a, b');
-    expect(await lire('reglages-youtube.txt')).toBe('Réglages');
+    expect(await lire('youtube.txt')).toBe(ficheYoutube(textes));
   });
 });

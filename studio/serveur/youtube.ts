@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
-import { copyFile, mkdir, writeFile } from 'node:fs/promises';
+import { copyFile, link, mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { LectureYoutube, TextesYoutube } from '../../noyau/youtube';
+import { ficheYoutube, type LectureYoutube, type TextesYoutube } from '../../noyau/youtube';
 
 const DELAI = 5000;
 const NON_LISIBLE = new Set([401, 403, 404]);
@@ -20,16 +20,18 @@ export async function lireVisibiliteYoutube(id: string, recuperer: typeof fetch 
   }
 }
 
-export async function ecrireDossierYoutube(dossier: string, textes: TextesYoutube, vignette: string): Promise<void> {
+// Dossier refait à neuf : la vidéo (lien physique vers le rendu, copie si le lien est impossible), la vignette et youtube.txt.
+export async function ecrireDossierYoutube(dossier: string, textes: TextesYoutube, vignette: string, video: string): Promise<void> {
+  await rm(dossier, { recursive: true, force: true });
   await mkdir(dossier, { recursive: true });
+  const cible = path.join(dossier, path.basename(video));
+  try {
+    await link(video, cible);
+  } catch {
+    await copyFile(video, cible);
+  }
   await copyFile(vignette, path.join(dossier, 'vignette.jpg'));
-  const fichiers: [string, string][] = [
-    ['titre.txt', textes.titre],
-    ['description.txt', textes.description],
-    ['tags.txt', textes.tags],
-    ['reglages-youtube.txt', textes.reglages],
-  ];
-  for (const [nom, contenu] of fichiers) await writeFile(path.join(dossier, nom), contenu, 'utf-8');
+  await writeFile(path.join(dossier, 'youtube.txt'), ficheYoutube(textes), 'utf-8');
 }
 
 // L’Explorateur rend la main aussitôt (et sort souvent avec le code 1) : seul l’échec du lancement compte.

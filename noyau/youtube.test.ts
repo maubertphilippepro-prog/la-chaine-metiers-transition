@@ -4,7 +4,7 @@ import { videoParDefaut, type VideoPubliee } from './publication';
 import type { Reglages } from './types';
 import {
   bilanLecture, dossierYoutube, enregistrerEnvoi, FORMES_URL, idYoutube, pretePourYoutube, problemesEnvoi, raisonEnvoi,
-  textesYoutube, visibilitesIndiquees,
+  ficheYoutube, textesYoutube, visibilitesIndiquees,
 } from './youtube';
 
 const R = (reglagesJson as Reglages).publication;
@@ -98,6 +98,10 @@ describe('textesYoutube', () => {
     const t = textesYoutube(prete({ profil: 'interne' }), 'Desc', { playlist: null, cheminRendu: 'x.mp4' });
     expect(t.reglages).toContain('Visibilité : Privée');
     expect(t.reglages).not.toContain('Playlist');
+  });
+  it('rassemble les champs dans une seule fiche, dans l’ordre de YouTube Studio', () => {
+    const fiche = ficheYoutube({ titre: 'Titre', description: 'Desc\n\nSuite', tags: 'a, b', reglages: 'Réglages' });
+    expect(fiche).toBe('=== TITRE ===\nTitre\n\n=== DESCRIPTION ===\nDesc\n\nSuite\n\n=== TAGS ===\na, b\n\n=== RÉGLAGES ===\nRéglages\n');
   });
 });
 

@@ -10,7 +10,7 @@ export interface EnvoiYoutube {
   programmeeLe: string | null;
 }
 
-// Contenu des fichiers texte du dossier « Préparer pour YouTube ».
+// Champs à copier dans YouTube Studio, rassemblés dans youtube.txt par ficheYoutube.
 export interface TextesYoutube {
   titre: string;
   description: string;
@@ -85,6 +85,12 @@ export function textesYoutube(
     ...(o.playlist ? [`Playlist : ${o.playlist}`] : []),
   ];
   return { titre: v.titre.trim(), description: descriptionFinale, tags: v.tags.join(', '), reglages: reglages.join('\n') };
+}
+
+// Fichier youtube.txt du dossier : tous les champs à copier, dans l’ordre où YouTube Studio les demande.
+export function ficheYoutube(t: TextesYoutube): string {
+  const sections: [string, string][] = [['TITRE', t.titre], ['DESCRIPTION', t.description], ['TAGS', t.tags], ['RÉGLAGES', t.reglages]];
+  return `${sections.map(([nom, texte]) => `=== ${nom} ===\n${texte}`).join('\n\n')}\n`;
 }
 
 export function raisonEnvoi(v: VideoPubliee, e: EnvoiYoutube): string | null {
