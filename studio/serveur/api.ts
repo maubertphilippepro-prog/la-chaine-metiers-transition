@@ -11,7 +11,7 @@ import { chargerTournage, lireEpisode, majStatutEpisode, raisonMontage, urlSourc
 import type { DetailTournage, EtatRendu, ResumeTournage } from '../commun';
 import { ErreurInterpretation, lireConsignes, type InterpreterConsigne } from './consignes';
 import { dossierTournage, ecrireJson, ErreurHttp, lireCorps, message, repondre, repondreErreur } from './http';
-import { creerTournage, deposerVideo, envoiEnCours, etapeAnalyse, videosBrutes } from './nouveau-tournage';
+import { creerTournage, deposerVideo, envoiEnCours, etapeAnalyse, retirerVideo, videosBrutes } from './nouveau-tournage';
 import { deplacerVersSupprimes } from './suppression';
 import type { SuiviAnalyse } from './suivi-analyse';
 import type { SuiviRendu } from './suivi-rendu';
@@ -278,6 +278,12 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
         repondre(res, 200, await detail(dossier));
       } else if (nom && action === 'video' && req.method === 'PUT') {
         repondre(res, 200, { fichier: await deposerVideo(req, dossierDe(nom)) });
+      } else if (nom && action === 'video' && req.method === 'DELETE') {
+        const dossier = dossierDe(nom);
+        const analyse = c.suiviAnalyse.etat();
+        if (analyse.enCours && analyse.nom === path.basename(dossier)) throw new ErreurHttp(409, 'Analyse en cours sur ce tournage : attendez sa fin.');
+        await retirerVideo(dossier);
+        repondre(res, 200, { ok: true });
       } else if (nom && action === 'analyse' && req.method === 'POST') {
         await lancerAnalyse(req, dossierDe(nom));
         repondre(res, 202, { ok: true });

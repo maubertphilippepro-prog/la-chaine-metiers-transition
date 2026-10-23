@@ -3,6 +3,7 @@ import { mkdir, readdir, rename, rm, stat } from 'node:fs/promises';
 import type { IncomingMessage } from 'node:http';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
+import { lireEpisode } from '../../remotion/scripts/tournage';
 import { EXTENSIONS_VIDEO, type EtapeAnalyse } from '../commun';
 import { ecrireJson, ErreurHttp, message } from './http';
 
@@ -103,6 +104,20 @@ export async function deposerVideo(req: IncomingMessage, dossier: string): Promi
   } finally {
     envoisEnCours.delete(dossier);
   }
+}
+
+// Fichiers que le pipeline tire de la vidéo du montage : à refaire avec la nouvelle vidéo.
+const FICHIERS_DE_LA_VIDEO = ['source.mp4', 'preparation.json', 'transcription.json', 'detections.json'];
+
+// Retire la vidéo d'un tournage en erreur au premier chargement, pour en déposer une autre ; l'enregistrement « -camera » reste.
+export async function retirerVideo(dossier: string): Promise<void> {
+  if (existsSync(path.join(dossier, 'analyse.json'))) {
+    throw new ErreurHttp(409, 'Ce tournage est déjà analysé : supprimez-le et créez-en un autre.');
+  }
+  if ((await lireEpisode(dossier)).statut !== 'erreur') throw new ErreurHttp(409, 'Seule la vidéo d’un tournage en erreur peut être remplacée.');
+  if (envoiEnCours(dossier)) throw new ErreurHttp(409, 'Une vidéo est déjà en cours d’envoi pour ce tournage.');
+  for (const f of await videosBrutes(dossier)) await rm(path.join(dossier, 'bruts', f), { force: true });
+  for (const f of FICHIERS_DE_LA_VIDEO) await rm(path.join(dossier, f), { force: true });
 }
 
 // Le pipeline écrit un fichier par étape finie ; l'étape en cours est la suivante.
