@@ -507,4 +507,18 @@ describe('analyse', () => {
     await config.suiviAnalyse.attendre();
     expect((await lire(path.join(d, 'episode.json'))).message).toBe('Aucune vidéo lisible.');
   });
+  it('refuse de relancer l’analyse d’un tournage déjà analysé', async () => {
+    await avecVideo('a', { 'analyse.json': {} });
+    const r = await demanderAnalyse('a', 'Titre');
+    expect(r.status).toBe(409);
+    expect((await r.json()).erreur).toBe('Ce tournage est déjà analysé.');
+    expect(config.analyser).not.toHaveBeenCalled();
+  });
+  it('remplace l’ancienne erreur quand l’analyse échoue avant le pipeline', async () => {
+    const d = await avecVideo('a', { 'episode.json': { version: 1, titre: 'Titre', statut: 'erreur', message: 'Ancienne erreur' } });
+    vi.mocked(config.analyser).mockRejectedValue(new Error('python.exe introuvable'));
+    await demanderAnalyse('a', 'Titre');
+    await config.suiviAnalyse.attendre();
+    expect((await lire(path.join(d, 'episode.json'))).message).toBe('python.exe introuvable');
+  });
 });

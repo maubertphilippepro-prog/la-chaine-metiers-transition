@@ -52,7 +52,7 @@ export const api = {
       }
       rejeter(new ErreurApi(xhr.status, erreur, []));
     };
-    xhr.onerror = () => rejeter(new ErreurApi(0, 'Envoi de la vidéo interrompu : le studio est-il toujours ouvert ?', []));
+    xhr.onerror = () => rejeter(new ErreurApi(0, 'Envoi de la vidéo interrompu : studio fermé, disque plein ou fichier refusé.', []));
     xhr.send(fichier);
   }),
   analyser: async (nom: string, titre: string) => {

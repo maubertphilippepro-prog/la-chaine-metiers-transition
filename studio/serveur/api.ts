@@ -207,12 +207,16 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
       : '';
     if (!titre) throw new ErreurHttp(400, 'Le titre est vide.');
     if ((await videosBrutes(dossier)).length === 0) throw new ErreurHttp(409, 'Aucune vidéo dans bruts/ : déposez-la avant d’analyser.');
+    if (existsSync(path.join(dossier, 'analyse.json'))) throw new ErreurHttp(409, 'Ce tournage est déjà analysé.');
+    const avant = await lireEpisode(dossier);
     const lancee = c.suiviAnalyse.lancer(path.basename(dossier), titre, async () => {
       try {
         await c.analyser(dossier, titre);
       } catch (e) {
         // Le pipeline note lui-même ses erreurs ; un échec avant (Python introuvable…) est reporté ici.
-        if ((await lireEpisode(dossier)).statut !== 'erreur') await majStatutEpisode(dossier, 'erreur', message(e));
+        const apres = await lireEpisode(dossier);
+        const ecritParPipeline = apres.statut === 'erreur' && apres.message !== avant.message;
+        if (!ecritParPipeline) await majStatutEpisode(dossier, 'erreur', message(e));
         throw e;
       }
     });

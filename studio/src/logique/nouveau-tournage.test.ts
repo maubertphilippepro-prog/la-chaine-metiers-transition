@@ -22,6 +22,17 @@ describe('nouveau tournage', () => {
     expect(raisonFichierVideo('notes.txt')).toBe('« notes.txt » n’est pas une vidéo .mp4, .mkv, .mov ou .webm.');
     expect(raisonFichierVideo('sans-extension')).toBe('« sans-extension » n’est pas une vidéo .mp4, .mkv, .mov ou .webm.');
   });
+  it('refuse l’enregistrement de la webcam', () => {
+    const msg = '« moi-Camera.mp4 » est l’enregistrement de la webcam (-camera) : choisissez la vidéo exportée de Clipchamp.';
+    expect(raisonFichierVideo('moi-Camera.mp4')).toBe(msg);
+    expect(raisonFichierVideo('camera.mp4')).toBeNull();
+  });
+  it('refuse un nom que Windows n’accepte pas', () => {
+    const msg = (n: string) => `« ${n} » : nom de fichier refusé par Windows, renommez la vidéo.`;
+    for (const n of ['.cache.mp4', 'a:b.mp4', 'a?b.mp4', 'a"b.mp4', 'a|b.mp4', 'a*b.mp4', 'a<b.mp4', 'a>b.mp4', 'ab.mp4']) {
+      expect(raisonFichierVideo(n)).toBe(msg(n));
+    }
+  });
   it('date du jour en heure locale', () => {
     expect(aujourdhui(new Date(2026, 0, 5, 23, 30))).toBe('2026-01-05');
   });
@@ -37,6 +48,8 @@ describe('nouveau tournage', () => {
     expect(etatTournage({ ...TOURNAGE, videoPresente: true })).toBe('a-analyser');
     expect(etatTournage({ ...TOURNAGE, videoPresente: true, statut: 'erreur' })).toBe('erreur');
     expect(etatTournage({ ...TOURNAGE, videoPresente: true, statut: 'erreur', analyseEnCours: true })).toBe('en-cours');
+    // Une erreur sans vidéo ne se relance pas : il faut d’abord la déposer.
+    expect(etatTournage({ ...TOURNAGE, statut: 'erreur' })).toBe('video-manquante');
     // Un rendu en échec garde le tournage ouvrable, comme aujourd'hui.
     expect(etatTournage({ ...TOURNAGE, analyseFaite: true, statut: 'erreur' })).toBe('analyse');
   });

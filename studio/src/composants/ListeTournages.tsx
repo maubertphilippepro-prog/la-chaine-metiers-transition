@@ -36,6 +36,17 @@ export const ListeTournages: FC = () => {
     return () => clearInterval(minuterie);
   }, [analyseEnCours, charger]);
 
+  // Une vidéo lâchée à côté de la zone de dépôt ne doit pas faire quitter le studio.
+  useEffect(() => {
+    const empecher = (e: Event) => e.preventDefault();
+    window.addEventListener('dragover', empecher);
+    window.addEventListener('drop', empecher);
+    return () => {
+      window.removeEventListener('dragover', empecher);
+      window.removeEventListener('drop', empecher);
+    };
+  }, []);
+
   async function analyser(nom: string, titre: string) {
     setErreur(null);
     setLancement(true);
