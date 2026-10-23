@@ -113,6 +113,19 @@ describe('détail de la publication', () => {
     expect(d.camera).toBeNull();
     expect(d.reglages.titreMax).toBe(100);
   });
+  it('liste la banque de logos et les captures du tournage', async () => {
+    const dossier = await tournage('a');
+    await writeFile(path.join(racine, 'logos', 'excel.png'), 'png');
+    await writeFile(path.join(racine, 'logos', 'notes.txt'), '');
+    await mkdir(path.join(dossier, 'captures'));
+    await writeFile(path.join(dossier, 'captures', 'b.jpg'), 'jpg');
+    await writeFile(path.join(dossier, 'captures', 'a.png'), 'png');
+    const d = await (await fetch(`${url}/api/tournages/a/publication`)).json();
+    expect(d.urlLogos).toBe('http://127.0.0.1:9997');
+    expect(d.logos).toEqual([{ fichier: 'excel.png', url: 'http://127.0.0.1:9997/excel.png' }]);
+    expect(d.captures).toEqual(['a.png', 'b.jpg']);
+    expect(await (await fetch(`${url}/api/tournages/a/publication/captures`)).json()).toEqual(['a.png', 'b.jpg']);
+  });
   it('repère un enregistrement caméra séparé s’il accompagne un seul autre enregistrement', async () => {
     const dossier = await tournage('a');
     await mkdir(path.join(dossier, 'bruts'));
@@ -121,6 +134,23 @@ describe('détail de la publication', () => {
     expect((await (await fetch(`${url}/api/tournages/a/publication`)).json()).camera).toBe('prise-camera.mp4');
     await writeFile(path.join(dossier, 'bruts', 'prise2.mp4'), '');
     expect((await (await fetch(`${url}/api/tournages/a/publication`)).json()).camera).toBeNull();
+  });
+});
+
+describe('dépôt de captures', () => {
+  const deposer = (fichier: string, contenu = 'png') =>
+    fetch(`${url}/api/tournages/a/publication/captures?fichier=${encodeURIComponent(fichier)}`, { method: 'POST', body: contenu });
+  it('copie l’image dans captures/ sans écraser un fichier du même nom', async () => {
+    const dossier = await tournage('a');
+    expect(await (await deposer('étape 1.png')).json()).toEqual({ fichier: 'étape 1.png', captures: ['étape 1.png'] });
+    expect(await (await deposer('étape 1.png', 'autre')).json()).toEqual({ fichier: 'étape 1-2.png', captures: ['étape 1-2.png', 'étape 1.png'] });
+    expect(await readFile(path.join(dossier, 'captures', 'étape 1.png'), 'utf-8')).toBe('png');
+  });
+  it('refuse un autre format, un chemin ou une image vide', async () => {
+    await tournage('a');
+    expect((await deposer('notes.txt')).status).toBe(400);
+    expect((await deposer('../x.png')).status).toBe(400);
+    expect((await deposer('x.png', '')).status).toBe(400);
   });
 });
 
@@ -160,6 +190,17 @@ describe('rédaction', () => {
     await envoyer('a', { ...p, videos: p.videos.map(v => (v.cible === 'complete' ? { ...v, vignette } : v)) });
     const r = await action('a', 'redaction', { cible: 'complete' });
     expect(((await r.json()) as Publication).videos[0]!.vignette).toMatchObject({ accroche: 'Un seul mot de passe', fichier: null });
+  });
+  it('pré-coche les logos des logiciels cités quand la vignette n’en a aucun', async () => {
+    await tournage('a');
+    await writeFile(path.join(racine, 'logos', 'excel.png'), 'png');
+    const p = await lirePublication('a');
+    const vignette = { pose: { source: 'banque', fichier: 'surpris.jpg' }, fond: { source: 'charte' }, accroche: 'Ancienne', fichier: null };
+    await envoyer('a', { ...p, videos: p.videos.map(v => (v.cible === 'complete' ? { ...v, vignette } : v)) });
+    const r = await action('a', 'redaction', { cible: 'complete' });
+    const video = ((await r.json()) as Publication).videos[0]!;
+    expect(video.logiciels).toEqual(['Excel']);
+    expect(video.vignette).toMatchObject({ logos: ['excel.png'], gabarit: 'classique' });
   });
   it('refuse une cible inconnue', async () => {
     await tournage('a');
@@ -217,6 +258,34 @@ describe('vignette et validation', () => {
     await preparer();
     await rm(path.join(racine, 'poses', 'surpris.detoure.png'));
     expect((await action('a', 'vignette', { cible: 'complete' })).status).toBe(409);
+  });
+  it('passe logos et captures à la composition', async () => {
+    const dossier = await preparer();
+    await writeFile(path.join(racine, 'logos', 'excel.png'), 'png');
+    await mkdir(path.join(dossier, 'captures'));
+    await writeFile(path.join(dossier, 'captures', 'a.png'), 'png');
+    const p = await lirePublication('a');
+    await envoyer('a', { ...p, videos: p.videos.map(v => (v.cible === 'complete'
+      ? { ...v, vignette: { ...v.vignette!, gabarit: 'demonstration', logos: ['excel.png'], captures: ['a.png'] } }
+      : v)) });
+    expect((await action('a', 'vignette', { cible: 'complete' })).status).toBe(200);
+    expect(vi.mocked(config.rendreVignette).mock.calls[0]![0]).toMatchObject({
+      gabarit: 'demonstration', logoUrls: ['http://127.0.0.1:9997/excel.png'], captureUrls: ['http://127.0.0.1:9999/a/captures/a.png'],
+    });
+  });
+  it('refuse le rendu et la validation quand un logo ou une capture a disparu', async () => {
+    await preparer();
+    const p = await lirePublication('a');
+    await envoyer('a', { ...p, videos: p.videos.map(v => (v.cible === 'complete'
+      ? { ...v, vignette: { ...v.vignette!, logos: ['excel.png'], captures: ['a.png'] } }
+      : v)) });
+    const rendu = await action('a', 'vignette', { cible: 'complete' });
+    expect(rendu.status).toBe(409);
+    expect((await rendu.json()).erreur).toBe('Image de la vignette absente : logo excel.png, capture a.png.');
+    const refus = await action('a', 'valider', { cible: 'complete' });
+    expect((await refus.json()).problemes).toEqual([
+      'Vignette à rendre.', 'Vignette : logo excel.png introuvable.', 'Vignette : capture a.png introuvable.',
+    ]);
   });
   it('valide une vidéo complète, et explique ce qui manque sinon', async () => {
     await preparer();

@@ -46,6 +46,8 @@ export interface VideoDisponible {
   chapitres: ChapitreYoutube[];
 }
 export interface Pose { fichier: string; url: string }   // url : PNG détouré
+export interface Logo { fichier: string; url: string }
+
 export interface DetailPublication {
   nom: string;
   titre: string;
@@ -53,6 +55,8 @@ export interface DetailPublication {
   urlTournage: string;      // sert le dossier du tournage (images, vignettes)
   urlPoses: string;
   urlLogos: string;
+  logos: Logo[];            // banque donnees/logos/
+  captures: string[];       // fichiers de captures/ du tournage
   publication: Publication;
   videos: VideoDisponible[];
   camera: string | null;    // nom du fichier caméra dans bruts/

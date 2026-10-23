@@ -23,7 +23,8 @@ export function repondreErreur(res: ServerResponse, e: unknown): void {
   else repondre(res, 500, { erreur: message(e) });
 }
 
-export async function lireCorps(req: IncomingMessage): Promise<unknown> {
+// Corps brut de la requête (image déposée), limité comme un corps JSON.
+export async function lireOctets(req: IncomingMessage): Promise<Buffer> {
   const morceaux: Buffer[] = [];
   let taille = 0;
   for await (const morceau of req as AsyncIterable<Buffer>) {
@@ -31,8 +32,13 @@ export async function lireCorps(req: IncomingMessage): Promise<unknown> {
     if (taille > TAILLE_MAX) throw new ErreurHttp(413, 'Requête trop volumineuse.');
     morceaux.push(morceau);
   }
+  return Buffer.concat(morceaux);
+}
+
+export async function lireCorps(req: IncomingMessage): Promise<unknown> {
+  const octets = await lireOctets(req);
   try {
-    return JSON.parse(Buffer.concat(morceaux).toString('utf-8'));
+    return JSON.parse(octets.toString('utf-8'));
   } catch {
     throw new ErreurHttp(400, 'JSON invalide.');
   }

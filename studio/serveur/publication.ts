@@ -1,11 +1,12 @@
 import { existsSync } from 'node:fs';
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import path from 'node:path';
+import { logosSuggeres } from '../../noyau/gabarits';
 import { decisionsEpisodes, decisionsVideoComplete, dureeEpisode, dureeVideoComplete } from '../../noyau/decisions';
 import {
-  accorderPublication, appliquerModifications, cleVignette, fichierRendu, fichierVignette, imageCamera, imageEcran, modifierVideo,
-  migrerPublication, poseDetouree, problemesPreparation, raisonPublication, proprietesVignette, type CiblePublication, type ProprietesVignette, type Publication, type VideoPubliee,
+  accorderPublication, appliquerModifications, cleVignette, DOSSIER_CAPTURES, fichierRendu, fichierVignette, imageCamera, imageEcran, modifierVideo,
+  migrerPublication, poseDetouree, problemesPreparation, raisonPublication, proprietesVignette, type CiblePublication, type ProprietesVignette, type Publication, type VideoPubliee, type Vignette,
 } from '../../noyau/publication';
 import { chapitresYoutube, descriptionYoutube, segmentsSecondes, texteConserve } from '../../noyau/publication-textes';
 import { diffusion, NATURES, type Nature } from '../../noyau/qualification';
@@ -17,9 +18,9 @@ import {
 } from '../../noyau/youtube';
 import type { ResultatVignette } from '../../remotion/scripts/vignette';
 import { chargerTournage, lireEpisode, urlSource, type Tournage } from '../../remotion/scripts/tournage';
-import type { DetailPublication, DossierYoutube, Pose, VerificationYoutube, VideoDisponible } from '../commun';
+import type { DetailPublication, DossierYoutube, Logo, Pose, VerificationYoutube, VideoDisponible } from '../commun';
 import { ErreurInterpretation } from './consignes';
-import { dossierTournage, ecrireJson, ErreurHttp, lireCorps, message, repondre, repondreErreur } from './http';
+import { dossierTournage, ecrireJson, ErreurHttp, lireCorps, lireOctets, message, repondre, repondreErreur } from './http';
 import type { Rediger } from './redaction';
 import type { ClientSite, ReferencesSite } from './site-replit';
 import { ecrireDossierYoutube } from './youtube';
@@ -47,6 +48,14 @@ export interface ConfigPublication {
 
 const EXTENSIONS_VIDEO = new Set(['.mp4', '.mkv', '.mov', '.webm']);
 const EXTENSIONS_PHOTO = new Set(['.jpg', '.jpeg', '.png']);
+const EXTENSIONS_LOGO = new Set(['.png', '.svg']);
+const EXTENSIONS_CAPTURE = new Set(['.png', '.jpg', '.jpeg']);
+
+async function listerImages(dossier: string, extensions: Set<string>): Promise<string[]> {
+  if (!existsSync(dossier)) return [];
+  return (await readdir(dossier)).filter(f => extensions.has(path.extname(f).toLowerCase())).sort();
+}
+
 const estCamera = (fichier: string) => path.parse(fichier).name.toLowerCase().endsWith('-camera');
 
 // Enregistrement de la webcam seule, utilisable s'il accompagne un seul autre enregistrement (mêmes temps que source.mp4).
@@ -98,6 +107,14 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
   let relaisEnCours = false;
   const urlTournage = (dossier: string) => `${c.urlFichiers}/${encodeURIComponent(path.basename(dossier))}`;
 
+  const banqueLogos = () => listerImages(c.cheminLogos, EXTENSIONS_LOGO);
+  const captures = (dossier: string) => listerImages(path.join(dossier, DOSSIER_CAPTURES), EXTENSIONS_CAPTURE);
+  // Logos et captures de la vignette qui ne sont plus sur le disque, nommés pour l'auteur.
+  const elementsAbsents = (v: Vignette, dossier: string) => [
+    ...v.logos.filter(f => !existsSync(path.join(c.cheminLogos, f))).map(f => `logo ${f}`),
+    ...v.captures.filter(f => !existsSync(path.join(dossier, DOSSIER_CAPTURES, f))).map(f => `capture ${f}`),
+  ];
+
   async function contexte(dossier: string): Promise<Contexte> {
     if ((await lireEpisode(dossier)).statut !== 'rendu') {
       throw new ErreurHttp(409, 'La publication s’ouvre une fois le rendu terminé.');
@@ -143,6 +160,8 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
       urlTournage: urlTournage(ctx.dossier),
       urlPoses: c.urlPoses,
       urlLogos: c.urlLogos,
+      logos: (await banqueLogos()).map((f): Logo => ({ fichier: f, url: `${c.urlLogos}/${encodeURIComponent(f)}` })),
+      captures: await captures(ctx.dossier),
       publication: ctx.publication,
       videos: ctx.videos,
       camera: await fichierCamera(ctx.dossier),
@@ -182,13 +201,33 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
       throw new ErreurHttp(500, `Rédaction impossible : ${message(e)}`);
     }
     const actuelle = await relire(ctx);
-    // La première accroche va dans la vignette déjà composée ; les autres restent à essayer.
+    // La première accroche va dans la vignette déjà composée ; les autres restent à essayer. Une vignette sans logo
+    // reçoit ceux des logiciels cités.
     const vignette = videoDe(actuelle, cible).vignette;
-    const accroche = proposition.accroches[0];
-    const changement = vignette && accroche ? { ...proposition, vignette: { ...vignette, accroche } } : proposition;
+    const accroche = proposition.accroches[0] ?? vignette?.accroche ?? '';
+    const logos = vignette && vignette.logos.length === 0 ? logosSuggeres(proposition.logiciels, await banqueLogos()) : vignette?.logos ?? [];
+    const changement = vignette ? { ...proposition, vignette: { ...vignette, accroche, logos } } : proposition;
     const p = appliquerModifications(actuelle, modifierVideo(actuelle, cible, changement));
     await ecrirePublication(ctx.dossier, p);
     return p;
+  }
+
+  // Capture glissée dans le studio : copiée dans captures/, sous un nom libre (suffixe -2, -3… si le nom est pris).
+  async function deposerCapture(req: IncomingMessage, ctx: Contexte): Promise<{ fichier: string; captures: string[] }> {
+    const demande = new URL(req.url ?? '/', 'http://local').searchParams.get('fichier') ?? '';
+    const extension = path.extname(demande).toLowerCase();
+    if (!demande || path.basename(demande) !== demande || demande.startsWith('.') || !EXTENSIONS_CAPTURE.has(extension)) {
+      throw new ErreurHttp(400, 'fichier attendu : une image PNG ou JPEG, sans chemin.');
+    }
+    const octets = await lireOctets(req);
+    if (octets.length === 0) throw new ErreurHttp(400, 'Image vide.');
+    const dossier = path.join(ctx.dossier, DOSSIER_CAPTURES);
+    await mkdir(dossier, { recursive: true });
+    const base = demande.slice(0, -extension.length);
+    let fichier = demande;
+    for (let n = 2; existsSync(path.join(dossier, fichier)); n++) fichier = `${base}-${n}${path.extname(demande)}`;
+    await writeFile(path.join(dossier, fichier), octets);
+    return { fichier, captures: await captures(ctx.dossier) };
   }
 
   async function executerPipeline(f: () => Promise<void>): Promise<void> {
@@ -236,6 +275,8 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
       ...(v.fond.source === 'ecran' ? [path.join(ctx.dossier, imageEcran(v.fond.instant))] : []),
     ];
     if (!images.every(f => existsSync(f))) throw new ErreurHttp(409, 'Image de la vignette absente : choisissez de nouveau la pose ou le fond.');
+    const absents = elementsAbsents(v, ctx.dossier);
+    if (absents.length > 0) throw new ErreurHttp(409, `Image de la vignette absente : ${absents.join(', ')}.`);
     if (vignetteEnCours) throw new ErreurHttp(409, 'Une vignette est déjà en cours de rendu.');
     vignetteEnCours = true;
     const cle = cleVignette(v);
@@ -269,6 +310,7 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
     const vignettePresente = !!video.vignette?.fichier && existsSync(path.join(ctx.dossier, video.vignette.fichier));
     const problemes = problemesPreparation(video, descriptionYoutube(video.description, disponible.chapitres),
       ctx.tournage.reglages.publication, vignettePresente);
+    if (video.vignette) problemes.push(...elementsAbsents(video.vignette, ctx.dossier).map(a => `Vignette : ${a} introuvable.`));
     if (!disponible.rendue) problemes.unshift(`Rendu absent : ${disponible.fichier}.`);
     if (problemes.length > 0) throw new ErreurHttp(422, 'La vidéo n’est pas prête.', problemes);
     const statut = video.statut === 'a-preparer' || video.statut === 'erreur' ? 'prete' : video.statut;
@@ -447,7 +489,7 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
 
   return async function traiter(req, res) {
     const chemin = new URL(req.url ?? '/', 'http://local').pathname;
-    const route = /^\/api\/tournages\/([^/]+)\/publication(?:\/(redaction|image|vignette|valider|relais|site\/retirer|youtube\/(?:preparer|ouvrir|envoi|verifier)))?$/
+    const route = /^\/api\/tournages\/([^/]+)\/publication(?:\/(redaction|image|vignette|captures|valider|relais|site\/retirer|youtube\/(?:preparer|ouvrir|envoi|verifier)))?$/
       .exec(chemin);
     if (!route && chemin !== '/api/poses') return false;
     try {
@@ -463,6 +505,8 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
       else if (action === 'redaction' && req.method === 'POST') repondre(res, 200, await rediger(req, ctx));
       else if (action === 'image' && req.method === 'POST') repondre(res, 200, await image(req, ctx));
       else if (action === 'vignette' && req.method === 'POST') repondre(res, 200, await vignette(req, ctx));
+      else if (action === 'captures' && req.method === 'GET') repondre(res, 200, await captures(ctx.dossier));
+      else if (action === 'captures' && req.method === 'POST') repondre(res, 200, await deposerCapture(req, ctx));
       else if (action === 'valider' && req.method === 'POST') repondre(res, 200, await valider(req, ctx));
       else if (action === 'youtube/preparer' && req.method === 'POST') repondre(res, 200, await preparerYoutube(req, ctx));
       else if (action === 'youtube/ouvrir' && req.method === 'POST') repondre(res, 200, await ouvrirYoutube(req, ctx));
