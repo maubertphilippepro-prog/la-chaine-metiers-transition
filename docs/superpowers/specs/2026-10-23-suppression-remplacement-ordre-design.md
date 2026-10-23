@@ -14,7 +14,7 @@ Date : 2026-10-23. Retours de l'essai du plan 11 : une vidéo sans piste audio a
 - Cas visé : statut « Erreur » et aucune analyse faite (pas d'`analyse.json`), avec une vidéo dans `bruts/`. C'est l'état `erreur` de `etatTournage` : par exemple une vidéo sans piste audio, ou dans un format illisible.
 - La ligne garde « Relancer l'analyse » et gagne « Remplacer la vidéo ». Ce bouton ouvre le choix d'un fichier ; on peut aussi glisser la vidéo sur la ligne. Le fichier passe par la même validation que dans « Nouveau tournage » (`raisonFichierVideo`).
 - Enchaînement, avec la progression de l'envoi dans la ligne :
-  1. `DELETE /api/tournages/<nom>/video` retire les vidéos du montage de `bruts/`, mais garde l'enregistrement `-camera`. Il retire aussi les fichiers tirés de l'ancienne vidéo : `source.mp4`, `preparation.json`, `transcription.json`, `detections.json`.
+  1. `DELETE /api/tournages/<nom>/video` retire les vidéos du montage de `bruts/`, mais garde l'enregistrement `-camera`. Il retire aussi les fichiers tirés de l'ancienne vidéo : `source.mp4`, `preparation.json`, `transcription.json`, `detections.json`, `suggestions.json`.
   2. `PUT /api/tournages/<nom>/video?fichier=…` envoie la nouvelle vidéo (route existante).
   3. `POST /api/tournages/<nom>/analyse` relance l'analyse avec le titre du tournage (`titreParDefaut`, route existante).
 - `DELETE …/video` est refusé (409) si le tournage n'est pas dans ce cas : déjà analysé, pas en erreur, analyse ou envoi en cours.

@@ -107,7 +107,7 @@ export async function deposerVideo(req: IncomingMessage, dossier: string): Promi
 }
 
 // Fichiers que le pipeline tire de la vidéo du montage : à refaire avec la nouvelle vidéo.
-const FICHIERS_DE_LA_VIDEO = ['source.mp4', 'preparation.json', 'transcription.json', 'detections.json'];
+const FICHIERS_DE_LA_VIDEO = ['source.mp4', 'preparation.json', 'transcription.json', 'detections.json', 'suggestions.json'];
 
 // Retire la vidéo d'un tournage en erreur au premier chargement, pour en déposer une autre ; l'enregistrement « -camera » reste.
 export async function retirerVideo(dossier: string): Promise<void> {

@@ -586,12 +586,12 @@ describe('suppression d’un tournage', () => {
 
 describe('retrait de la vidéo', () => {
   it('retire la vidéo et les fichiers tirés d’elle, garde la webcam', async () => {
-    const d = await avecVideo('a', { 'episode.json': EN_ERREUR, 'preparation.json': {}, 'transcription.json': [], 'detections.json': {} });
+    const d = await avecVideo('a', { 'episode.json': EN_ERREUR, 'preparation.json': {}, 'transcription.json': [], 'detections.json': {}, 'suggestions.json': {} });
     await writeFile(path.join(d, 'bruts', 'film-camera.mkv'), 'webcam');
     await writeFile(path.join(d, 'source.mp4'), 'source');
     expect((await retirerVideo('a')).status).toBe(200);
     expect(readdirSync(path.join(d, 'bruts'))).toEqual(['film-camera.mkv']);
-    for (const f of ['source.mp4', 'preparation.json', 'transcription.json', 'detections.json']) expect(existsSync(path.join(d, f))).toBe(false);
+    for (const f of ['source.mp4', 'preparation.json', 'transcription.json', 'detections.json', 'suggestions.json']) expect(existsSync(path.join(d, f))).toBe(false);
     expect(existsSync(path.join(d, 'episode.json'))).toBe(true);
     expect((await (await fetch(`${url}/api/tournages`)).json())[0].videoPresente).toBe(false);
   });
