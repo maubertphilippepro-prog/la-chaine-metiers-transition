@@ -74,4 +74,9 @@ describe('tailleAccroche', () => {
   it('réduit assez pour qu’un mot très long tienne sur une ligne', () => {
     expect(tailleAccroche('Anticonstitutionnellement')).toBeLessThan(40);
   });
+  it('réduit la taille pour que le mot le plus long tienne dans la largeur donnée', () => {
+    expect(tailleAccroche('Presse-papiers')).toBe(67);          // 640 / (0,68 × 14)
+    expect(tailleAccroche('Presse-papiers', 400)).toBe(42);     // 400 / (0,68 × 14)
+    expect(tailleAccroche('Un mot', 400)).toBe(120);
+  });
 });

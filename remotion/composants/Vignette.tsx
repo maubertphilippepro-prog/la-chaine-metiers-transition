@@ -1,57 +1,27 @@
 import type { FC } from 'react';
-import { AbsoluteFill, Img } from 'remotion';
-import { tailleAccroche } from '../calculs';
+import { AbsoluteFill } from 'remotion';
+import type { Gabarit } from '../../noyau/gabarits';
+import type { ProprietesVignette } from '../../noyau/publication';
 import { charte } from '../charte';
 import { police } from '../police';
-import type { ProprietesVignette } from '../../noyau/publication';
-import { LogoMT } from './LogoMT';
+import { Classique } from './vignette/Classique';
+import { Demonstration } from './vignette/Demonstration';
+import { Mosaique } from './vignette/Mosaique';
+import { Vitrine } from './vignette/Vitrine';
 
-export const LARGEUR_VIGNETTE = 1280;
-export const HAUTEUR_VIGNETTE = 720;
-
+export { HAUTEUR_VIGNETTE, LARGEUR_VIGNETTE } from './vignette/dimensions';
 export type { ProprietesVignette };
 
-// Fond (écran flouté et assombri, ou formes de la charte), bande rouge, accroche en capitales à gauche,
-// pose détourée en grand à droite, logo en haut à gauche (sur plaque blanche quand le fond est l'écran).
-export const Vignette: FC<ProprietesVignette> = ({ fondUrl, poseUrl, accroche }) => (
-  <AbsoluteFill style={{ backgroundColor: charte.blanc, fontFamily: police, overflow: 'hidden' }}>
-    {fondUrl ? (
-      <>
-        <Img
-          src={fondUrl}
-          style={{ position: 'absolute', left: -20, top: -20, width: LARGEUR_VIGNETTE + 40, height: HAUTEUR_VIGNETTE + 40, objectFit: 'cover', filter: 'blur(6px)' }}
-        />
-        <AbsoluteFill style={{ backgroundColor: 'rgba(0, 28, 64, 0.55)' }} />
-      </>
-    ) : (
-      <>
-        <div style={{ position: 'absolute', right: -120, top: -120, width: 520, height: 520, borderRadius: '50%', backgroundColor: charte.bleuGris, opacity: 0.6 }} />
-        <div style={{ position: 'absolute', right: 0, bottom: 0, width: 0, height: 0, borderBottom: `320px solid ${charte.bleu}`, borderLeft: '320px solid transparent' }} />
-      </>
-    )}
-    <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 28, backgroundColor: charte.rouge }} />
-    {poseUrl && (
-      <Img
-        src={poseUrl}
-        style={{ position: 'absolute', right: 0, bottom: 0, height: '100%', maxWidth: '55%', objectFit: 'contain', objectPosition: 'right bottom' }}
-      />
-    )}
-    <div style={{ position: 'absolute', left: 64, top: 40 }}>
-      <LogoMT hauteur={fondUrl ? 88 : 72} plaque={fondUrl !== null} />
-    </div>
-    <div style={{ position: 'absolute', left: 64, top: 150, bottom: 60, width: 640, display: 'flex', alignItems: 'center' }}>
-      <div
-        style={{
-          fontSize: tailleAccroche(accroche), fontWeight: 800, lineHeight: 1.05, textTransform: 'uppercase',
-          color: fondUrl ? charte.blanc : charte.bleu,
-          // Halo blanc sur la charte : l'accroche reste lisible là où la pose passe dessous.
-          textShadow: fondUrl
-            ? '0 4px 18px rgba(0, 0, 0, 0.6)'
-            : '0 0 4px rgba(255, 255, 255, 1), 0 0 10px rgba(255, 255, 255, 1), 0 0 22px rgba(255, 255, 255, 0.9)',
-        }}
-      >
-        {accroche}
-      </div>
-    </div>
-  </AbsoluteFill>
-);
+const MISES_EN_PAGE: Record<Gabarit, FC<ProprietesVignette>> = {
+  classique: Classique, vitrine: Vitrine, demonstration: Demonstration, mosaique: Mosaique,
+};
+
+// Vignette 1280×720 : le gabarit choisi place pose, fond, accroche, logos et captures.
+export const Vignette: FC<ProprietesVignette> = props => {
+  const MiseEnPage = MISES_EN_PAGE[props.gabarit];
+  return (
+    <AbsoluteFill style={{ backgroundColor: charte.blanc, fontFamily: police, overflow: 'hidden' }}>
+      <MiseEnPage {...props} />
+    </AbsoluteFill>
+  );
+};
