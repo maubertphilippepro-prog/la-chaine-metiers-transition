@@ -52,6 +52,7 @@ export interface DetailPublication {
   sourceUrl: string;
   urlTournage: string;      // sert le dossier du tournage (images, vignettes)
   urlPoses: string;
+  urlLogos: string;
   publication: Publication;
   videos: VideoDisponible[];
   camera: string | null;    // nom du fichier caméra dans bruts/

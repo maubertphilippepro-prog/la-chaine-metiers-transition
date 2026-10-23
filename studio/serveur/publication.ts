@@ -5,7 +5,7 @@ import path from 'node:path';
 import { decisionsEpisodes, decisionsVideoComplete, dureeEpisode, dureeVideoComplete } from '../../noyau/decisions';
 import {
   accorderPublication, appliquerModifications, cleVignette, fichierRendu, fichierVignette, imageCamera, imageEcran, modifierVideo,
-  migrerPublication, poseDetouree, problemesPreparation, raisonPublication, urlsVignette, type CiblePublication, type Publication, type VideoPubliee,
+  migrerPublication, poseDetouree, problemesPreparation, raisonPublication, proprietesVignette, type CiblePublication, type ProprietesVignette, type Publication, type VideoPubliee,
 } from '../../noyau/publication';
 import { chapitresYoutube, descriptionYoutube, segmentsSecondes, texteConserve } from '../../noyau/publication-textes';
 import { diffusion, NATURES, type Nature } from '../../noyau/qualification';
@@ -15,7 +15,6 @@ import {
   bilanLecture, dossierYoutube, enregistrerEnvoi, FORMES_URL, idYoutube, problemesEnvoi, raisonEnvoi, textesYoutube,
   type LectureYoutube, type VisibiliteYoutube,
 } from '../../noyau/youtube';
-import type { ProprietesVignette } from '../../remotion/composants/Vignette';
 import type { ResultatVignette } from '../../remotion/scripts/vignette';
 import { chargerTournage, lireEpisode, urlSource, type Tournage } from '../../remotion/scripts/tournage';
 import type { DetailPublication, DossierYoutube, Pose, VerificationYoutube, VideoDisponible } from '../commun';
@@ -28,9 +27,11 @@ import { ecrireDossierYoutube } from './youtube';
 export interface ConfigPublication {
   racineTournages: string;
   cheminPoses: string;
-  // Serveurs de fichiers : dossiers de tournage, banque de poses.
+  cheminLogos: string;
+  // Serveurs de fichiers : dossiers de tournage, banque de poses, banque de logos.
   urlFichiers: string;
   urlPoses: string;
+  urlLogos: string;
   urlSite: string | undefined;
   lireSite: (urlSite: string | undefined) => Promise<ReferencesSite | null>;
   rediger: Rediger;
@@ -141,6 +142,7 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
       sourceUrl: urlSource(c.urlFichiers, ctx.tournage.nom),
       urlTournage: urlTournage(ctx.dossier),
       urlPoses: c.urlPoses,
+      urlLogos: c.urlLogos,
       publication: ctx.publication,
       videos: ctx.videos,
       camera: await fichierCamera(ctx.dossier),
@@ -151,7 +153,8 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
   }
 
   async function enregistrer(req: IncomingMessage, ctx: Contexte): Promise<Publication> {
-    const corps = await lireCorps(req);
+    // Le studio peut envoyer une vignette d'avant les gabarits : elle est complétée comme à la lecture du fichier.
+    const corps = migrerPublication(await lireCorps(req));
     const probleme = raisonPublication(corps);
     if (probleme) throw new ErreurHttp(400, `publication invalide : ${probleme}`);
     const p = accorderPublication(appliquerModifications(ctx.publication, corps as Publication), ctx.cibles);
@@ -238,9 +241,8 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
     const cle = cleVignette(v);
     const chemin = fichierVignette(cible);
     try {
-      const urls = urlsVignette(v, { tournage: urlTournage(ctx.dossier), poses: c.urlPoses });
-      await c.rendreVignette({ fondUrl: urls.fond, poseUrl: urls.pose, accroche: v.accroche.trim() }, path.join(ctx.dossier, chemin),
-        ctx.tournage.reglages.publication.vignetteOctetsMax);
+      const bases = { tournage: urlTournage(ctx.dossier), poses: c.urlPoses, logos: c.urlLogos };
+      await c.rendreVignette(proprietesVignette(v, bases), path.join(ctx.dossier, chemin), ctx.tournage.reglages.publication.vignetteOctetsMax);
     } catch (e) {
       const actuelle = await relire(ctx);
       await ecrirePublication(ctx.dossier, modifierVideo(actuelle, cible, {

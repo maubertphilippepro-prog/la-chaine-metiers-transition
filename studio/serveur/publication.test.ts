@@ -45,11 +45,14 @@ beforeEach(async () => {
   racine = await mkdtemp(path.join(os.tmpdir(), 'pmt-publication-'));
   await mkdir(path.join(racine, 'tournages'));
   await mkdir(path.join(racine, 'poses'));
+  await mkdir(path.join(racine, 'logos'));
   config = {
     racineTournages: path.join(racine, 'tournages'),
     cheminPoses: path.join(racine, 'poses'),
+    cheminLogos: path.join(racine, 'logos'),
     urlFichiers: 'http://127.0.0.1:9999',
     urlPoses: 'http://127.0.0.1:9998',
+    urlLogos: 'http://127.0.0.1:9997',
     urlSite: 'https://site.example',
     lireSite: vi.fn(async () => SITE),
     rediger: vi.fn(async () => PROPOSITION),
@@ -204,7 +207,7 @@ describe('vignette et validation', () => {
     const r = await action('a', 'vignette', { cible: 'complete' });
     expect(r.status).toBe(200);
     expect(config.rendreVignette).toHaveBeenCalledWith(
-      { fondUrl: null, poseUrl: 'http://127.0.0.1:9998/surpris.detoure.png', accroche: 'Un seul mot de passe' },
+      { gabarit: 'classique', fondUrl: null, poseUrl: 'http://127.0.0.1:9998/surpris.detoure.png', logoUrls: [], captureUrls: [], accroche: 'Un seul mot de passe' },
       path.join(dossier, 'rendus', 'vignettes', 'complete.jpg'),
       2_000_000,
     );

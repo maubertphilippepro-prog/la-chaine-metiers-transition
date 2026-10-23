@@ -3,18 +3,13 @@ import { AbsoluteFill, Img } from 'remotion';
 import { tailleAccroche } from '../calculs';
 import { charte } from '../charte';
 import { police } from '../police';
+import type { ProprietesVignette } from '../../noyau/publication';
 import { LogoMT } from './LogoMT';
 
 export const LARGEUR_VIGNETTE = 1280;
 export const HAUTEUR_VIGNETTE = 720;
 
-export type ProprietesVignette = {
-  // Image du partage d'écran, ou null pour un fond aux formes de la charte.
-  fondUrl: string | null;
-  // Pose détourée (PNG transparent).
-  poseUrl: string | null;
-  accroche: string;
-};
+export type { ProprietesVignette };
 
 // Fond (écran flouté et assombri, ou formes de la charte), bande rouge, accroche en capitales à gauche,
 // pose détourée en grand à droite, logo en haut à gauche (sur plaque blanche quand le fond est l'écran).

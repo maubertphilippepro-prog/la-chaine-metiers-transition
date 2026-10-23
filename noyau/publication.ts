@@ -1,3 +1,4 @@
+import { GABARITS, MAX_ELEMENTS, type Gabarit } from './gabarits';
 import { nomFichierEpisode } from './nommage';
 import { diffusion, memeQualification, NATURES, QUALIFICATION_PAR_DEFAUT, qualificationDepuisProfil, type Nature, type Qualification } from './qualification';
 import type { Reglages } from './types';
@@ -13,6 +14,10 @@ export interface Vignette {
   pose: PoseVignette;
   fond: FondVignette;
   accroche: string;
+  gabarit: Gabarit;
+  // Fichiers de donnees/logos/ et de captures/ du tournage, dans l'ordre choisi ; 3 au plus.
+  logos: string[];
+  captures: string[];
   // rendus/vignettes/<cible>.jpg une fois rendue ; null tant qu'elle ne l'est pas.
   fichier: string | null;
 }
@@ -29,6 +34,8 @@ export interface VideoPubliee {
   description: string;
   tags: string[];
   accroches: string[];
+  // Logiciels et services cités dans la vidéo, d'après la rédaction : servent à pré-cocher les logos.
+  logiciels: string[];
   vignette: Vignette | null;
   youtube: { id: string | null; visibilite: 'privee' | 'non-repertoriee' | 'publique' | 'programmee'; programmeeLe: string | null; playlistId: string | null };
   replit: { id: number | null; categorieId: number | null; playlistId: number | null };
@@ -43,10 +50,11 @@ export interface Publication {
 
 export type ReglagesPublication = Reglages['publication'];
 
-// Adresses (sans barre finale) qui servent le dossier du tournage et la banque de poses.
+// Adresses (sans barre finale) qui servent le dossier du tournage, la banque de poses et celle de logos.
 export interface BasesImages {
   tournage: string;
   poses: string;
+  logos: string;
 }
 
 const STATUTS: StatutPublication[] = ['a-preparer', 'prete', 'envoyee-youtube', 'relayee', 'erreur'];
@@ -63,6 +71,7 @@ export function videoParDefaut(cible: CiblePublication, q: Qualification): Video
     description: '',
     tags: [],
     accroches: [],
+    logiciels: [],
     vignette: null,
     youtube: { id: null, visibilite: 'privee', programmeeLe: null, playlistId: null },
     replit: { id: null, categorieId: null, playlistId: null },
@@ -84,12 +93,12 @@ export function modifierVideo(p: Publication, cible: CiblePublication, changemen
   return { ...p, videos: p.videos.map(v => (v.cible === cible ? { ...v, ...changement } : v)) };
 }
 
-// Ce qui distingue deux vignettes à l'image : pose, fond et accroche (pas le fichier rendu).
+// Ce qui distingue deux vignettes à l'image : pose, fond, accroche, gabarit, logos et captures (pas le fichier rendu).
 export function cleVignette(v: Vignette | null): string {
   if (!v) return '';
   const pose = v.pose.source === 'banque' ? `banque:${v.pose.fichier}` : `camera:${v.pose.instant}`;
   const fond = v.fond.source === 'ecran' ? `ecran:${v.fond.instant}` : 'charte';
-  return `${pose}|${fond}|${v.accroche}`;
+  return [pose, fond, v.accroche, v.gabarit, v.logos.join(','), v.captures.join(',')].join('|');
 }
 
 // Modifications venues du studio : statut, fichier de vignette, états YouTube et Replit et erreur ne changent
@@ -128,7 +137,7 @@ const estQualification = (q: unknown) => estObjet(q) && NATURES.includes(q.natur
 
 // publication.json version 1 (profils Interne, Perso, Mixte) lu comme une version 2 ; il est réécrit en version 2
 // au prochain enregistrement. Une forme inattendue est rendue telle quelle : raisonPublication dira ce qui ne va pas.
-export function migrerPublication(valeur: unknown): unknown {
+function migrerVersion1(valeur: unknown): unknown {
   if (!estObjet(valeur) || valeur.version !== 1 || !Array.isArray(valeur.videos)) return valeur;
   const { profilParDefaut, ...reste } = valeur;
   return {
@@ -143,6 +152,20 @@ export function migrerPublication(valeur: unknown): unknown {
   };
 }
 
+// Champs venus après la version 2 (vignettes variées), absents des fichiers plus anciens.
+function completerVideo(v: unknown): unknown {
+  if (!estObjet(v)) return v;
+  const vignette = estObjet(v.vignette) ? { gabarit: 'classique', logos: [], captures: [], ...v.vignette } : v.vignette;
+  return { logiciels: [], ...v, vignette };
+}
+
+// publication.json tel que lu sur le disque ou reçu du studio, mis à la forme actuelle.
+export function migrerPublication(valeur: unknown): unknown {
+  const v2 = migrerVersion1(valeur);
+  if (!estObjet(v2) || v2.version !== 2 || !Array.isArray(v2.videos)) return v2;
+  return { ...v2, videos: v2.videos.map(completerVideo) };
+}
+
 function raisonVignette(v: unknown): string | null {
   if (v === null) return null;
   if (!estObjet(v) || !estObjet(v.pose) || !estObjet(v.fond)) return 'vignette : pose et fond attendus';
@@ -152,6 +175,13 @@ function raisonVignette(v: unknown): string | null {
   if (!poseValide) return 'vignette : pose invalide';
   if (!(v.fond.source === 'charte' || (v.fond.source === 'ecran' && estInstant(v.fond.instant)))) return 'vignette : fond invalide';
   if (!estTexte(v.accroche)) return 'vignette : accroche attendue';
+  if (!GABARITS.includes(v.gabarit as Gabarit)) return 'vignette : gabarit invalide';
+  for (const champ of ['logos', 'captures']) {
+    const liste = v[champ];
+    const valide = Array.isArray(liste) && liste.length <= MAX_ELEMENTS
+      && liste.every(f => estTexte(f) && f !== '' && !/[\\/]/.test(f));
+    if (!valide) return `vignette : ${champ} invalides`;
+  }
   if (v.fichier !== null && !estTexte(v.fichier)) return 'vignette : fichier invalide';
   return null;
 }
@@ -170,7 +200,7 @@ export function raisonPublication(p: unknown): string | null {
     if (typeof v.confidentielle !== 'boolean') return `${ou} : confidentielle doit être vrai ou faux`;
     if (!STATUTS.includes(v.statut as StatutPublication)) return `${ou} : statut invalide`;
     for (const champ of ['titre', 'description']) if (!estTexte(v[champ])) return `${ou} : ${champ} doit être un texte`;
-    for (const champ of ['variantesTitre', 'tags', 'accroches']) if (!listeDeTextes(v[champ])) return `${ou} : ${champ} doit être une liste de textes`;
+    for (const champ of ['variantesTitre', 'tags', 'accroches', 'logiciels']) if (!listeDeTextes(v[champ])) return `${ou} : ${champ} doit être une liste de textes`;
     const vignette = raisonVignette(v.vignette);
     if (vignette) return `${ou} : ${vignette}`;
     if (!estObjet(v.youtube) || !estObjet(v.replit)) return `${ou} : youtube et replit attendus`;
@@ -197,12 +227,30 @@ export const imageCamera = (instant: number) => ({
 });
 export const poseDetouree = (fichier: string) => `${fichier.replace(/\.[^.]+$/, '')}.detoure.png`;
 
-export function urlsVignette(v: Vignette, b: BasesImages): { pose: string; fond: string | null } {
+export const DOSSIER_CAPTURES = 'captures';
+
+// Ce que la composition Remotion « Vignette » reçoit : gabarit, adresses HTTP des images, accroche.
+export type ProprietesVignette = {
+  gabarit: Gabarit;
+  // Image du partage d'écran, ou null pour le fond de la charte.
+  fondUrl: string | null;
+  // Pose détourée (PNG transparent).
+  poseUrl: string | null;
+  logoUrls: string[];
+  captureUrls: string[];
+  accroche: string;
+};
+
+export function proprietesVignette(v: Vignette, b: BasesImages): ProprietesVignette {
   return {
-    pose: v.pose.source === 'banque'
+    gabarit: v.gabarit,
+    poseUrl: v.pose.source === 'banque'
       ? `${b.poses}/${encodeURIComponent(poseDetouree(v.pose.fichier))}`
       : `${b.tournage}/${imageCamera(v.pose.instant).detouree}`,
-    fond: v.fond.source === 'ecran' ? `${b.tournage}/${imageEcran(v.fond.instant)}` : null,
+    fondUrl: v.fond.source === 'ecran' ? `${b.tournage}/${imageEcran(v.fond.instant)}` : null,
+    logoUrls: v.logos.map(f => `${b.logos}/${encodeURIComponent(f)}`),
+    captureUrls: v.captures.map(f => `${b.tournage}/${DOSSIER_CAPTURES}/${encodeURIComponent(f)}`),
+    accroche: v.accroche.trim(),
   };
 }
 

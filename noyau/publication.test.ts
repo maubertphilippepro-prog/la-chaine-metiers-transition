@@ -3,7 +3,7 @@ import reglagesJson from '../reglages.json';
 import {
   accorderPublication, appliquerModifications, cleVignette, fichierRendu, fichierVignette, imageCamera, imageEcran,
   longueurTags, mentionsTrouvees, migrerPublication, modifierVideo, nomCible, poseDetouree, problemesPreparation, raisonPublication, retraitAFaire,
-  urlsVignette, videoParDefaut, type Publication, type Vignette,
+  proprietesVignette, videoParDefaut, type Publication, type Vignette,
 } from './publication';
 import type { Qualification } from './qualification';
 import type { Reglages } from './types';
@@ -16,6 +16,9 @@ const VIGNETTE: Vignette = {
   pose: { source: 'banque', fichier: 'surpris.jpg' },
   fond: { source: 'ecran', instant: 12.3456 },
   accroche: 'Le presse-papiers caché',
+  gabarit: 'classique',
+  logos: [],
+  captures: [],
   fichier: 'rendus/vignettes/complete.jpg',
 };
 const prete = (): Publication => ({
@@ -55,16 +58,42 @@ describe('noms et chemins', () => {
     expect(imageCamera(1.5)).toEqual({ brute: 'publication/images/camera-1500.png', detouree: 'publication/images/camera-1500.detoure.png' });
     expect(poseDetouree('surpris.jpg')).toBe('surpris.detoure.png');
   });
-  it('donne les adresses des images d’une vignette', () => {
-    const bases = { tournage: 'http://f/essai', poses: 'http://p' };
-    expect(urlsVignette(VIGNETTE, bases)).toEqual({ pose: 'http://p/surpris.detoure.png', fond: 'http://f/essai/publication/images/ecran-12346.png' });
-    expect(urlsVignette({ ...VIGNETTE, pose: { source: 'camera', instant: 2 }, fond: { source: 'charte' } }, bases)).toEqual({
-      pose: 'http://f/essai/publication/images/camera-2000.detoure.png', fond: null,
+  it('donne les propriétés de la composition : adresses des images et accroche nettoyée', () => {
+    const bases = { tournage: 'http://f/essai', poses: 'http://p', logos: 'http://l' };
+    expect(proprietesVignette({ ...VIGNETTE, accroche: ' Le presse-papiers caché ' }, bases)).toEqual({
+      gabarit: 'classique',
+      poseUrl: 'http://p/surpris.detoure.png',
+      fondUrl: 'http://f/essai/publication/images/ecran-12346.png',
+      logoUrls: [],
+      captureUrls: [],
+      accroche: 'Le presse-papiers caché',
+    });
+    const riche = proprietesVignette({
+      ...VIGNETTE, gabarit: 'mosaique', pose: { source: 'camera', instant: 2 }, fond: { source: 'charte' },
+      logos: ['power bi.svg'], captures: ['étape 1.png', 'b.jpg'],
+    }, bases);
+    expect(riche).toMatchObject({
+      gabarit: 'mosaique',
+      poseUrl: 'http://f/essai/publication/images/camera-2000.detoure.png',
+      fondUrl: null,
+      logoUrls: ['http://l/power%20bi.svg'],
+      captureUrls: ['http://f/essai/captures/%C3%A9tape%201.png', 'http://f/essai/captures/b.jpg'],
     });
   });
 });
 
 describe('raisonPublication', () => {
+  it('refuse un gabarit inconnu, trop de logos ou un nom de fichier avec un chemin', () => {
+    const avec = (changement: Partial<Vignette>) => ({ ...prete(), videos: [{ ...prete().videos[0]!, vignette: { ...VIGNETTE, ...changement } }] });
+    expect(raisonPublication(avec({ gabarit: 'autre' as never }))).toBe('videos[0] : vignette : gabarit invalide');
+    expect(raisonPublication(avec({ logos: ['a.png', 'b.png', 'c.png', 'd.png'] }))).toBe('videos[0] : vignette : logos invalides');
+    expect(raisonPublication(avec({ captures: ['../x.png'] }))).toBe('videos[0] : vignette : captures invalides');
+    expect(raisonPublication(avec({ logos: ['excel.png'], captures: ['a.png', 'b.png'] }))).toBeNull();
+  });
+  it('exige la liste des logiciels', () => {
+    const { logiciels: _, ...sans } = prete().videos[0]!;
+    expect(raisonPublication({ ...prete(), videos: [sans] })).toBe('videos[0] : logiciels doit être une liste de textes');
+  });
   it('accepte une publication bien formée', () => {
     expect(raisonPublication(prete())).toBeNull();
     expect(raisonPublication(accorderPublication(null, ['complete', 1]))).toBeNull();
@@ -105,6 +134,11 @@ describe('appliquerModifications', () => {
     expect(v.statut).toBe('prete');
     expect(v.vignette!.fichier).toBe('rendus/vignettes/complete.jpg');
     expect(v.youtube.id).toBeNull();
+  });
+  it('distingue deux vignettes par le gabarit, les logos et les captures', () => {
+    expect(cleVignette(VIGNETTE)).not.toBe(cleVignette({ ...VIGNETTE, gabarit: 'vitrine' }));
+    expect(cleVignette(VIGNETTE)).not.toBe(cleVignette({ ...VIGNETTE, logos: ['excel.png'] }));
+    expect(cleVignette(VIGNETTE)).not.toBe(cleVignette({ ...VIGNETTE, captures: ['a.png'] }));
   });
   it('compare les vignettes sur la pose, le fond et l’accroche', () => {
     expect(cleVignette(VIGNETTE)).toBe(cleVignette({ ...VIGNETTE, fichier: null }));
@@ -165,9 +199,19 @@ describe('migrerPublication', () => {
     expect(p.videos[0]).not.toHaveProperty('profil');
     expect(raisonPublication(p)).toBeNull();
   });
+  it('complète une version 2 écrite avant les vignettes variées', () => {
+    const { gabarit: _g, logos: _l, captures: _c, ...ancienne } = VIGNETTE;
+    const { logiciels: _, ...video } = { ...videoParDefaut('complete', PERSO), vignette: ancienne };
+    const p = migrerPublication({ version: 2, qualificationParDefaut: PERSO, videos: [video, { ...videoParDefaut(1, PERSO), logiciels: ['Excel'] }] }) as Publication;
+    expect(p.videos[0]!.logiciels).toEqual([]);
+    expect(p.videos[0]!.vignette).toEqual({ ...ancienne, gabarit: 'classique', logos: [], captures: [] });
+    expect(p.videos[1]!.logiciels).toEqual(['Excel']);
+    expect(p.videos[1]!.vignette).toBeNull();
+    expect(raisonPublication(p)).toBeNull();
+  });
   it('laisse une version 2 telle quelle, et un profil inconnu à raisonPublication', () => {
     const v2 = prete();
-    expect(migrerPublication(v2)).toBe(v2);
+    expect(migrerPublication(v2)).toEqual(v2);
     expect(raisonPublication(migrerPublication({ version: 1, profilParDefaut: 'perso', videos: [v1('autre')] })))
       .toBe('videos[0] : nature invalide');
     expect(raisonPublication(migrerPublication({ version: 1, profilParDefaut: 'autre', videos: [] }))).toBe('qualificationParDefaut invalide');

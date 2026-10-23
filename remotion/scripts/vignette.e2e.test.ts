@@ -15,7 +15,7 @@ it('rend une vignette 1280×720 en JPEG de moins de 2 Mo', async () => {
   try {
     const sortie = path.join(dossier, 'vignettes', 'complete.jpg');
     const resultat = await rendreVignette(
-      { fondUrl: `${serveur.url}/fond.png`, poseUrl: `${serveur.url}/pose.png`, accroche: 'Le presse-papiers caché' },
+      { gabarit: 'classique', logoUrls: [], captureUrls: [], fondUrl: `${serveur.url}/fond.png`, poseUrl: `${serveur.url}/pose.png`, accroche: 'Le presse-papiers caché' },
       sortie, 2_000_000,
     );
     expect(resultat.octets).toBeLessThanOrEqual(2_000_000);

@@ -1,6 +1,6 @@
 import { Thumbnail } from '@remotion/player';
 import { type FC, useState } from 'react';
-import { cleVignette, urlsVignette, type Publication, type Vignette, type VideoPubliee } from '../../../noyau/publication';
+import { cleVignette, proprietesVignette, type Publication, type Vignette, type VideoPubliee } from '../../../noyau/publication';
 import { HAUTEUR_VIGNETTE, LARGEUR_VIGNETTE, Vignette as CompositionVignette } from '../../../remotion/composants/Vignette';
 import type { DetailPublication, Pose } from '../../commun';
 import { api } from '../api';
@@ -34,7 +34,7 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
   // le navigateur réafficherait sinon l’ancienne image.
   const [tirage, setTirage] = useState(() => Date.now());
   const vignette = v.vignette;
-  const bases = { tournage: detail.urlTournage, poses: detail.urlPoses };
+  const bases = { tournage: detail.urlTournage, poses: detail.urlPoses, logos: detail.urlLogos };
 
   const composer = (c: Partial<Omit<Vignette, 'fichier'>>) => {
     const base = baseVignette(vignette, complete, poses[0]?.fichier);
@@ -49,6 +49,9 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
         pose,
         fond: c.fond ?? base.fond,
         accroche: c.accroche ?? vignette?.accroche ?? v.accroches[0] ?? '',
+        gabarit: vignette?.gabarit ?? 'classique',
+        logos: vignette?.logos ?? [],
+        captures: vignette?.captures ?? [],
         fichier: vignette?.fichier ?? null,
       },
     });
@@ -68,7 +71,7 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
     }
   };
 
-  const urls = vignette ? urlsVignette(vignette, bases) : null;  return (
+  return (
     <fieldset className="vignette">
       <legend>Vignette</legend>
       <div className="actions">
@@ -106,7 +109,7 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
       )}
       {extraction && <p><Attente libelle="Extraction de l’image…" /></p>}
       {erreur && <p className="alerte">{erreur}</p>}
-      {vignette && urls && (
+      {vignette && (
         <div className="apercus-vignette">
           <div>
             <p className="discret">Aperçu</p>
@@ -117,7 +120,7 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
               frameToDisplay={0}
               durationInFrames={1}
               fps={30}
-              inputProps={{ fondUrl: urls.fond, poseUrl: urls.pose, accroche: vignette.accroche }}
+              inputProps={proprietesVignette(vignette, bases)}
               style={{ width: '100%' }}
             />
           </div>

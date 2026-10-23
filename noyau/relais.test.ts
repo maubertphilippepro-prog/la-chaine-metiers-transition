@@ -17,7 +17,7 @@ const video = (changement: Partial<VideoPubliee> = {}): VideoPubliee => ({
   titre: ' Le SSO expliqué ',
   description: 'Desc',
   tags: ['sso'],
-  vignette: { pose: { source: 'banque', fichier: 'a.jpg' }, fond: { source: 'charte' }, accroche: 'Un seul mot', fichier: 'rendus/vignettes/complete.jpg' },
+  vignette: { pose: { source: 'banque', fichier: 'a.jpg' }, fond: { source: 'charte' }, accroche: 'Un seul mot', gabarit: 'classique', logos: [], captures: [], fichier: 'rendus/vignettes/complete.jpg' },
   replit: { id: null, categorieId: 3, playlistId: 7 },
   ...changement,
 });

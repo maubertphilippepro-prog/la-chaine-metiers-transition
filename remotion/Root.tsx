@@ -66,7 +66,7 @@ export const RemotionRoot: FC = () => (
     <Folder name="Vignettes">
       <Still
         id="Vignette" component={Vignette} width={LARGEUR_VIGNETTE} height={HAUTEUR_VIGNETTE}
-        defaultProps={{ fondUrl: null, poseUrl: null, accroche: 'Windows + V : le presse-papiers caché' }}
+        defaultProps={{ gabarit: 'classique', fondUrl: null, poseUrl: null, logoUrls: [], captureUrls: [], accroche: 'Windows + V : le presse-papiers caché' }}
       />
     </Folder>
     <Folder name="Rendus">

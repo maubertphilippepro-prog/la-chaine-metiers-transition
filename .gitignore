@@ -5,3 +5,4 @@ __pycache__/
 .env
 sortie/
 donnees/poses/
+donnees/logos/

@@ -54,8 +54,8 @@ describe('resumeDiffusion', () => {
 });
 
 describe('baseVignette', () => {
-  const complete = { pose: { source: 'camera' as const, instant: 4 }, fond: { source: 'ecran' as const, instant: 9 }, accroche: 'Titre', fichier: 'x.jpg' };
-  const propre = { pose: { source: 'banque' as const, fichier: 'a.jpg' }, fond: { source: 'charte' as const }, accroche: '', fichier: null };
+  const complete = { pose: { source: 'camera' as const, instant: 4 }, fond: { source: 'ecran' as const, instant: 9 }, accroche: 'Titre', gabarit: 'classique' as const, logos: [], captures: [], fichier: 'x.jpg' };
+  const propre = { pose: { source: 'banque' as const, fichier: 'a.jpg' }, fond: { source: 'charte' as const }, accroche: '', gabarit: 'classique' as const, logos: [], captures: [], fichier: null };
   it('garde la vignette de l’épisode quand elle existe', () => {
     expect(baseVignette(propre, complete, 'b.jpg')).toEqual({ pose: propre.pose, fond: propre.fond });
   });

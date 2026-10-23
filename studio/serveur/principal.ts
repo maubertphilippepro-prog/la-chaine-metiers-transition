@@ -40,11 +40,17 @@ async function main(): Promise<void> {
   const cheminPoses = path.join(RACINE, 'donnees', 'poses');
   await mkdir(cheminPoses, { recursive: true });
   const serveurPoses = await demarrerServeur(cheminPoses);
+  // Banque de logos de logiciels, servie à part comme celle des poses.
+  const cheminLogos = path.join(RACINE, 'donnees', 'logos');
+  await mkdir(cheminLogos, { recursive: true });
+  const serveurLogos = await demarrerServeur(cheminLogos);
   const apiPublication = creerApiPublication({
     racineTournages,
     cheminPoses,
+    cheminLogos,
     urlFichiers: fichiers.url,
     urlPoses: serveurPoses.url,
+    urlLogos: serveurLogos.url,
     // Adresse publiée du site Replit (catégories et playlists), dans .env.
     urlSite: process.env.REPLIT_SITE_URL,
     lireSite: url => lireReferencesSite(url),

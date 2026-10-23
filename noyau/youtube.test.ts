@@ -21,7 +21,7 @@ const prete = (changement: Partial<VideoPubliee> = {}): VideoPubliee => ({
   titre: 'Le SSO expliqué',
   description: 'Desc',
   tags: ['sso', 'mot de passe'],
-  vignette: { pose: { source: 'banque', fichier: 'a.jpg' }, fond: { source: 'charte' }, accroche: 'Un seul mot', fichier: 'rendus/vignettes/complete.jpg' },
+  vignette: { pose: { source: 'banque', fichier: 'a.jpg' }, fond: { source: 'charte' }, accroche: 'Un seul mot', gabarit: 'classique', logos: [], captures: [], fichier: 'rendus/vignettes/complete.jpg' },
   ...changement,
 });
 const RENDU = { fichier: 'video-complete.mp4', present: true };

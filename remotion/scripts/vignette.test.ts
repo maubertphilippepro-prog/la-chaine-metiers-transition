@@ -2,9 +2,10 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ProprietesVignette } from '../composants/Vignette';
 import { oublierPaquet, rendreVignette, type DependancesVignette } from './vignette';
 
-const PROPS = { fondUrl: null, poseUrl: null, accroche: 'Essai' };
+const PROPS: ProprietesVignette = { gabarit: 'classique', fondUrl: null, poseUrl: null, logoUrls: [], captureUrls: [], accroche: 'Essai' };
 
 // Faux moteur : chaque qualité JPEG produit un fichier de la taille indiquée.
 function dependances(tailles: Record<number, number>) {
