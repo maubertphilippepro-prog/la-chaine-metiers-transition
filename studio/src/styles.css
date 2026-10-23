@@ -113,3 +113,7 @@ button.lien { background: none; border: none; padding: 0; text-align: left; curs
 .gabarits { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
 .gabarit { padding: 2px; border: 3px solid transparent; background: none; text-align: left; cursor: pointer; }
 .gabarit.choisi { border-color: #004c99; }
+.encadre { background: white; border: 1px solid var(--bleu-gris); border-radius: 6px; padding: 12px 16px; margin: 12px 0; }
+.encadre h2 { margin-top: 0; color: var(--bleu); font-size: 18px; }
+.champs { display: flex; gap: 16px; flex-wrap: wrap; margin: 8px 0; }
+.champs input { font: inherit; }
