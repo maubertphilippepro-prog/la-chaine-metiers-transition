@@ -2,7 +2,7 @@ import type { FC } from 'react';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { charte } from '../charte';
 import { police } from '../police';
-import { LogoPMT } from './LogoPMT';
+import { LogoMT } from './LogoMT';
 
 // Les formes de la charte se construisent, puis le logo et le titre apparaissent.
 export const Generique: FC<{ titre: string; duree: number }> = ({ titre, duree }) => {
@@ -33,7 +33,7 @@ export const Generique: FC<{ titre: string; duree: number }> = ({ titre, duree }
           opacity: texte, transform: `translateY(${(1 - texte) * 40}px)`,
         }}
       >
-        <LogoPMT hauteur={120} />
+        <div style={{ alignSelf: 'flex-start' }}><LogoMT hauteur={130} /></div>
         <div style={{ fontSize: 76, fontWeight: 700, color: charte.bleu, lineHeight: 1.15 }}>{titre}</div>
       </div>
     </AbsoluteFill>

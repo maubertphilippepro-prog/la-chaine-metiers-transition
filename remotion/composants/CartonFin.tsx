@@ -2,7 +2,7 @@ import type { FC } from 'react';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { charte } from '../charte';
 import { police } from '../police';
-import { LogoPMT } from './LogoPMT';
+import { LogoMT } from './LogoMT';
 
 export const CartonFin: FC<{ duree: number }> = ({ duree }) => {
   const frame = useCurrentFrame();
@@ -18,13 +18,10 @@ export const CartonFin: FC<{ duree: number }> = ({ duree }) => {
       <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 24, backgroundColor: charte.rouge }} />
       <div style={{ position: 'absolute', left: 0, right: 0, bottom: 24, height: 12, backgroundColor: charte.bleu }} />
       <div style={{ transform: `scale(${logo})` }}>
-        <LogoPMT hauteur={200} />
+        <LogoMT hauteur={200} />
       </div>
       <div style={{ opacity: texte, textAlign: 'center' }}>
         <div style={{ fontSize: 64, fontWeight: 700, color: charte.bleu }}>Merci d’avoir regardé !</div>
-        <div style={{ fontSize: 44, color: charte.rouge, marginTop: 12 }}>
-          Abonnez-vous à {charte.nomChaine} pour ne rien manquer
-        </div>
       </div>
     </AbsoluteFill>
   );

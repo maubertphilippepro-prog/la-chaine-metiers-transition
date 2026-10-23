@@ -7,7 +7,7 @@ import { CoucheVideo } from '../composants/CoucheVideo';
 import { EncartDefinition } from '../composants/EncartDefinition';
 import { Frise } from '../composants/Frise';
 import { Incrustation } from '../composants/Incrustation';
-import { LogoPMT } from '../composants/LogoPMT';
+import { LogoMT } from '../composants/LogoMT';
 
 // Segments conservés de source.mp4 bout à bout (jump cuts) plein cadre, cadrés par les zooms et la caméra en grand ;
 // mises en avant et textes incrustés au-dessus ; frise en bas, encarts aux temps décidés, logo collé au coin bas droit.
@@ -31,7 +31,7 @@ export const VideoMontee: FC<{ partie: Partie; sourceUrl: string; fondu: number 
         </Sequence>
       ))}
       <div style={{ position: 'absolute', right: 0, bottom: 0 }}>
-        <LogoPMT hauteur={HAUTEUR_LOGO_VIDEO} arrondi={false} />
+        <LogoMT hauteur={HAUTEUR_LOGO_VIDEO} plaque />
       </div>
     </AbsoluteFill>
   );

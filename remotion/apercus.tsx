@@ -6,12 +6,12 @@ import { camera, charte } from './charte';
 import { Cadrage } from './composants/Cadrage';
 import { EncartDefinition } from './composants/EncartDefinition';
 import { Incrustation } from './composants/Incrustation';
-import { LogoPMT } from './composants/LogoPMT';
+import { LogoMT } from './composants/LogoMT';
 import { police } from './police';
 
 export const ApercuLogo: FC = () => (
   <AbsoluteFill style={{ backgroundColor: charte.blanc, alignItems: 'center', justifyContent: 'center' }}>
-    <LogoPMT hauteur={240} />
+    <LogoMT hauteur={240} />
   </AbsoluteFill>
 );
 

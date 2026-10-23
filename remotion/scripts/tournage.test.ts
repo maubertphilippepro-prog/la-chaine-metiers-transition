@@ -29,7 +29,7 @@ describe('chargerTournage', () => {
     expect(t.titre).toBe('Essai');
     expect(t.montage.titre).toBe('Essai');
     expect(t.montage.chapitres[0]).toEqual({ titre: 'Introduction', debut: 0 });
-    expect(t.reglages.charte.nomChaine).toBe('PMT');
+    expect(t.reglages.charte.nomChaine).toBe('Métiers & Transition');
   });
   it('reprend montage.json quand il existe', async () => {
     const montage = { version: 1, titre: 'Validé', coupes: [], chapitres: [{ titre: 'Seul', debut: 0 }], termes: [] };

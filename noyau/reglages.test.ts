@@ -12,7 +12,7 @@ describe('reglages.json', () => {
     expect(r.durees.encart).toBe(6);
     expect(r.definitionMaxCaracteres).toBe(160);
     expect(r.modeles.claude).toBe('claude-opus-5-5');
-    expect(r.charte.nomChaine).toBe('PMT');
+    expect(r.charte.nomChaine).toBe('Métiers & Transition');
     expect(Object.keys(r.charte).some(k => k.startsWith('logo'))).toBe(false);
     expect(r.camera).toEqual({ x: 24, y: 786, largeur: 480, hauteur: 270 });
     expect(r.elements).toEqual({ texteMaxCaracteres: 40, dureeMin: 1, zoomLargeurMin: 480 });

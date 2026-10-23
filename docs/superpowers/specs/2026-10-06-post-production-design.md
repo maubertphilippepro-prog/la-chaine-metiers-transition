@@ -71,7 +71,7 @@ Toutes les compositions prennent en entrée un objet de **décisions de montage*
 - **`Generique`** : animation d'environ 4 s ; les formes géométriques de la charte se construisent puis laissent place au nom de la chaîne et au titre.
 - **`EncartDefinition`** : carte de définition animée (voir §5).
 - **`Intertitre`** : environ 2 s, titre du chapitre suivant (vidéo complète uniquement).
-- **`CartonFin`** : environ 5 s, logo PMT et invitation à s'abonner.
+- **`CartonFin`** : environ 5 s, logo Métiers & Transition et remerciement (pas d'invitation à s'abonner).
 - **`Episode`** et **`VideoComplete`** : assemblages des éléments ci-dessus (voir §5).
 
 ### 3.3 `studio/` — validation

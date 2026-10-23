@@ -3,7 +3,7 @@ import { AbsoluteFill, Img } from 'remotion';
 import { tailleAccroche } from '../calculs';
 import { charte } from '../charte';
 import { police } from '../police';
-import { LogoPMT } from './LogoPMT';
+import { LogoMT } from './LogoMT';
 
 export const LARGEUR_VIGNETTE = 1280;
 export const HAUTEUR_VIGNETTE = 720;
@@ -17,7 +17,7 @@ export type ProprietesVignette = {
 };
 
 // Fond (écran flouté et assombri, ou formes de la charte), bande rouge, accroche en capitales à gauche,
-// pose détourée en grand à droite, logo PMT en haut à gauche.
+// pose détourée en grand à droite, logo en haut à gauche (sur plaque blanche quand le fond est l'écran).
 export const Vignette: FC<ProprietesVignette> = ({ fondUrl, poseUrl, accroche }) => (
   <AbsoluteFill style={{ backgroundColor: charte.blanc, fontFamily: police, overflow: 'hidden' }}>
     {fondUrl ? (
@@ -42,7 +42,7 @@ export const Vignette: FC<ProprietesVignette> = ({ fondUrl, poseUrl, accroche })
       />
     )}
     <div style={{ position: 'absolute', left: 64, top: 40 }}>
-      <LogoPMT hauteur={72} />
+      <LogoMT hauteur={fondUrl ? 88 : 72} plaque={fondUrl !== null} />
     </div>
     <div style={{ position: 'absolute', left: 64, top: 150, bottom: 60, width: 640, display: 'flex', alignItems: 'center' }}>
       <div
