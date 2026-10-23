@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { copyFile, mkdir, mkdtemp, stat } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
@@ -24,6 +24,7 @@ beforeAll(async () => {
   ffmpeg('-f', 'lavfi', '-i', 'testsrc=size=1920x1080', '-frames:v', '1', path.join(dossier, 'fond.png'));
   ffmpeg('-f', 'lavfi', '-i', 'color=c=red:s=600x900', '-frames:v', '1', path.join(dossier, 'pose.png'));
   ffmpeg('-f', 'lavfi', '-i', 'color=c=green:s=256x256', '-frames:v', '1', path.join(dossier, 'logo.png'));
+  await writeFile(path.join(dossier, 'logo.svg'), '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><circle cx="128" cy="128" r="120" fill="blue"/></svg>');
   ffmpeg('-f', 'lavfi', '-i', 'testsrc2=size=1280x720', '-frames:v', '1', path.join(dossier, 'capture.png'));
   serveur = await demarrerServeur(dossier);
 });
@@ -37,7 +38,7 @@ it.each(GABARITS)('rend le gabarit %s en JPEG 1280×720 de moins de 2 Mo, avec t
   const trois = (f: string) => [1, 2, 3].map(n => `${serveur.url}/${f}?n=${n}`);
   const resultat = await rendreVignette({
     gabarit, fondUrl: `${serveur.url}/fond.png`, poseUrl: `${serveur.url}/pose.png`,
-    logoUrls: trois('logo.png'), captureUrls: trois('capture.png'), accroche: 'Le presse-papiers caché',
+    logoUrls: gabarit === 'vitrine' ? [`${serveur.url}/logo.svg`, ...trois('logo.png').slice(1)] : trois('logo.png'), captureUrls: trois('capture.png'), accroche: 'Le presse-papiers caché',
   }, sortie, 2_000_000);
   expect(resultat.octets).toBeLessThanOrEqual(2_000_000);
   expect((await stat(sortie)).size).toBe(resultat.octets);

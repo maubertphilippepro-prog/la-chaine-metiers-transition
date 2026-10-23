@@ -59,6 +59,14 @@ describe('demarrerServeur', () => {
     expect(r.headers.get('access-control-allow-origin')).toBe('*');
     expect(Buffer.from(await r.arrayBuffer())).toEqual(contenu);
   });
+  it('sert les SVG et JPEG avec le bon Content-Type', async () => {
+    await writeFile(path.join(racine, 'logo.svg'), '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"/>');
+    await writeFile(path.join(racine, 'photo.jpeg'), contenu);
+    const svg = await fetch(`${serveur.url}/logo.svg`);
+    expect(svg.status).toBe(200);
+    expect(svg.headers.get('content-type')).toBe('image/svg+xml');
+    expect((await fetch(`${serveur.url}/photo.jpeg`)).headers.get('content-type')).toBe('image/jpeg');
+  });
   it('sert une plage', async () => {
     const r = await fetch(`${serveur.url}/a%20b/video.mp4`, { headers: { Range: 'bytes=100-199' } });
     expect(r.status).toBe(206);
