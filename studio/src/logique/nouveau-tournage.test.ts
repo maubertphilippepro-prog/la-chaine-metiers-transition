@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ResumeTournage } from '../../commun';
-import { aujourdhui, etatTournage, LIBELLES_ETAPE, raisonFichierVideo, titreParDefaut } from './nouveau-tournage';
+import { aujourdhui, etatTournage, LIBELLES_ETAPE, peutRemplacerVideo, peutSupprimer, raisonFichierVideo, titreParDefaut } from './nouveau-tournage';
 
 const TOURNAGE: ResumeTournage = {
   nom: '2026-10-23-essai',
@@ -52,5 +52,15 @@ describe('nouveau tournage', () => {
     expect(etatTournage({ ...TOURNAGE, statut: 'erreur' })).toBe('video-manquante');
     // Un rendu en échec garde le tournage ouvrable, comme aujourd'hui.
     expect(etatTournage({ ...TOURNAGE, analyseFaite: true, statut: 'erreur' })).toBe('analyse');
+  });
+  it('propose de remplacer la vidéo d’un tournage en erreur au premier chargement seulement', () => {
+    expect(peutRemplacerVideo({ ...TOURNAGE, videoPresente: true, statut: 'erreur' })).toBe(true);
+    expect(peutRemplacerVideo({ ...TOURNAGE, videoPresente: true })).toBe(false);
+    expect(peutRemplacerVideo({ ...TOURNAGE, analyseFaite: true, videoPresente: true, statut: 'erreur' })).toBe(false);
+    expect(peutRemplacerVideo({ ...TOURNAGE, videoPresente: true, statut: 'erreur', analyseEnCours: true })).toBe(false);
+  });
+  it('ne supprime pas un tournage en cours d’analyse', () => {
+    expect(peutSupprimer(TOURNAGE)).toBe(true);
+    expect(peutSupprimer({ ...TOURNAGE, analyseEnCours: true })).toBe(false);
   });
 });

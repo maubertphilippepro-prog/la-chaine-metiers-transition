@@ -58,6 +58,12 @@ export const api = {
   analyser: async (nom: string, titre: string) => {
     await appeler<{ ok: true }>(`${chemin(nom)}/analyse`, enJson('POST', { titre }));
   },
+  supprimerTournage: async (nom: string) => {
+    await appeler<{ ok: true }>(chemin(nom), { method: 'DELETE' });
+  },
+  retirerVideo: async (nom: string) => {
+    await appeler<{ ok: true }>(`${chemin(nom)}/video`, { method: 'DELETE' });
+  },
   enregistrer: async (nom: string, montage: Montage) => {
     await appeler<{ ok: true }>(`${chemin(nom)}/montage`, enJson('PUT', montage));
   },
