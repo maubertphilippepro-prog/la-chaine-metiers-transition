@@ -19,7 +19,7 @@ export const NouveauTournage: FC<{ onFermer: () => void; onChangement: () => voi
 
   function choisir(fichiers: File[]) {
     const f = fichiers[0];
-    if (!f || enCours) return;
+    if (!f || enCours || cree?.videoEnvoyee) return;
     const raison = raisonFichierVideo(f.name);
     setErreur(raison);
     setVideo(raison ? null : f);
@@ -28,7 +28,7 @@ export const NouveauTournage: FC<{ onFermer: () => void; onChangement: () => voi
   async function creer() {
     if (!video) return;
     setErreur(null);
-    setProgression(0);
+    setProgression(cree?.videoEnvoyee ? 1 : 0);
     try {
       let etat = cree;
       if (!etat) {
@@ -51,13 +51,18 @@ export const NouveauTournage: FC<{ onFermer: () => void; onChangement: () => voi
   }
 
   return (
-    <div className="encadre">
+    <div
+      className="encadre"
+      // Une vidéo lâchée à côté de la zone ne doit pas faire quitter le studio.
+      onDragOver={e => e.preventDefault()}
+      onDrop={e => { e.preventDefault(); choisir([...e.dataTransfer.files]); }}
+    >
       <h2>Nouveau tournage</h2>
       <div
         className={depot ? 'depot actif' : 'depot'}
         onDragOver={e => { e.preventDefault(); setDepot(true); }}
         onDragLeave={() => setDepot(false)}
-        onDrop={e => { e.preventDefault(); setDepot(false); choisir([...e.dataTransfer.files]); }}
+        onDrop={e => { e.preventDefault(); e.stopPropagation(); setDepot(false); choisir([...e.dataTransfer.files]); }}
       >
         {video ? <strong>{video.name}</strong> : 'Glissez ici la vidéo exportée de Clipchamp'}
         {' '}

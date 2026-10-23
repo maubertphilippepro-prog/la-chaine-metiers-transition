@@ -25,7 +25,7 @@ export const ListeTournages: FC = () => {
   const [lancement, setLancement] = useState(false);
 
   const charger = useCallback(() => {
-    api.tournages().then(setTournages, (e: Error) => setErreur(e.message));
+    api.tournages().then(t => { setTournages(t); setErreur(null); }, (e: Error) => setErreur(e.message));
   }, []);
   useEffect(charger, [charger]);
 
@@ -41,11 +41,11 @@ export const ListeTournages: FC = () => {
     setLancement(true);
     try {
       await api.analyser(nom, titre);
+      charger();
     } catch (e) {
       setErreur((e as Error).message);
     } finally {
       setLancement(false);
-      charger();
     }
   }
 
