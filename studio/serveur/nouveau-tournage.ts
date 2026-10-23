@@ -68,6 +68,7 @@ const NOM_WINDOWS_INVALIDE = /[<>:"|?*\x00-\x1f]|[. ]$|^(con|prn|aux|nul|com[1-9
 
 // Tournages dont une vidéo est en cours d’envoi : la vérification « déjà une vidéo » et l’écriture ne sont pas atomiques.
 const envoisEnCours = new Set<string>();
+export const envoiEnCours = (dossier: string) => envoisEnCours.has(dossier);
 
 // Vidéo envoyée par le studio, écrite en flux dans bruts/ ; un envoi interrompu ne laisse rien.
 export async function deposerVideo(req: IncomingMessage, dossier: string): Promise<string> {

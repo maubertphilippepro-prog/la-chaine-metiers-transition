@@ -72,6 +72,7 @@ const envoyerVideo = (nom: string, fichier: string, contenu: string) =>
 
 const demanderAnalyse = (nom: string, titre: string) =>
   fetch(`${url}/api/tournages/${nom}/analyse`, { method: 'POST', headers: json, body: JSON.stringify({ titre }) });
+const supprimer = (nom: string) => fetch(`${url}/api/tournages/${nom}`, { method: 'DELETE' });
 
 async function avecVideo(nom: string, fichiers: Record<string, unknown> = {}): Promise<string> {
   const dossier = await tournage(nom, fichiers);
@@ -92,6 +93,7 @@ beforeEach(async () => {
   await mkdir(path.join(racine, 'tournages'));
   config = {
     racineTournages: path.join(racine, 'tournages'),
+    racineSupprimes: path.join(racine, 'tournages-supprimes'),
     cheminGlossaire: path.join(racine, 'glossaire.json'),
     urlFichiers: 'http://127.0.0.1:9999',
     suivi: new SuiviRendu(),
@@ -520,5 +522,55 @@ describe('analyse', () => {
     await demanderAnalyse('a', 'Titre');
     await config.suiviAnalyse.attendre();
     expect((await lire(path.join(d, 'episode.json'))).message).toBe('python.exe introuvable');
+  });
+});
+
+describe('suppression d’un tournage', () => {
+  it('déplace le dossier dans les tournages supprimés et le retire de la liste', async () => {
+    await tournage('a', { 'episode.json': { version: 1, titre: 'A', statut: 'analyse', message: null } });
+    expect((await supprimer('a')).status).toBe(200);
+    expect(existsSync(path.join(config.racineTournages, 'a'))).toBe(false);
+    expect(await lire(path.join(config.racineSupprimes, 'a', 'episode.json'))).toMatchObject({ titre: 'A' });
+    expect(await (await fetch(`${url}/api/tournages`)).json()).toEqual([]);
+  });
+  it('ajoute -2 quand le nom est déjà parmi les supprimés', async () => {
+    await mkdir(path.join(config.racineSupprimes, 'a'), { recursive: true });
+    await tournage('a', {});
+    expect((await supprimer('a')).status).toBe(200);
+    expect(existsSync(path.join(config.racineSupprimes, 'a-2'))).toBe(true);
+  });
+  it('refuse pendant une analyse de ce tournage', async () => {
+    await avecVideo('a');
+    const finir = analyseBloquee();
+    await demanderAnalyse('a', 'Titre');
+    const r = await supprimer('a');
+    expect(r.status).toBe(409);
+    expect((await r.json()).erreur).toBe('Analyse en cours sur ce tournage : attendez sa fin avant de le supprimer.');
+    finir();
+  });
+  it('refuse pendant un rendu de ce tournage', async () => {
+    await tournage('a', {});
+    let finir = () => {};
+    config.suivi.lancer('a', () => new Promise(r => { finir = () => r([]); }));
+    const r = await supprimer('a');
+    expect(r.status).toBe(409);
+    expect((await r.json()).erreur).toBe('Rendu en cours sur ce tournage : attendez sa fin avant de le supprimer.');
+    finir();
+  });
+  it('refuse pendant un envoi de vidéo sur ce tournage', async () => {
+    const d = await tournage('a', {});
+    const partiel = path.join(d, 'bruts', 'film.mp4.partiel');
+    const req = http.request(`${url}/api/tournages/a/video?fichier=film.mp4`, { method: 'PUT' });
+    const fini = new Promise<number | undefined>(resolve => req.on('response', res => { res.resume(); resolve(res.statusCode); }));
+    req.write(Buffer.alloc(1000));
+    await vi.waitFor(() => expect(existsSync(partiel)).toBe(true));
+    const r = await supprimer('a');
+    expect(r.status).toBe(409);
+    expect((await r.json()).erreur).toBe('Vidéo en cours d’envoi sur ce tournage : attendez sa fin avant de le supprimer.');
+    req.end();
+    expect(await fini).toBe(200);
+  });
+  it('refuse un tournage inconnu', async () => {
+    expect((await supprimer('inconnu')).status).toBe(404);
   });
 });

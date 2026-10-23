@@ -29,6 +29,7 @@ async function main(): Promise<void> {
   const fichiers = await demarrerServeur(racineTournages);
   const api = creerApi({
     racineTournages,
+    racineSupprimes: path.join(RACINE, 'donnees', 'tournages-supprimes'),
     cheminGlossaire: path.join(RACINE, 'donnees', 'glossaire.json'),
     urlFichiers: fichiers.url,
     suivi: new SuiviRendu(),

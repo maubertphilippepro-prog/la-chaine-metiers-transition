@@ -11,12 +11,15 @@ import { chargerTournage, lireEpisode, majStatutEpisode, raisonMontage, urlSourc
 import type { DetailTournage, EtatRendu, ResumeTournage } from '../commun';
 import { ErreurInterpretation, lireConsignes, type InterpreterConsigne } from './consignes';
 import { dossierTournage, ecrireJson, ErreurHttp, lireCorps, message, repondre, repondreErreur } from './http';
-import { creerTournage, deposerVideo, etapeAnalyse, videosBrutes } from './nouveau-tournage';
+import { creerTournage, deposerVideo, envoiEnCours, etapeAnalyse, videosBrutes } from './nouveau-tournage';
+import { deplacerVersSupprimes } from './suppression';
 import type { SuiviAnalyse } from './suivi-analyse';
 import type { SuiviRendu } from './suivi-rendu';
 
 export interface ConfigApi {
   racineTournages: string;
+  // Les tournages supprimés y sont rangés, jamais effacés.
+  racineSupprimes: string;
   cheminGlossaire: string;
   // Serveur de fichiers qui sert source.mp4 au lecteur.
   urlFichiers: string;
@@ -200,6 +203,18 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
     }
   }
 
+  async function supprimerTournage(dossier: string): Promise<void> {
+    const nom = path.basename(dossier);
+    const analyse = c.suiviAnalyse.etat();
+    if (analyse.enCours && analyse.nom === nom) throw new ErreurHttp(409, 'Analyse en cours sur ce tournage : attendez sa fin avant de le supprimer.');
+    const rendu = c.suivi.etat();
+    if ((rendu.enCours && rendu.nom === nom) || enPreparation === nom) {
+      throw new ErreurHttp(409, 'Rendu en cours sur ce tournage : attendez sa fin avant de le supprimer.');
+    }
+    if (envoiEnCours(dossier)) throw new ErreurHttp(409, 'Vidéo en cours d’envoi sur ce tournage : attendez sa fin avant de le supprimer.');
+    await deplacerVersSupprimes(dossier, c.racineSupprimes);
+  }
+
   async function lancerAnalyse(req: IncomingMessage, dossier: string): Promise<void> {
     const corps = await lireCorps(req);
     const titre = corps && typeof corps === 'object' && typeof (corps as Record<string, unknown>).titre === 'string'
@@ -240,6 +255,9 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
         repondre(res, 200, c.suivi.etat());
       } else if (nom && !action && req.method === 'GET') {
         repondre(res, 200, await detail(dossierDe(nom)));
+      } else if (nom && !action && req.method === 'DELETE') {
+        await supprimerTournage(dossierDe(nom));
+        repondre(res, 200, { ok: true });
       } else if (nom && action === 'montage' && req.method === 'PUT') {
         await enregistrerMontage(req, dossierDe(nom));
         repondre(res, 200, { ok: true });
