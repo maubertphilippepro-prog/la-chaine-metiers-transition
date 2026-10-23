@@ -11,6 +11,7 @@ import { chargerTournage, lireEpisode, majStatutEpisode, raisonMontage, urlSourc
 import type { DetailTournage, EtatRendu, ResumeTournage } from '../commun';
 import { ErreurInterpretation, lireConsignes, type InterpreterConsigne } from './consignes';
 import { dossierTournage, ecrireJson, ErreurHttp, lireCorps, message, repondre, repondreErreur } from './http';
+import { creerTournage } from './nouveau-tournage';
 import type { SuiviRendu } from './suivi-rendu';
 
 export interface ConfigApi {
@@ -196,6 +197,8 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
         const entrees = existsSync(c.racineTournages) ? await readdir(c.racineTournages, { withFileTypes: true }) : [];
         const noms = entrees.filter(e => e.isDirectory() && !e.name.startsWith('.')).map(e => e.name).sort().reverse();
         repondre(res, 200, await Promise.all(noms.map(n => resume(path.join(c.racineTournages, n)))));
+      } else if (chemin === '/api/tournages' && req.method === 'POST') {
+        repondre(res, 201, { nom: await creerTournage(c.racineTournages, await lireCorps(req)) });
       } else if (chemin === '/api/rendu' && req.method === 'GET') {
         repondre(res, 200, c.suivi.etat());
       } else if (nom && !action && req.method === 'GET') {

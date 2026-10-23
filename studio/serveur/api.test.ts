@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -63,6 +64,8 @@ const donnerConsigne = (nom: string, corps: unknown) =>
   fetch(`${url}/api/tournages/${nom}/consignes`, { method: 'POST', headers: json, body: JSON.stringify(corps) });
 const envoyerConsignes = (nom: string, fichier: unknown) =>
   fetch(`${url}/api/tournages/${nom}/consignes`, { method: 'PUT', headers: json, body: JSON.stringify(fichier) });
+const creerTournage = (corps: unknown) =>
+  fetch(`${url}/api/tournages`, { method: 'POST', headers: json, body: JSON.stringify(corps) });
 
 beforeEach(async () => {
   racine = await mkdtemp(path.join(os.tmpdir(), 'pmt-studio-'));
@@ -102,6 +105,28 @@ describe('liste des tournages', () => {
   });
   it('laisse passer les requêtes hors API', async () => {
     expect((await fetch(`${url}/index.html`)).status).toBe(418);
+  });
+});
+
+describe('nouveau tournage', () => {
+  it('crée le dossier et bruts/ sous le titre simplifié, et garde le titre dans episode.json', async () => {
+    const r = await creerTournage({ titre: 'Métiers & Transition : l’été !', date: '2026-10-23' });
+    expect(r.status).toBe(201);
+    const { nom } = await r.json();
+    expect(nom).toBe('2026-10-23-metiers-transition-l-ete');
+    const dossier = path.join(config.racineTournages, nom);
+    expect(existsSync(path.join(dossier, 'bruts'))).toBe(true);
+    expect(await lire(path.join(dossier, 'episode.json'))).toEqual({ version: 1, titre: 'Métiers & Transition : l’été !', statut: null, message: null });
+  });
+  it('ajoute -2, -3 quand le nom est pris', async () => {
+    await tournage('2026-10-23-essai', {});
+    expect((await (await creerTournage({ titre: 'Essai', date: '2026-10-23' })).json()).nom).toBe('2026-10-23-essai-2');
+    expect((await (await creerTournage({ titre: 'Essai', date: '2026-10-23' })).json()).nom).toBe('2026-10-23-essai-3');
+  });
+  it('refuse un titre vide ou une date invalide', async () => {
+    expect((await creerTournage({ titre: '  ', date: '2026-10-23' })).status).toBe(400);
+    expect((await creerTournage({ titre: 'Essai', date: '23/10/2026' })).status).toBe(400);
+    expect((await creerTournage({ titre: 'Essai', date: '2026-13-01' })).status).toBe(400);
   });
 });
 
