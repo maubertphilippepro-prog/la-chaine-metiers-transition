@@ -170,6 +170,30 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
           validerDessin={zone => (dessin ? validerDessin(dessin, zone) : null)}
           onFinDessin={() => setDessin(null)}
         />
+        <PanneauElements
+          analyse={detail.analyse}
+          montage={montage}
+          reglages={detail.reglages}
+          selection={selection}
+          retoucher={retoucher}
+          tracer={tracerElement}
+          ecouter={ecouter}
+          lireDansApercu={lireDansApercu}
+        />
+        <PanneauLongueurs
+          coupes={montage.coupes}
+          suggestions={detail.analyse.suggestions?.longueurs ?? []}
+          modifier={modifier}
+          ecouter={ecouter}
+          lireDansApercu={lireDansApercu}
+        />
+        <PanneauTermes
+          termes={montage.termes}
+          definitionMax={detail.reglages.definitionMaxCaracteres}
+          modifier={modifier}
+          ecouter={ecouter}
+          lireDansApercu={lireDansApercu}
+        />
         <PanneauConsignes
           nom={nom}
           analyse={detail.analyse}
@@ -187,16 +211,6 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
           lireDansApercu={lireDansApercu}
           tracerProposition={tracerProposition}
         />
-        <PanneauElements
-          analyse={detail.analyse}
-          montage={montage}
-          reglages={detail.reglages}
-          selection={selection}
-          retoucher={retoucher}
-          tracer={tracerElement}
-          ecouter={ecouter}
-          lireDansApercu={lireDansApercu}
-        />
         <PanneauRendu
           nom={nom}
           analyse={detail.analyse}
@@ -204,20 +218,6 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
           reglages={detail.reglages}
           consignes={consignes.fichier.consignes}
           enregistrement={enregistrement}
-        />
-        <PanneauLongueurs
-          coupes={montage.coupes}
-          suggestions={detail.analyse.suggestions?.longueurs ?? []}
-          modifier={modifier}
-          ecouter={ecouter}
-          lireDansApercu={lireDansApercu}
-        />
-        <PanneauTermes
-          termes={montage.termes}
-          definitionMax={detail.reglages.definitionMaxCaracteres}
-          modifier={modifier}
-          ecouter={ecouter}
-          lireDansApercu={lireDansApercu}
         />
       </aside>
       {audio}
