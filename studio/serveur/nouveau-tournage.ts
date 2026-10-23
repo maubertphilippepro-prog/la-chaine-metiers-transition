@@ -3,7 +3,7 @@ import { mkdir, readdir, rename, rm, stat } from 'node:fs/promises';
 import type { IncomingMessage } from 'node:http';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
-import { EXTENSIONS_VIDEO } from '../commun';
+import { EXTENSIONS_VIDEO, type EtapeAnalyse } from '../commun';
 import { ecrireJson, ErreurHttp, message } from './http';
 
 const LONGUEUR_MAX = 50;
@@ -102,4 +102,13 @@ export async function deposerVideo(req: IncomingMessage, dossier: string): Promi
   } finally {
     envoisEnCours.delete(dossier);
   }
+}
+
+// Le pipeline écrit un fichier par étape finie ; l'étape en cours est la suivante.
+export function etapeAnalyse(dossier: string): EtapeAnalyse {
+  const present = (fichier: string) => existsSync(path.join(dossier, fichier));
+  if (present('detections.json')) return 'suggestions';
+  if (present('transcription.json')) return 'detections';
+  if (present('preparation.json')) return 'transcription';
+  return 'preparation';
 }

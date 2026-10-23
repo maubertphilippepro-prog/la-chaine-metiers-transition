@@ -11,7 +11,8 @@ import { chargerTournage, lireEpisode, majStatutEpisode, raisonMontage, urlSourc
 import type { DetailTournage, EtatRendu, ResumeTournage } from '../commun';
 import { ErreurInterpretation, lireConsignes, type InterpreterConsigne } from './consignes';
 import { dossierTournage, ecrireJson, ErreurHttp, lireCorps, message, repondre, repondreErreur } from './http';
-import { creerTournage, deposerVideo, videosBrutes } from './nouveau-tournage';
+import { creerTournage, deposerVideo, etapeAnalyse, videosBrutes } from './nouveau-tournage';
+import type { SuiviAnalyse } from './suivi-analyse';
 import type { SuiviRendu } from './suivi-rendu';
 
 export interface ConfigApi {
@@ -22,14 +23,11 @@ export interface ConfigApi {
   suivi: SuiviRendu;
   rendre: (dossier: string, cible: Cible, onProgression: (fichier: string, progression: number) => void) => Promise<ResultatRendu[]>;
   relancerSuggestions: (dossier: string) => Promise<void>;
+  suiviAnalyse: SuiviAnalyse;
+  // « mtpipeline analyser », injecté pour les tests.
+  analyser: (dossier: string, titre: string) => Promise<void>;
   // Appel à Claude, injecté pour les tests.
   interpreterConsigne: InterpreterConsigne;
-}
-
-async function resume(dossier: string): Promise<ResumeTournage> {
-  const nom = path.basename(dossier);
-  const e = await lireEpisode(dossier);
-  return { nom, titre: e.titre ?? nom, statut: e.statut, message: e.message, analyseFaite: existsSync(path.join(dossier, 'analyse.json')), videoPresente: (await videosBrutes(dossier)).length > 0 };
 }
 
 async function lireGlossaire(chemin: string): Promise<Glossaire> {
@@ -65,6 +63,22 @@ function lireDemandeConsigne(corps: unknown): { texte: string; ancrage: Ancrage 
 export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerResponse) => Promise<boolean> {
   function dossierDe(nomEncode: string): string {
     return dossierTournage(c.racineTournages, nomEncode);
+  }
+
+  async function resume(dossier: string): Promise<ResumeTournage> {
+    const nom = path.basename(dossier);
+    const e = await lireEpisode(dossier);
+    const analyse = c.suiviAnalyse.etat();
+    return {
+      nom,
+      titre: e.titre ?? nom,
+      statut: e.statut,
+      message: e.message,
+      analyseFaite: existsSync(path.join(dossier, 'analyse.json')),
+      videoPresente: (await videosBrutes(dossier)).length > 0,
+      analyseEnCours: analyse.enCours && analyse.nom === nom,
+      etapeAnalyse: etapeAnalyse(dossier),
+    };
   }
 
   async function charger(dossier: string, brouillon: boolean): Promise<Tournage> {
@@ -186,11 +200,30 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
     }
   }
 
+  async function lancerAnalyse(req: IncomingMessage, dossier: string): Promise<void> {
+    const corps = await lireCorps(req);
+    const titre = corps && typeof corps === 'object' && typeof (corps as Record<string, unknown>).titre === 'string'
+      ? ((corps as Record<string, unknown>).titre as string).trim()
+      : '';
+    if (!titre) throw new ErreurHttp(400, 'Le titre est vide.');
+    if ((await videosBrutes(dossier)).length === 0) throw new ErreurHttp(409, 'Aucune vidéo dans bruts/ : déposez-la avant d’analyser.');
+    const lancee = c.suiviAnalyse.lancer(path.basename(dossier), titre, async () => {
+      try {
+        await c.analyser(dossier, titre);
+      } catch (e) {
+        // Le pipeline note lui-même ses erreurs ; un échec avant (Python introuvable…) est reporté ici.
+        if ((await lireEpisode(dossier)).statut !== 'erreur') await majStatutEpisode(dossier, 'erreur', message(e));
+        throw e;
+      }
+    });
+    if (!lancee) throw new ErreurHttp(409, `Une analyse est déjà en cours : ${c.suiviAnalyse.etat().titre}`);
+  }
+
   return async function traiter(req, res) {
     const chemin = new URL(req.url ?? '/', 'http://local').pathname;
     if (!chemin.startsWith('/api/')) return false;
     try {
-      const route = /^\/api\/tournages\/([^/]+)(?:\/(montage|rendu|suggestions|consignes|video))?$/.exec(chemin);
+      const route = /^\/api\/tournages\/([^/]+)(?:\/(montage|rendu|suggestions|consignes|video|analyse))?$/.exec(chemin);
       const nom = route?.[1];
       const action = route?.[2];
       if (chemin === '/api/tournages' && req.method === 'GET') {
@@ -223,6 +256,9 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
         repondre(res, 200, await detail(dossier));
       } else if (nom && action === 'video' && req.method === 'PUT') {
         repondre(res, 200, { fichier: await deposerVideo(req, dossierDe(nom)) });
+      } else if (nom && action === 'analyse' && req.method === 'POST') {
+        await lancerAnalyse(req, dossierDe(nom));
+        repondre(res, 202, { ok: true });
       } else {
         repondre(res, 404, { erreur: 'Route inconnue.' });
       }

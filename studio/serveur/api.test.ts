@@ -9,6 +9,7 @@ import exemple from '../../fixtures/analyse-exemple.json';
 import type { FichierConsignes, ReponseConsigne } from '../../noyau/consignes';
 import { creerApi, type ConfigApi } from './api';
 import { ErreurInterpretation } from './consignes';
+import { SuiviAnalyse } from './suivi-analyse';
 import { SuiviRendu } from './suivi-rendu';
 
 const MONTAGE_PRET = {
@@ -69,6 +70,23 @@ const creerTournage = (corps: unknown) =>
 const envoyerVideo = (nom: string, fichier: string, contenu: string) =>
   fetch(`${url}/api/tournages/${nom}/video?fichier=${encodeURIComponent(fichier)}`, { method: 'PUT', body: contenu });
 
+const demanderAnalyse = (nom: string, titre: string) =>
+  fetch(`${url}/api/tournages/${nom}/analyse`, { method: 'POST', headers: json, body: JSON.stringify({ titre }) });
+
+async function avecVideo(nom: string, fichiers: Record<string, unknown> = {}): Promise<string> {
+  const dossier = await tournage(nom, fichiers);
+  await mkdir(path.join(dossier, 'bruts'));
+  await writeFile(path.join(dossier, 'bruts', 'film.mp4'), 'x');
+  return dossier;
+}
+
+// Analyse simulée qui ne se termine qu'à l'appel de la fonction renvoyée.
+function analyseBloquee(): () => void {
+  let finir = () => {};
+  vi.mocked(config.analyser).mockImplementation(() => new Promise<void>(r => { finir = r; }));
+  return () => finir();
+}
+
 beforeEach(async () => {
   racine = await mkdtemp(path.join(os.tmpdir(), 'pmt-studio-'));
   await mkdir(path.join(racine, 'tournages'));
@@ -82,6 +100,8 @@ beforeEach(async () => {
     ]),
     relancerSuggestions: vi.fn<ConfigApi['relancerSuggestions']>(async () => undefined),
     interpreterConsigne: vi.fn<ConfigApi['interpreterConsigne']>(async () => REPONSE),
+    suiviAnalyse: new SuiviAnalyse(),
+    analyser: vi.fn<ConfigApi['analyser']>(async () => undefined),
   };
   const api = creerApi(config);
   serveur = http.createServer(async (req, res) => {
@@ -93,6 +113,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await config.suivi.attendre();
+  await config.suiviAnalyse.attendre();
   await new Promise<void>(r => serveur.close(() => r()));
 });
 
@@ -101,8 +122,8 @@ describe('liste des tournages', () => {
     await tournage('2026-10-01-a', { 'analyse.json': exemple, 'episode.json': { version: 1, titre: 'A', statut: 'analyse', message: null } });
     await tournage('2026-10-02-b', {});
     expect(await (await fetch(`${url}/api/tournages`)).json()).toEqual([
-      { nom: '2026-10-02-b', titre: '2026-10-02-b', statut: null, message: null, analyseFaite: false, videoPresente: false },
-      { nom: '2026-10-01-a', titre: 'A', statut: 'analyse', message: null, analyseFaite: true, videoPresente: false },
+      { nom: '2026-10-02-b', titre: '2026-10-02-b', statut: null, message: null, analyseFaite: false, videoPresente: false, analyseEnCours: false, etapeAnalyse: 'preparation' },
+      { nom: '2026-10-01-a', titre: 'A', statut: 'analyse', message: null, analyseFaite: true, videoPresente: false, analyseEnCours: false, etapeAnalyse: 'preparation' },
     ]);
   });
   it('laisse passer les requêtes hors API', async () => {
@@ -435,5 +456,55 @@ describe('dépôt de la vidéo', () => {
     await vi.waitFor(() => expect(existsSync(partiel)).toBe(true));
     req.destroy();
     await vi.waitFor(() => expect(readdirSync(path.join(d, 'bruts'))).toEqual([]));
+  });
+});
+
+describe('analyse', () => {
+  it('lance l’analyse en arrière-plan et la montre en cours dans la liste', async () => {
+    const d = await avecVideo('a', { 'preparation.json': {} });
+    const finir = analyseBloquee();
+    const r = await demanderAnalyse('a', 'Mon titre');
+    expect(r.status).toBe(202);
+    expect(config.analyser).toHaveBeenCalledWith(d, 'Mon titre');
+    expect((await (await fetch(`${url}/api/tournages`)).json())[0]).toMatchObject({ analyseEnCours: true, etapeAnalyse: 'transcription', videoPresente: true });
+    finir();
+    await config.suiviAnalyse.attendre();
+    expect((await (await fetch(`${url}/api/tournages`)).json())[0].analyseEnCours).toBe(false);
+  });
+  it('refuse une deuxième analyse pendant la première', async () => {
+    await avecVideo('a');
+    await avecVideo('b');
+    const finir = analyseBloquee();
+    await demanderAnalyse('a', 'Premier');
+    const r = await demanderAnalyse('b', 'Second');
+    expect(r.status).toBe(409);
+    expect((await r.json()).erreur).toBe('Une analyse est déjà en cours : Premier');
+    expect(config.analyser).toHaveBeenCalledTimes(1);
+    finir();
+  });
+  it('refuse sans titre ou sans vidéo', async () => {
+    await avecVideo('a');
+    await tournage('b', {});
+    expect((await demanderAnalyse('a', ' ')).status).toBe(400);
+    expect((await demanderAnalyse('b', 'Titre')).status).toBe(409);
+    expect(config.analyser).not.toHaveBeenCalled();
+  });
+  it('garde l’erreur du pipeline et la reporte dans episode.json', async () => {
+    const d = await avecVideo('a');
+    vi.mocked(config.analyser).mockRejectedValue(new Error('python.exe introuvable'));
+    await demanderAnalyse('a', 'Titre');
+    await config.suiviAnalyse.attendre();
+    expect(config.suiviAnalyse.etat()).toMatchObject({ enCours: false, nom: 'a', titre: 'Titre', erreur: 'python.exe introuvable' });
+    expect(await lire(path.join(d, 'episode.json'))).toMatchObject({ statut: 'erreur', message: 'python.exe introuvable' });
+  });
+  it('laisse le message écrit par le pipeline', async () => {
+    const d = await avecVideo('a');
+    vi.mocked(config.analyser).mockImplementation(async dossier => {
+      await writeFile(path.join(dossier, 'episode.json'), JSON.stringify({ version: 1, titre: 'Titre', statut: 'erreur', message: 'Aucune vidéo lisible.' }));
+      throw new Error('Erreur : Aucune vidéo lisible.\nTraceback…');
+    });
+    await demanderAnalyse('a', 'Titre');
+    await config.suiviAnalyse.attendre();
+    expect((await lire(path.join(d, 'episode.json'))).message).toBe('Aucune vidéo lisible.');
   });
 });

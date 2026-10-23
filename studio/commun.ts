@@ -11,6 +11,9 @@ import type { ReferencesSite } from './serveur/site-replit';
 // Vidéos que le pipeline sait lire (pipeline/mtpipeline/images.py).
 export const EXTENSIONS_VIDEO = ['.mp4', '.mkv', '.mov', '.webm'];
 
+// Étape de l'analyse en cours, déduite des fichiers déjà écrits par le pipeline.
+export type EtapeAnalyse = 'preparation' | 'transcription' | 'detections' | 'suggestions';
+
 export interface ResumeTournage {
   nom: string;
   titre: string;
@@ -19,6 +22,8 @@ export interface ResumeTournage {
   analyseFaite: boolean;
   // Une vidéo du montage dans bruts/ (l'enregistrement « -camera » ne compte pas).
   videoPresente: boolean;
+  analyseEnCours: boolean;
+  etapeAnalyse: EtapeAnalyse;
 }
 
 export interface DetailTournage extends ResumeTournage {

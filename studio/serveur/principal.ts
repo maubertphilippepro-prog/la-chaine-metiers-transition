@@ -10,11 +10,12 @@ import { RACINE } from '../../remotion/scripts/tournage';
 import { creerApi } from './api';
 import { interpreterConsigne } from './interpretation';
 import { requeteAutorisee } from './origine';
-import { detourerImage, extraireImage } from './pipeline';
+import { analyserTournage, detourerImage, extraireImage } from './pipeline';
 import { creerApiPublication } from './publication';
 import { redigerPublication } from './redaction';
 import { creerClientSite, lireReferencesSite } from './site-replit';
 import { relancerSuggestions } from './suggestions';
+import { SuiviAnalyse } from './suivi-analyse';
 import { SuiviRendu } from './suivi-rendu';
 import { lireVisibiliteYoutube, ouvrirDansExplorateur } from './youtube';
 
@@ -33,6 +34,8 @@ async function main(): Promise<void> {
     suivi: new SuiviRendu(),
     rendre: (dossier, cible, onProgression) => rendreTournage(dossier, { brouillon: false, cible, onProgression }),
     relancerSuggestions,
+    suiviAnalyse: new SuiviAnalyse(),
+    analyser: analyserTournage,
     interpreterConsigne: d => interpreterConsigne(d),
   });
 
