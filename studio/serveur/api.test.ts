@@ -397,8 +397,10 @@ describe('dépôt de la vidéo', () => {
   });
   it('refuse un fichier non vidéo, un chemin ou une vidéo vide', async () => {
     const d = await tournage('a', {});
-    expect((await envoyerVideo('a', 'notes.txt', 'x')).status).toBe(400);
-    expect((await envoyerVideo('a', '..\film.mp4', 'x')).status).toBe(400);
+    await mkdir(path.join(d, 'bruts'));
+    for (const invalide of ['notes.txt', '..\\film.mp4', 'sous\\film.mp4', 'a.mp4:x.mp4', 'CON.mp4', 'film?.mp4']) {
+      expect((await envoyerVideo('a', invalide, 'x')).status, invalide).toBe(400);
+    }
     expect((await envoyerVideo('a', 'film-camera.mp4', 'x')).status).toBe(400);
     expect((await envoyerVideo('a', 'film.mp4', '')).status).toBe(400);
     expect(readdirSync(path.join(d, 'bruts'))).toEqual([]);
@@ -409,6 +411,20 @@ describe('dépôt de la vidéo', () => {
     const r = await envoyerVideo('a', 'autre.mov', 'y');
     expect(r.status).toBe(409);
     expect((await r.json()).erreur).toBe('Ce tournage a déjà une vidéo dans bruts/.');
+  });
+  it('refuse un second envoi simultané puis accepte le premier', async () => {
+    const d = await tournage('a', {});
+    const partiel = path.join(d, 'bruts', 'film.mp4.partiel');
+    const req = http.request(`${url}/api/tournages/a/video?fichier=film.mp4`, { method: 'PUT' });
+    const fini = new Promise<number | undefined>(resolve => req.on('response', res => { res.resume(); resolve(res.statusCode); }));
+    req.write(Buffer.alloc(1000));
+    await vi.waitFor(() => expect(existsSync(partiel)).toBe(true));
+    const r = await envoyerVideo('a', 'autre.mov', 'y');
+    expect(r.status).toBe(409);
+    expect((await r.json()).erreur).toBe('Une vidéo est déjà en cours d’envoi pour ce tournage.');
+    req.end();
+    expect(await fini).toBe(200);
+    expect(readdirSync(path.join(d, 'bruts'))).toEqual(['film.mp4']);
   });
   it('supprime le fichier partiel d’un envoi interrompu', async () => {
     const d = await tournage('a', {});
