@@ -541,6 +541,13 @@ describe('suppression d’un tournage', () => {
     expect((await supprimer('a')).status).toBe(200);
     expect(existsSync(path.join(config.racineSupprimes, 'a-2'))).toBe(true);
   });
+  it('ajoute -3 quand a et a-2 sont déjà parmi les supprimés', async () => {
+    await mkdir(path.join(config.racineSupprimes, 'a'), { recursive: true });
+    await mkdir(path.join(config.racineSupprimes, 'a-2'), { recursive: true });
+    await tournage('a', {});
+    expect((await supprimer('a')).status).toBe(200);
+    expect(existsSync(path.join(config.racineSupprimes, 'a-3'))).toBe(true);
+  });
   it('refuse pendant une analyse de ce tournage', async () => {
     await avecVideo('a');
     const finir = analyseBloquee();
@@ -579,12 +586,12 @@ describe('suppression d’un tournage', () => {
 
 describe('retrait de la vidéo', () => {
   it('retire la vidéo et les fichiers tirés d’elle, garde la webcam', async () => {
-    const d = await avecVideo('a', { 'episode.json': EN_ERREUR, 'preparation.json': {}, 'transcription.json': [] });
+    const d = await avecVideo('a', { 'episode.json': EN_ERREUR, 'preparation.json': {}, 'transcription.json': [], 'detections.json': {} });
     await writeFile(path.join(d, 'bruts', 'film-camera.mkv'), 'webcam');
     await writeFile(path.join(d, 'source.mp4'), 'source');
     expect((await retirerVideo('a')).status).toBe(200);
     expect(readdirSync(path.join(d, 'bruts'))).toEqual(['film-camera.mkv']);
-    for (const f of ['source.mp4', 'preparation.json', 'transcription.json']) expect(existsSync(path.join(d, f))).toBe(false);
+    for (const f of ['source.mp4', 'preparation.json', 'transcription.json', 'detections.json']) expect(existsSync(path.join(d, f))).toBe(false);
     expect(existsSync(path.join(d, 'episode.json'))).toBe(true);
     expect((await (await fetch(`${url}/api/tournages`)).json())[0].videoPresente).toBe(false);
   });
@@ -593,6 +600,19 @@ describe('retrait de la vidéo', () => {
     await avecVideo('b', { 'episode.json': { ...EN_ERREUR, statut: null, message: null } });
     expect((await retirerVideo('a')).status).toBe(409);
     expect((await retirerVideo('b')).status).toBe(409);
+  });
+  it('refuse pendant l’envoi d’une vidéo sur ce tournage', async () => {
+    const d = await tournage('a', { 'episode.json': EN_ERREUR });
+    const partiel = path.join(d, 'bruts', 'autre.mp4.partiel');
+    const req = http.request(`${url}/api/tournages/a/video?fichier=autre.mp4`, { method: 'PUT' });
+    const fini = new Promise<number | undefined>(resolve => req.on('response', res => { res.resume(); resolve(res.statusCode); }));
+    req.write(Buffer.alloc(1000));
+    await vi.waitFor(() => expect(existsSync(partiel)).toBe(true));
+    const r = await retirerVideo('a');
+    expect(r.status).toBe(409);
+    expect((await r.json()).erreur).toBe('Une vidéo est déjà en cours d’envoi pour ce tournage.');
+    req.end();
+    await fini;
   });
   it('refuse pendant une analyse de ce tournage', async () => {
     await avecVideo('a', { 'episode.json': EN_ERREUR });

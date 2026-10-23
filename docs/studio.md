@@ -27,7 +27,7 @@ Chaque modification est enregistrée dans `montage.json` ; `analyse.json` n’es
 
 ## Consignes
 
-Le panneau **Consignes** (sous l’aperçu) accepte une consigne écrite librement : « coupe tout le passage sur Excel », « renomme le chapitre 2 en … », « ajoute une définition pour prompt ». Pour viser un passage, le sélectionner dans le texte puis choisir « Donner une consigne sur ce passage ».
+Le panneau **Consignes** (colonne de droite, avant le rendu) accepte une consigne écrite librement : « coupe tout le passage sur Excel », « renomme le chapitre 2 en … », « ajoute une définition pour prompt ». Pour viser un passage, le sélectionner dans le texte puis choisir « Donner une consigne sur ce passage ».
 
 - « Envoyer » (ou Ctrl+Entrée) : Claude reformule la consigne (« J’ai compris : … ») et la traduit en opérations du studio (couper, rétablir une coupe, décider d’une longueur, renommer, ajouter, déplacer ou fusionner un chapitre, modifier ou ajouter un terme, changer le titre, poser, modifier ou retirer un élément à l’écran). Ce qu’aucune opération ne permet est listé dans « Pas réalisable ».
 - Rien ne change tant qu’une proposition n’est pas acceptée. Chacune peut être acceptée ou refusée, écoutée et vue dans l’aperçu quand elle porte sur un passage ; « Tout accepter » et « Tout refuser » traitent toutes celles en attente.

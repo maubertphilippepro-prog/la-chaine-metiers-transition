@@ -28,10 +28,13 @@ export const LigneTournage: FC<Props> = ({ t, bloque, onAnalyser, onChangement }
   const [progression, setProgression] = useState<number | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const choix = useRef<HTMLInputElement>(null);
+  const enCours = useRef(false);
   const etat = etatTournage(t);
   const occupe = progression !== null;
 
   async function supprimer() {
+    if (enCours.current) return;
+    enCours.current = true;
     setErreur(null);
     try {
       await api.supprimerTournage(t.nom);
@@ -39,17 +42,20 @@ export const LigneTournage: FC<Props> = ({ t, bloque, onAnalyser, onChangement }
     } catch (e) {
       setErreur((e as Error).message);
       setConfirmation(false);
+    } finally {
+      enCours.current = false;
     }
   }
 
   async function remplacer(fichiers: File[]) {
     const f = fichiers[0];
-    if (!f || occupe || bloque || !peutRemplacerVideo(t)) return;
+    if (!f || enCours.current || occupe || bloque || !peutRemplacerVideo(t)) return;
     const raison = raisonFichierVideo(f.name);
     if (raison) {
       setErreur(raison);
       return;
     }
+    enCours.current = true;
     setErreur(null);
     setProgression(0);
     try {
@@ -61,6 +67,8 @@ export const LigneTournage: FC<Props> = ({ t, bloque, onAnalyser, onChangement }
       setErreur((e as Error).message);
       setProgression(null);
       onChangement();
+    } finally {
+      enCours.current = false;
     }
   }
 
@@ -114,7 +122,7 @@ export const LigneTournage: FC<Props> = ({ t, bloque, onAnalyser, onChangement }
           {confirmation && (
             <>
               <span>Supprimer « {t.titre} » ?</span>
-              <button className="principal" onClick={() => void supprimer()}>Oui, supprimer</button>
+              <button className="principal" onClick={() => void supprimer()} disabled={occupe || !peutSupprimer(t)}>Oui, supprimer</button>
               <button onClick={() => setConfirmation(false)}>Annuler</button>
             </>
           )}
