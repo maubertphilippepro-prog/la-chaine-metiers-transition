@@ -33,6 +33,7 @@ if (-not (Test-Studio)) {
   $limite = (Get-Date).AddSeconds(30)
   while (-not (Test-Studio)) {
     if ($processus.HasExited -or (Get-Date) -gt $limite) {
+      if (-not $processus.HasExited) { taskkill /PID $processus.Id /T /F | Out-Null }
       Add-Type -AssemblyName PresentationFramework
       $fin = (Get-Content -LiteralPath $journal -Tail 15 -ErrorAction SilentlyContinue) -join "`n"
       if (-not $fin) { $fin = '(journal vide)' }

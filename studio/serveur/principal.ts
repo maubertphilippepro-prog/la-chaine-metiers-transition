@@ -80,7 +80,11 @@ async function main(): Promise<void> {
     if (await api(req, res)) return;
     vite.middlewares(req, res);
   });
-  serveur.listen(PORT, '127.0.0.1', () => console.log(`Studio de validation : http://127.0.0.1:${PORT}`));
+  serveur.listen(PORT, '127.0.0.1', () => {
+    // Titre de la fenêtre du lanceur (outils/lanceur.ps1) : npm le remplace au démarrage.
+    process.title = 'Studio M&T — ne pas fermer';
+    console.log(`Studio de validation : http://127.0.0.1:${PORT}`);
+  });
 }
 
 main().catch(e => {
