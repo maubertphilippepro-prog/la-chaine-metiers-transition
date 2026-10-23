@@ -1,5 +1,6 @@
 import { type FC, useEffect, useState } from 'react';
 import { longueurTags, modifierVideo, retraitAFaire, type Publication, type VideoPubliee, type Vignette } from '../../../noyau/publication';
+import type { Gabarit } from '../../../noyau/gabarits';
 import { diffusion, NATURES, type Nature, type Qualification } from '../../../noyau/qualification';
 import { descriptionYoutube, formatHorodatage } from '../../../noyau/publication-textes';
 import { pretePourYoutube, validee } from '../../../noyau/youtube';
@@ -9,7 +10,6 @@ import {
   CONFIRMATION_RETRAIT, libelleCible, LIBELLES_NATURE, LIBELLES_STATUT, requalificationRetire, resumeDiffusion, tagsDepuisTexte, texteDepuisTags,
 } from '../logique/publication';
 import { Attente } from './Attente';
-import type { Gabarit } from '../../../noyau/gabarits';
 import { ChoixVignette } from './ChoixVignette';
 import { PanneauSite } from './PanneauSite';
 import { PanneauYoutube } from './PanneauYoutube';

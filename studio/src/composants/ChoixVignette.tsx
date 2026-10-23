@@ -1,5 +1,5 @@
 import { Thumbnail } from '@remotion/player';
-import { type FC, useState } from 'react';
+import { type FC, useEffect, useState } from 'react';
 import { gabaritRetenu, gabaritsCompatibles, LIBELLES_GABARIT, logosSuggeres, MAX_ELEMENTS, type Gabarit } from '../../../noyau/gabarits';
 import { cleVignette, DOSSIER_CAPTURES, proprietesVignette, type Publication, type Vignette, type VideoPubliee } from '../../../noyau/publication';
 import { HAUTEUR_VIGNETTE, LARGEUR_VIGNETTE, Vignette as CompositionVignette } from '../../../remotion/composants/Vignette';
@@ -37,6 +37,8 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
   // le navigateur réafficherait sinon l’ancienne image.
   const [tirage, setTirage] = useState(() => Date.now());
   const [captures, setCaptures] = useState(detail.captures);
+  // Suit le détail quand il est rechargé (nouvelle capture vue par le serveur).
+  useEffect(() => setCaptures(detail.captures), [detail.captures]);
   const [depot, setDepot] = useState(false);
   const vignette = v.vignette;
   const bases = { tournage: detail.urlTournage, poses: detail.urlPoses, logos: detail.urlLogos };
@@ -68,10 +70,13 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
 
   const deposer = async (fichiers: File[]) => {
     setErreur(null);
-    try {
-      for (const f of fichiers) setCaptures((await api.deposerCapture(nom, f.name, f)).captures);
-    } catch (e) {
-      setErreur(e instanceof Error ? e.message : String(e));
+    for (const f of fichiers) {
+      try {
+        setCaptures((await api.deposerCapture(nom, f.name, f)).captures);
+      } catch (e) {
+        setErreur(`${f.name} : ${e instanceof Error ? e.message : String(e)}`);
+        return;
+      }
     }
   };
   const actualiser = async () => {
