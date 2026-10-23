@@ -1,3 +1,4 @@
+import { MAX_ELEMENTS, type Gabarit } from '../../../noyau/gabarits';
 import type { CiblePublication, FondVignette, PoseVignette, Publication, StatutPublication, VideoPubliee, Vignette } from '../../../noyau/publication';
 import { diffusion, memeQualification, type Diffusion, type DiffusionSite, type DiffusionYoutube, type Nature, type Qualification } from '../../../noyau/qualification';
 import type { VisibiliteYoutube } from '../../../noyau/youtube';
@@ -82,3 +83,13 @@ export function localDepuisIso(iso: string | null): string {
   const deux = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${deux(d.getMonth() + 1)}-${deux(d.getDate())}T${deux(d.getHours())}:${deux(d.getMinutes())}`;
 }
+
+// Logo ou capture coché ou décoché ; au plus MAX_ELEMENTS, dans l'ordre des clics.
+export function basculer(liste: string[], fichier: string): string[] {
+  if (liste.includes(fichier)) return liste.filter(f => f !== fichier);
+  return liste.length < MAX_ELEMENTS ? [...liste, fichier] : liste;
+}
+
+// Gabarits pris par les autres vidéos de la publication : proposés en dernier, pour varier.
+export const gabaritsAutres = (p: Publication, cible: CiblePublication): Gabarit[] =>
+  p.videos.flatMap(v => (v.cible !== cible && v.vignette ? [v.vignette.gabarit] : []));

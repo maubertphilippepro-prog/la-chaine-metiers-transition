@@ -3,6 +3,7 @@ import { diffusion, NATURES, type Nature } from '../../../noyau/qualification';
 import type { Pose } from '../../commun';
 import { api } from '../api';
 import { changerQualificationParDefaut, LIBELLES_NATURE, resumeDiffusion } from '../logique/publication';
+import { gabaritsAutres } from '../logique/publication';
 import { usePublication } from '../usePublication';
 import type { EtatEnregistrement } from '../useMontage';
 import { CartePublication } from './CartePublication';
@@ -81,6 +82,7 @@ export const EcranPublication: FC<{ nom: string }> = ({ nom }) => {
           <CartePublication
             key={String(v.cible)} nom={nom} video={v} disponible={disponible} detail={detail} poses={poses ?? []}
             complete={publication.videos.find(x => x.cible === 'complete')?.vignette ?? null}
+            gabaritsAutres={gabaritsAutres(publication, v.cible)}
             instant={instant} modifier={modifier} executer={executer} synchroniser={synchroniser}
           />
         );

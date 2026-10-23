@@ -108,3 +108,8 @@ button.lien { background: none; border: none; padding: 0; text-align: left; curs
   display: flex; align-items: center; justify-content: center; aspect-ratio: 16 / 9;
   border: 1px dashed var(--bleu-gris); border-radius: 6px;
 }
+.depot { border: 2px dashed #9ab2c9; border-radius: 6px; padding: 0.75rem; margin: 0.5rem 0; text-align: center; color: #4b5563; }
+.depot.actif { border-color: #004c99; background: #eef4fb; }
+.gabarits { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
+.gabarit { padding: 2px; border: 3px solid transparent; background: none; text-align: left; cursor: pointer; }
+.gabarit.choisi { border-color: #004c99; }

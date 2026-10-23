@@ -52,6 +52,11 @@ export const api = {
   image: (nom: string, source: 'ecran' | 'camera', instant: number) =>
     appeler<{ chemin: string }>(`${chemin(nom)}/publication/image`, enJson('POST', { source, instant })),
   rendreVignette: (nom: string, cible: CiblePublication) => appeler<Publication>(`${chemin(nom)}/publication/vignette`, enJson('POST', { cible })),
+  captures: (nom: string) => appeler<string[]>(`${chemin(nom)}/publication/captures`),
+  deposerCapture: (nom: string, fichier: string, contenu: Blob) => appeler<{ fichier: string; captures: string[] }>(
+    `${chemin(nom)}/publication/captures?fichier=${encodeURIComponent(fichier)}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: contenu },
+  ),
   validerVideo: (nom: string, cible: CiblePublication) => appeler<Publication>(`${chemin(nom)}/publication/valider`, enJson('POST', { cible })),
   preparerYoutube: (nom: string, cible: CiblePublication) =>
     appeler<DossierYoutube>(`${chemin(nom)}/publication/youtube/preparer`, enJson('POST', { cible })),
