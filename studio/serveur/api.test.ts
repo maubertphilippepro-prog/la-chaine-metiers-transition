@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -66,6 +66,8 @@ const envoyerConsignes = (nom: string, fichier: unknown) =>
   fetch(`${url}/api/tournages/${nom}/consignes`, { method: 'PUT', headers: json, body: JSON.stringify(fichier) });
 const creerTournage = (corps: unknown) =>
   fetch(`${url}/api/tournages`, { method: 'POST', headers: json, body: JSON.stringify(corps) });
+const envoyerVideo = (nom: string, fichier: string, contenu: string) =>
+  fetch(`${url}/api/tournages/${nom}/video?fichier=${encodeURIComponent(fichier)}`, { method: 'PUT', body: contenu });
 
 beforeEach(async () => {
   racine = await mkdtemp(path.join(os.tmpdir(), 'pmt-studio-'));
@@ -99,8 +101,8 @@ describe('liste des tournages', () => {
     await tournage('2026-10-01-a', { 'analyse.json': exemple, 'episode.json': { version: 1, titre: 'A', statut: 'analyse', message: null } });
     await tournage('2026-10-02-b', {});
     expect(await (await fetch(`${url}/api/tournages`)).json()).toEqual([
-      { nom: '2026-10-02-b', titre: '2026-10-02-b', statut: null, message: null, analyseFaite: false },
-      { nom: '2026-10-01-a', titre: 'A', statut: 'analyse', message: null, analyseFaite: true },
+      { nom: '2026-10-02-b', titre: '2026-10-02-b', statut: null, message: null, analyseFaite: false, videoPresente: false },
+      { nom: '2026-10-01-a', titre: 'A', statut: 'analyse', message: null, analyseFaite: true, videoPresente: false },
     ]);
   });
   it('laisse passer les requêtes hors API', async () => {
@@ -374,5 +376,48 @@ describe('consignes', () => {
     expect(config.interpreterConsigne).not.toHaveBeenCalled();
     await vi.waitFor(() => expect(finir).toBeTypeOf('function'));
     finir();
+  });
+});
+
+describe('dépôt de la vidéo', () => {
+  it('écrit la vidéo dans bruts/ et la signale dans la liste', async () => {
+    const d = await tournage('a', {});
+    const r = await envoyerVideo('a', 'Film Clipchamp.mp4', 'contenu vidéo');
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ fichier: 'Film Clipchamp.mp4' });
+    expect(await readFile(path.join(d, 'bruts', 'Film Clipchamp.mp4'), 'utf-8')).toBe('contenu vidéo');
+    expect((await (await fetch(`${url}/api/tournages`)).json())[0].videoPresente).toBe(true);
+  });
+  it('ne compte pas l’enregistrement de la webcam comme vidéo du montage', async () => {
+    const d = await tournage('a', {});
+    await mkdir(path.join(d, 'bruts'));
+    await writeFile(path.join(d, 'bruts', 'film-camera.mkv'), 'webcam');
+    expect((await (await fetch(`${url}/api/tournages`)).json())[0].videoPresente).toBe(false);
+    expect((await envoyerVideo('a', 'film.mkv', 'x')).status).toBe(200);
+  });
+  it('refuse un fichier non vidéo, un chemin ou une vidéo vide', async () => {
+    const d = await tournage('a', {});
+    expect((await envoyerVideo('a', 'notes.txt', 'x')).status).toBe(400);
+    expect((await envoyerVideo('a', '..\film.mp4', 'x')).status).toBe(400);
+    expect((await envoyerVideo('a', 'film-camera.mp4', 'x')).status).toBe(400);
+    expect((await envoyerVideo('a', 'film.mp4', '')).status).toBe(400);
+    expect(readdirSync(path.join(d, 'bruts'))).toEqual([]);
+  });
+  it('refuse une seconde vidéo', async () => {
+    await tournage('a', {});
+    await envoyerVideo('a', 'film.mp4', 'x');
+    const r = await envoyerVideo('a', 'autre.mov', 'y');
+    expect(r.status).toBe(409);
+    expect((await r.json()).erreur).toBe('Ce tournage a déjà une vidéo dans bruts/.');
+  });
+  it('supprime le fichier partiel d’un envoi interrompu', async () => {
+    const d = await tournage('a', {});
+    const partiel = path.join(d, 'bruts', 'film.mp4.partiel');
+    const req = http.request(`${url}/api/tournages/a/video?fichier=film.mp4`, { method: 'PUT' });
+    req.on('error', () => undefined);
+    req.write(Buffer.alloc(1000));
+    await vi.waitFor(() => expect(existsSync(partiel)).toBe(true));
+    req.destroy();
+    await vi.waitFor(() => expect(readdirSync(path.join(d, 'bruts'))).toEqual([]));
   });
 });

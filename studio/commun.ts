@@ -8,12 +8,17 @@ import type { ReferencesSite } from './serveur/site-replit';
 
 // Données échangées entre le serveur du studio et l'interface.
 
+// Vidéos que le pipeline sait lire (pipeline/mtpipeline/images.py).
+export const EXTENSIONS_VIDEO = ['.mp4', '.mkv', '.mov', '.webm'];
+
 export interface ResumeTournage {
   nom: string;
   titre: string;
   statut: StatutEpisode | null;
   message: string | null;
   analyseFaite: boolean;
+  // Une vidéo du montage dans bruts/ (l'enregistrement « -camera » ne compte pas).
+  videoPresente: boolean;
 }
 
 export interface DetailTournage extends ResumeTournage {

@@ -65,6 +65,8 @@ async function main(): Promise<void> {
   });
 
   const serveur = http.createServer();
+  // Une longue vidéo peut mettre plus que les 5 minutes accordées par défaut à une requête.
+  serveur.requestTimeout = 0;
   const vite = await creerVite({
     configFile: path.join(RACINE, 'studio', 'vite.config.ts'),
     server: { middlewareMode: true, hmr: { server: serveur } },

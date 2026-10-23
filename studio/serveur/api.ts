@@ -11,7 +11,7 @@ import { chargerTournage, lireEpisode, majStatutEpisode, raisonMontage, urlSourc
 import type { DetailTournage, EtatRendu, ResumeTournage } from '../commun';
 import { ErreurInterpretation, lireConsignes, type InterpreterConsigne } from './consignes';
 import { dossierTournage, ecrireJson, ErreurHttp, lireCorps, message, repondre, repondreErreur } from './http';
-import { creerTournage } from './nouveau-tournage';
+import { creerTournage, deposerVideo, videosBrutes } from './nouveau-tournage';
 import type { SuiviRendu } from './suivi-rendu';
 
 export interface ConfigApi {
@@ -29,7 +29,7 @@ export interface ConfigApi {
 async function resume(dossier: string): Promise<ResumeTournage> {
   const nom = path.basename(dossier);
   const e = await lireEpisode(dossier);
-  return { nom, titre: e.titre ?? nom, statut: e.statut, message: e.message, analyseFaite: existsSync(path.join(dossier, 'analyse.json')) };
+  return { nom, titre: e.titre ?? nom, statut: e.statut, message: e.message, analyseFaite: existsSync(path.join(dossier, 'analyse.json')), videoPresente: (await videosBrutes(dossier)).length > 0 };
 }
 
 async function lireGlossaire(chemin: string): Promise<Glossaire> {
@@ -190,7 +190,7 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
     const chemin = new URL(req.url ?? '/', 'http://local').pathname;
     if (!chemin.startsWith('/api/')) return false;
     try {
-      const route = /^\/api\/tournages\/([^/]+)(?:\/(montage|rendu|suggestions|consignes))?$/.exec(chemin);
+      const route = /^\/api\/tournages\/([^/]+)(?:\/(montage|rendu|suggestions|consignes|video))?$/.exec(chemin);
       const nom = route?.[1];
       const action = route?.[2];
       if (chemin === '/api/tournages' && req.method === 'GET') {
@@ -221,6 +221,8 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
           throw new ErreurHttp(500, `Relance des suggestions impossible : ${message(e)}`);
         }
         repondre(res, 200, await detail(dossier));
+      } else if (nom && action === 'video' && req.method === 'PUT') {
+        repondre(res, 200, { fichier: await deposerVideo(req, dossierDe(nom)) });
       } else {
         repondre(res, 404, { erreur: 'Route inconnue.' });
       }

@@ -1,6 +1,10 @@
-import { mkdir } from 'node:fs/promises';
+import { createWriteStream, existsSync } from 'node:fs';
+import { mkdir, readdir, rename, rm, stat } from 'node:fs/promises';
+import type { IncomingMessage } from 'node:http';
 import path from 'node:path';
-import { ecrireJson, ErreurHttp } from './http';
+import { pipeline } from 'node:stream/promises';
+import { EXTENSIONS_VIDEO } from '../commun';
+import { ecrireJson, ErreurHttp, message } from './http';
 
 const LONGUEUR_MAX = 50;
 
@@ -48,4 +52,37 @@ export async function creerTournage(racine: string, corps: unknown): Promise<str
     await ecrireJson(path.join(dossier, 'episode.json'), { version: 1, titre, statut: null, message: null });
     return nom;
   }
+}
+
+// L'enregistrement de la webcam (« -camera », plugin OBS Source Record) sert aux vignettes, pas au montage.
+const estVideoMontage = (fichier: string) =>
+  EXTENSIONS_VIDEO.includes(path.extname(fichier).toLowerCase()) && !path.parse(fichier).name.toLowerCase().endsWith('-camera');
+
+export async function videosBrutes(dossier: string): Promise<string[]> {
+  const bruts = path.join(dossier, 'bruts');
+  return existsSync(bruts) ? (await readdir(bruts)).filter(estVideoMontage) : [];
+}
+
+// Vidéo envoyée par le studio, écrite en flux dans bruts/ ; un envoi interrompu ne laisse rien.
+export async function deposerVideo(req: IncomingMessage, dossier: string): Promise<string> {
+  const fichier = new URL(req.url ?? '/', 'http://local').searchParams.get('fichier') ?? '';
+  if (!fichier || path.basename(fichier) !== fichier || fichier.startsWith('.') || !estVideoMontage(fichier)) {
+    throw new ErreurHttp(400, `fichier attendu : une vidéo ${EXTENSIONS_VIDEO.join(', ')} (hors enregistrement « -camera »), sans chemin.`);
+  }
+  if ((await videosBrutes(dossier)).length > 0) throw new ErreurHttp(409, 'Ce tournage a déjà une vidéo dans bruts/.');
+  const bruts = path.join(dossier, 'bruts');
+  await mkdir(bruts, { recursive: true });
+  const partiel = path.join(bruts, `${fichier}.partiel`);
+  try {
+    await pipeline(req, createWriteStream(partiel));
+  } catch (e) {
+    await rm(partiel, { force: true });
+    throw new ErreurHttp(500, `Envoi de la vidéo interrompu : ${message(e)}`);
+  }
+  if ((await stat(partiel)).size === 0) {
+    await rm(partiel, { force: true });
+    throw new ErreurHttp(400, 'Vidéo vide.');
+  }
+  await rename(partiel, path.join(bruts, fichier));
+  return fichier;
 }
