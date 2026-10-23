@@ -4,8 +4,11 @@ Le studio sert à relire un tournage analysé, corriger les décisions de montag
 
 ## Lancer
 
-1. Analyser le tournage (voir le pipeline) : `cd pipeline; ..\.venv\Scripts\python -m mtpipeline.cli analyser ..\donnees\tournages\<dossier> --titre "<titre>"`.
-2. À la racine du projet : `npm run validation`, puis ouvrir http://127.0.0.1:5180 dans Chrome ou Edge. Le navigateur intégré de VS Code ne décode pas le son AAC de `source.mp4` : l’aperçu n’y fait entendre que le jingle et le tapis.
+1. Une fois : `powershell -ExecutionPolicy Bypass -File outils\installer-raccourci.ps1` crée sur le bureau le raccourci « Métiers & Transition ».
+2. Double-clic sur le raccourci : le studio démarre dans une fenêtre réduite « Studio M&T — ne pas fermer » et s'ouvre dans le navigateur par défaut (http://127.0.0.1:5180) ; s'il tourne déjà, seule la page s'ouvre. Fermer cette fenêtre arrête le studio et l'analyse en cours. Sans le raccourci : `npm run validation` à la racine du projet. Ouvrir le studio dans Chrome ou Edge : le navigateur intégré de VS Code ne décode pas le son AAC de `source.mp4`, l’aperçu n’y fait entendre que le jingle et le tapis.
+3. **Nouveau tournage** (page Tournages) : glisser la vidéo exportée de Clipchamp (`.mp4`, `.mkv`, `.mov` ou `.webm`), saisir le titre, « Créer et analyser ». Le studio crée `donnees/tournages/<date>-<titre>/bruts/`, y copie la vidéo et lance l'analyse ; la liste en montre l'étape (préparation, transcription, repérage des coupes, suggestions de Claude). Une seule analyse à la fois. Une analyse interrompue (studio fermé) reprend à « Analyser » sans refaire les étapes finies ; une analyse en échec affiche son message et « Relancer l'analyse ».
+
+L'icône `outils/metiers-transition.ico` se régénère par `.venv\Scripts\python outils\generer-icone.py`. L'analyse reste possible en ligne de commande : `cd pipeline; ..\.venv\Scripts\python -m mtpipeline.cli analyser ..\donnees\tournages\<dossier> --titre "<titre>"`.
 
 ## Écran de montage
 
