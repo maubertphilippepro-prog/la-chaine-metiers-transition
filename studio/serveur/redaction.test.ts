@@ -17,6 +17,7 @@ const PROPOSITION = {
   description: 'Desc',
   tags: ['Windows', ' ', 'windows', 'presse-papiers'],
   accroches: ['Un', 'Deux', 'Trois', 'Quatre'],
+  logiciels: [' Excel ', 'excel', '', 'Teams'],
 };
 
 function client(parse: (...args: unknown[]) => Promise<unknown>) {
@@ -33,6 +34,7 @@ describe('construirePromptRedaction', () => {
     expect(prompt).toContain('<transcription>\nBonjour à tous.');
     expect(prompt).toContain('ne mentionne aucun employeur');
     expect(prompt).toContain('Pas d’horodatage');
+    expect(prompt).toContain('- logiciels :');
   });
   it('demande un ton sobre pour une vidéo Pro confidentielle, sans la règle de mention', () => {
     const prompt = construirePromptRedaction({ ...demande, qualification: { nature: 'pro', confidentielle: true }, chapitres: [] });
@@ -54,6 +56,7 @@ describe('nettoyerProposition', () => {
       description: 'Desc',
       tags: ['Windows', 'presse-papiers'],
       accroches: ['Un', 'Deux', 'Trois'],
+      logiciels: ['Excel', 'Teams'],
     });
   });
 });

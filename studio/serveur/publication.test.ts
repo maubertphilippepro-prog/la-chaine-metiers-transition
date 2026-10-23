@@ -17,7 +17,7 @@ const MONTAGE = {
   elements: [],
 };
 const RENDU = { version: 1, titre: 'Essai', statut: 'rendu', message: null };
-const PROPOSITION = { titre: 'Le SSO expliqué', variantesTitre: ['A', 'B'], description: 'Desc', tags: ['sso'], accroches: ['Un seul mot de passe'] };
+const PROPOSITION = { titre: 'Le SSO expliqué', variantesTitre: ['A', 'B'], description: 'Desc', tags: ['sso'], accroches: ['Un seul mot de passe'], logiciels: ['Excel'] };
 const SITE = { categories: [{ id: 1, nom: 'IA' }], playlists: [] };
 
 let racine: string;

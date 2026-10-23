@@ -23,6 +23,7 @@ export interface PropositionRedaction {
   description: string;
   tags: string[];
   accroches: string[];
+  logiciels: string[];
 }
 
 export type Rediger = (d: DemandeRedaction) => Promise<PropositionRedaction>;
@@ -49,6 +50,7 @@ Réponds avec :
 - description : 2 à 4 courts paragraphes (une accroche d’une phrase, ce que montre la vidéo, à qui elle sert), puis, s’il en cite, les outils ou sites nommés dans la vidéo, un par ligne. Pas d’horodatage ni de liste de chapitres : ils sont ajoutés automatiquement. N’invente aucun lien : ne donne une adresse que si elle est prononcée.
 - tags : 8 à 15 mots-clés de recherche, en minuscules, du plus précis au plus général (noms d’outils, tâches, notions).
 - accroches : trois textes de 3 à 5 mots pour la vignette, percutants et lisibles en petit, sans reprendre le titre mot pour mot.
+- logiciels : les logiciels, applications et services en ligne nommés dans la vidéo, chacun sous son nom usuel (« Excel », « ChatGPT », « Microsoft Teams »), du plus présent au moins présent ; liste vide s’il n’y en a pas.
 `;
 }
 
@@ -58,24 +60,30 @@ const SchemaRedaction = z.object({
   description: z.string(),
   tags: z.array(z.string()),
   accroches: z.array(z.string()),
+  logiciels: z.array(z.string()),
 });
 
 const nonVides = (textes: string[]) => textes.map(t => t.trim()).filter(t => t !== '');
 
-export function nettoyerProposition(p: PropositionRedaction): PropositionRedaction {
+// Sans blancs ni doublons (à la casse près), dans l'ordre d'origine.
+function uniques(textes: string[]): string[] {
   const vus = new Set<string>();
-  const tags = nonVides(p.tags).filter(t => {
+  return nonVides(textes).filter(t => {
     const cle = t.toLowerCase();
     if (vus.has(cle)) return false;
     vus.add(cle);
     return true;
   });
+}
+
+export function nettoyerProposition(p: PropositionRedaction): PropositionRedaction {
   return {
     titre: p.titre.trim(),
     variantesTitre: nonVides(p.variantesTitre).slice(0, 2),
     description: p.description.trim(),
-    tags,
+    tags: uniques(p.tags),
     accroches: nonVides(p.accroches).slice(0, 3),
+    logiciels: uniques(p.logiciels).slice(0, 10),
   };
 }
 
