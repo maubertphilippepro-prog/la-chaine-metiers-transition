@@ -16,7 +16,7 @@ L'app ne prend pas de captures et ne les recadre pas : elle se contente de les m
 
 - Banque locale `donnees/logos/` (PNG ou SVG, fond transparent de préférence), alimentée par l'auteur, servie comme `donnees/poses/`.
 - Le nom du fichier sans extension est le nom du logiciel (`excel.png`, `chatgpt.svg`).
-- La rédaction IA renvoie un nouveau champ `logiciels: string[]` : les logiciels et services nommés dans la vidéo. Le studio pré-coche les logos de la banque dont le nom correspond (comparaison sans casse, sans accents, sans espaces ni tirets), dans la limite de 3, tant que l'auteur n'a pas touché aux logos de cette vignette.
+- La rédaction IA renvoie un nouveau champ `logiciels: string[]` : les logiciels et services nommés dans la vidéo. Les logos de la banque dont le nom correspond (comparaison sans casse, sans accents, sans espaces, points ni tirets) sont pré-cochés, dans la limite de 3 : à la création de la vignette, et à chaque rédaction si la vignette n'a encore aucun logo. Le champ `logiciels` est gardé dans la vidéo publiée.
 - Un logo est dessiné en **tuile** : carré blanc aux coins arrondis, ombre portée, logo centré avec une marge.
 
 ### Captures
@@ -34,7 +34,7 @@ Chaque gabarit est un composant Remotion qui place des briques partagées : `Fon
 | `classique` | Mise en page actuelle : bande rouge, logo M&T, accroche à gauche, pose à droite. Logos et captures ignorés. | toujours |
 | `vitrine` | Pose au centre, logos en tuiles flottant autour de la tête, accroche en bandeau en bas, fond dégradé de la charte (le fond choisi est ignoré). | au moins 1 logo |
 | `demonstration` | Première capture en grande carte à gauche, premier logo épinglé dans son coin, pose à droite, accroche en bandeau sous la capture. | au moins 1 capture |
-| `mosaique` | 2 ou 3 captures en éventail à gauche, pose à droite, accroche en haut à droite, premier logo en tuile s'il y en a un. | au moins 2 captures |
+| `mosaique` | Accroche en haut à gauche, 2 ou 3 captures en éventail dessous, pose à droite, premier logo en tuile s'il y en a un. | au moins 2 captures |
 
 Une fonction pure du noyau décide des propositions :
 
