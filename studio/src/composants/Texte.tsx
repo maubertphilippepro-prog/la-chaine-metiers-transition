@@ -24,6 +24,8 @@ interface Props {
   modifier: (f: (m: Montage) => Montage) => void;
   ecouter: (debut: number, fin: number) => void;
   lireDansApercu: (t: number) => void;
+  // Cale l'aperçu sur un instant sans changer son état (lecture ou pause).
+  calerApercu: (t: number) => void;
   consignerPassage: (a: Ancrage) => void;
   // Passage de mots choisi (ou null), pour « Recaler sur la sélection ».
   surSelection: (a: Ancrage | null) => void;
@@ -47,7 +49,7 @@ function classeCoupe(c: Coupe | null): string {
 
 // Texte horodaté : clic sur un mot ou un trou pour le choisir, glisser pour choisir un passage.
 export const Texte: FC<Props> = props => {
-  const { analyse, montage, texteMax, modifier, ecouter, lireDansApercu, consignerPassage, surSelection, creerElement } = props;
+  const { analyse, montage, texteMax, modifier, ecouter, lireDansApercu, calerApercu, consignerPassage, surSelection, creerElement } = props;
   const blocs = useMemo(() => construireTexte(analyse, montage), [analyse, montage]);
   const rangs = useMemo(() => new Map(analyse.mots.map((m, i) => [m.id, i])), [analyse]);
   const coupesDesMots = useMemo(() => {
@@ -73,11 +75,19 @@ export const Texte: FC<Props> = props => {
     setAlerte(null);
   }, [ancrage, surSelection]);
 
+  // Chaque choix cale l'aperçu sur son début ; un passage coupé y donne la suite conservée.
   const choisirMots = (r1: number, r2: number) => {
     const [a, b] = r1 <= r2 ? [r1, r2] : [r2, r1];
     const premier = analyse.mots[a];
     const dernier = analyse.mots[b];
-    if (premier && dernier) setChoix({ genre: 'mots', debut: premier.debut, fin: dernier.fin, rangs: [a, b] });
+    if (!premier || !dernier) return;
+    setChoix({ genre: 'mots', debut: premier.debut, fin: dernier.fin, rangs: [a, b] });
+    calerApercu(premier.debut);
+  };
+  const choisirCoupe = (id: string) => {
+    setChoix({ genre: 'coupe', id });
+    const c = montage.coupes.find(x => x.id === id);
+    if (c) calerApercu(c.debut);
   };
 
   const choisir = (e: MouseEvent) => {
@@ -96,12 +106,12 @@ export const Texte: FC<Props> = props => {
     if (!cible) {
       setChoix(null);
     } else if (cible.dataset.coupe !== undefined) {
-      setChoix({ genre: 'coupe', id: cible.dataset.coupe });
+      choisirCoupe(cible.dataset.coupe);
     } else {
       const id = Number(cible.dataset.mot);
       const c = coupesDesMots.get(id);
       const r = rangs.get(id);
-      if (c) setChoix({ genre: 'coupe', id: c.id });
+      if (c) choisirCoupe(c.id);
       else if (r !== undefined) choisirMots(r, r);
     }
   };

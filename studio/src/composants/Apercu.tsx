@@ -9,12 +9,16 @@ import { type Dessin, TraceurZone } from './TraceurZone';
 
 export type Vue = 'complete' | number;
 
-// Le jeton change à chaque demande, même pour la même image ; `pause` arrête l'aperçu sur l'image (tracé d'une zone).
+// `lire` lance la lecture, `pause` arrête l'aperçu sur l'image (tracé d'une zone), `caler` déplace l'aperçu sans
+// changer son état (clic dans le texte).
+export type ModeLecture = 'lire' | 'pause' | 'caler';
+
+// Le jeton change à chaque demande, même pour la même image.
 export interface DemandeLecture {
   // Sans image (rien de conservé à cet instant), la demande ne fait que mettre en pause.
   image?: number;
   jeton: number;
-  pause?: boolean;
+  mode: ModeLecture;
 }
 
 interface Props {
@@ -35,8 +39,8 @@ export const Apercu: FC<Props> = ({ episodes, complete, vue, onVue, demande, des
   useEffect(() => {
     if (!demande || !ref.current) return;
     if (demande.image !== undefined) ref.current.seekTo(demande.image);
-    if (demande.pause) ref.current.pause();
-    else ref.current.play();
+    if (demande.mode === 'pause') ref.current.pause();
+    else if (demande.mode === 'lire') ref.current.play();
   }, [demande]);
 
   const episode = typeof vue === 'number' ? episodes[vue] : undefined;

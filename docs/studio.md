@@ -15,6 +15,7 @@ L'icône `outils/metiers-transition.ico` se régénère par `.venv\Scripts\pytho
 ## Écran de montage
 
 - **Texte** (à gauche) : les passages coupés sont barrés, avec une couleur par type (silence, hésitation, répétition, prise ratée, longueur, coupe manuelle). Les termes à définir sont surlignés en jaune, les longueurs proposées sur fond rose.
+  - Chaque clic cale l’aperçu sur le début du mot, du passage ou de la coupe choisis (pour une coupe, sur ce qui suit), sans le lancer ni l’arrêter.
   - Cliquer un passage coupé : le rétablir (ou le recouper), l'écouter seul, le retrouver dans l'aperçu.
   - Cliquer un mot ou sélectionner un passage à la souris : le couper, l'écouter, le lire dans l'aperçu, y commencer un nouveau chapitre, y donner une consigne, y poser un élément à l’écran.
   - Chaque chapitre a son titre modifiable, « Commencer ici » (déplace son début sur le passage choisi) et « Fusionner avec le précédent ».
@@ -45,7 +46,7 @@ Quatre éléments peuvent être posés sur la vidéo pendant un passage : un **z
 - **Par une consigne** : « zoome ici », « affiche l’URL », « accepte les textes suggérés »… Claude ne voit pas l’image : une proposition de zoom ou de mise en avant affiche « Zone à tracer » ; « Tracer dans l’aperçu » ouvre le tracé, et « Accepter » n’est possible qu’une fois la zone tracée.
 - **Suggestions de l’analyse** : Claude propose les textes à incruster et les moments où l’auteur désigne l’écran. Elles arrivent « à valider », avec leur raison ; une suggestion de zoom ou de mise en avant attend sa zone.
 
-Le panneau **Éléments à l’écran** liste les éléments par ordre d’apparition : écouter, voir dans l’aperçu, accepter ou écarter une suggestion, tracer ou retracer la zone, modifier le texte et sa position, « Recaler sur la sélection » (reprend le passage sélectionné dans le texte), supprimer. Dans le texte, un soulignement de couleur repère les passages couverts (bleu : zoom, orange : mise en avant, vert : texte, violet : caméra), avec la nature au survol.
+Le panneau **Éléments à l’écran** liste les éléments par ordre d’apparition : écouter, voir dans l’aperçu, accepter ou écarter une suggestion (un élément écarté reste listé, grisé, et « Reprendre » le remet à valider), tracer ou retracer la zone, modifier le texte et sa position, « Recaler sur la sélection » (reprend le passage sélectionné dans le texte), supprimer. Dans le texte, un soulignement de couleur repère les passages couverts (bleu : zoom, orange : mise en avant, vert : texte, violet : caméra), avec la nature au survol.
 
 Règles vérifiées à chaque création ou retouche (un refus s’affiche sans rien modifier) : au moins 1 s à l’écran une fois les coupes retirées ; un seul zoom ou caméra en grand à la fois ; pas de mise en avant pendant un zoom ou la caméra en grand ; deux textes simultanés à des positions différentes ; pas de texte en haut à droite pendant un encart de définition placé en haut. Les textes ne se placent pas dans les coins bas (vignette caméra à gauche, logo à droite). La position de la vignette caméra dans la source se règle dans `reglages.json` (`camera`).
 

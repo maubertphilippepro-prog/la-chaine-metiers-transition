@@ -55,6 +55,7 @@ button.principal { background: var(--bleu); color: white; padding: 6px 12px; }
 .vues { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
 .vues button.actif { background: var(--bleu); color: white; }
 .fiche { border-top: 1px solid #e5e7eb; padding: 8px 0; display: grid; gap: 4px; }
+.fiche.ecarte { opacity: 0.6; }
 .fiche textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 14px; }
 .actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .trop-long { color: var(--rouge); font-size: 13px; }

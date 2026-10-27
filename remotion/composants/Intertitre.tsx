@@ -3,7 +3,7 @@ import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } fr
 import { charte } from '../charte';
 import { police } from '../police';
 
-export const Intertitre: FC<{ titre: string; numero: number; duree: number }> = ({ titre, numero, duree }) => {
+export const Intertitre: FC<{ titre: string; duree: number }> = ({ titre, duree }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const apparition = spring({ frame, fps, config: { damping: 200 } });
@@ -17,7 +17,6 @@ export const Intertitre: FC<{ titre: string; numero: number; duree: number }> = 
       }}
     >
       <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 40 + 120 * apparition, backgroundColor: charte.rouge }} />
-      <div style={{ color: charte.bleuGris, fontSize: 40, fontWeight: 700, opacity: apparition }}>Chapitre {numero}</div>
       <div
         style={{
           color: charte.blanc, fontSize: 84, fontWeight: 700, lineHeight: 1.15,

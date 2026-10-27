@@ -8,7 +8,7 @@ import { useEcoute } from '../ecoute';
 import { imageEpisode, imageVideoComplete, positionDansParties } from '../logique/apercu';
 import { useConsignes } from '../useConsignes';
 import { type EtatEnregistrement, useMontage } from '../useMontage';
-import { Apercu, type DemandeLecture, type Vue } from './Apercu';
+import { Apercu, type DemandeLecture, type ModeLecture, type Vue } from './Apercu';
 import { BandeauSuggestions } from './BandeauSuggestions';
 import { PanneauConsignes } from './PanneauConsignes';
 import { PanneauElements } from './PanneauElements';
@@ -61,23 +61,28 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
   }
   if (!detail || !montage || !decisions || !consignes.fichier) return <div className="page">Chargement…</div>;
 
-  const lireDansApercu = (t: number, pause = false) => {
+  const lireDansApercu = (t: number, mode: ModeLecture = 'lire') => {
     const fps = detail.analyse.fps;
     const jeton = Date.now();
+    const pause = mode === 'pause';
     if (vue === 'complete') {
       const p = positionDansParties(decisions.complete.parties, t, fps);
-      if (p) setDemande({ image: imageVideoComplete(decisions.complete, p), jeton, pause });
-      else if (pause) setDemande({ jeton, pause });
+      if (p) setDemande({ image: imageVideoComplete(decisions.complete, p), jeton, mode });
+      else if (pause) setDemande({ jeton, mode });
       return;
     }
     const p = positionDansParties(decisions.episodes.map(e => e.partie), t, fps);
     const episode = p ? decisions.episodes[p.partie] : undefined;
     if (p && episode) {
       setVue(p.partie);
-      setDemande({ image: imageEpisode(episode, p), jeton, pause });
+      setDemande({ image: imageEpisode(episode, p), jeton, mode });
     } else if (pause) {
-      setDemande({ jeton, pause });
+      setDemande({ jeton, mode });
     }
+  };
+  // Pendant le tracé d'une zone, l'aperçu reste sur l'image tracée.
+  const calerApercu = (t: number) => {
+    if (!dessin) lireDansApercu(t, 'caler');
   };
 
   // Une création ou une retouche d'élément n'est enregistrée que si l'élément touché respecte les règles.
@@ -93,7 +98,7 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
 
   const tracer = (d: Dessin) => {
     setDessin(d);
-    lireDansApercu(d.debut, true);
+    lireDansApercu(d.debut, 'pause');
   };
 
   const creerElement = (nature: NatureElement, a: Ancrage, saisie?: SaisieTexte): string | null => {
@@ -154,7 +159,7 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
         {detail.statut === 'rendu' && <a href={`#/${encodeURIComponent(nom)}/publication`}>Publication →</a>}
       </header>
       <main className="texte">
-        <Texte analyse={detail.analyse} montage={montage} modifier={modifier} ecouter={ecouter} lireDansApercu={lireDansApercu} consignerPassage={setAncrage}
+        <Texte analyse={detail.analyse} montage={montage} modifier={modifier} ecouter={ecouter} lireDansApercu={lireDansApercu} calerApercu={calerApercu} consignerPassage={setAncrage}
           texteMax={detail.reglages.elements.texteMaxCaracteres}
           surSelection={setSelection}
           creerElement={creerElement}

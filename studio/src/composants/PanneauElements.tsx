@@ -51,7 +51,7 @@ const EditionTexte: FC<{ element: ElementTexteIncruste; max: number; changer: (c
   );
 };
 
-// Éléments non écartés, par ordre d'apparition ; chaque retouche passe par les règles.
+// Éléments par ordre d'apparition, les écartés grisés ; chaque retouche passe par les règles.
 export const PanneauElements: FC<Props> = props => {
   const { analyse, montage, reglages, selection } = props;
   const [refus, setRefus] = useState<{ id: string; probleme: string } | null>(null);
@@ -79,6 +79,7 @@ export const PanneauElements: FC<Props> = props => {
         const raison = raisons.get(e.id);
         const aZone = e.nature === 'zoom' || e.nature === 'miseEnAvant';
         const sansZone = aZone && e.zone === null;
+        const ecarte = e.statut === 'ecarte';
         const changer = (c: ChangementElement) => agir(e.id, m => modifierElement(m, e.id, c));
         const recaler = () => {
           if (!selection) return;
@@ -87,7 +88,7 @@ export const PanneauElements: FC<Props> = props => {
           else changer({ debut: p.debut, fin: p.fin });
         };
         return (
-          <div key={e.id} className="fiche">
+          <div key={e.id} className={ecarte ? 'fiche ecarte' : 'fiche'}>
             <div>
               <strong>{LIBELLES_NATURE[e.nature]}</strong>
               {' · '}
@@ -97,9 +98,9 @@ export const PanneauElements: FC<Props> = props => {
               </span>
             </div>
             {raison && <div className="discret">Suggéré : {raison}</div>}
-            {sansZone && <div className="trop-long">Zone à tracer.</div>}
+            {sansZone && !ecarte && <div className="trop-long">Zone à tracer.</div>}
             {problemes.filter(p => p.id === e.id).map(p => <div key={p.probleme} className="trop-long">{p.probleme}</div>)}
-            {e.nature === 'texte' && <EditionTexte element={e} max={reglages.elements.texteMaxCaracteres} changer={changer} />}
+            {e.nature === 'texte' && !ecarte && <EditionTexte element={e} max={reglages.elements.texteMaxCaracteres} changer={changer} />}
             {refus?.id === e.id && <div className="alerte">{refus.probleme}</div>}
             <div className="actions">
               {e.statut === 'a-valider' && (
@@ -110,12 +111,15 @@ export const PanneauElements: FC<Props> = props => {
                   <button onClick={() => changer({ statut: 'ecarte' })}>Écarter</button>
                 </>
               )}
-              {aZone && <button onClick={() => props.tracer(e)}>{sansZone ? 'Tracer' : 'Retracer'}</button>}
+              {ecarte && <button title="Le remet à valider" onClick={() => changer({ statut: 'a-valider' })}>Reprendre</button>}
+              {aZone && !ecarte && <button onClick={() => props.tracer(e)}>{sansZone ? 'Tracer' : 'Retracer'}</button>}
               <button onClick={() => props.ecouter(e.debut, e.fin)}>Écouter</button>
               <button onClick={() => props.lireDansApercu(e.debut)}>Voir dans l’aperçu</button>
-              <button disabled={!selection} title="Reprend le passage sélectionné dans le texte" onClick={recaler}>
-                Recaler sur la sélection
-              </button>
+              {!ecarte && (
+                <button disabled={!selection} title="Reprend le passage sélectionné dans le texte" onClick={recaler}>
+                  Recaler sur la sélection
+                </button>
+              )}
               <button onClick={() => agir(e.id, m => supprimerElement(m, e.id))}>Supprimer</button>
             </div>
           </div>

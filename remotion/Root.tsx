@@ -39,7 +39,7 @@ export const RemotionRoot: FC = () => (
     />
     <Composition
       id="Intertitre" component={Intertitre} durationInFrames={intertitre} fps={FPS_HABILLAGE} width={LARGEUR} height={HAUTEUR}
-      defaultProps={{ titre: 'Windows + V : retrouvez tout ce que vous avez copié', numero: 2, duree: intertitre }}
+      defaultProps={{ titre: 'Windows + V : retrouvez tout ce que vous avez copié', duree: intertitre }}
     />
     <Composition
       id="CartonFin" component={CartonFin} durationInFrames={cartonFin} fps={FPS_HABILLAGE} width={LARGEUR} height={HAUTEUR}

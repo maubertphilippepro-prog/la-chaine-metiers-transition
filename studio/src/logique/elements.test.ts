@@ -6,7 +6,7 @@ import { elementsAffiches, textePrerempli } from './elements';
 const analyse = exemple as Analyse;
 
 describe('elementsAffiches', () => {
-  it('garde les éléments non écartés, par ordre d’apparition', () => {
+  it('garde tous les éléments, écartés compris, par ordre d’apparition', () => {
     const m: Montage = {
       version: 1, titre: 'T', coupes: [], chapitres: [{ titre: 'Intro', debut: 0 }], termes: [],
       elements: [
@@ -15,7 +15,7 @@ describe('elementsAffiches', () => {
         { id: 'se1', debut: 1, fin: 3, statut: 'ecarte', nature: 'camera' },
       ],
     };
-    expect(elementsAffiches(m).map(e => e.id)).toEqual(['se0', 'e1']);
+    expect(elementsAffiches(m).map(e => e.id)).toEqual(['se1', 'se0', 'e1']);
     expect(m.elements.map(e => e.id)).toEqual(['e1', 'se0', 'se1']);
   });
 });

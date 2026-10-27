@@ -19,7 +19,7 @@ export const VideoComplete: FC<ProprietesVideoComplete> = ({ decisions: d }) => 
     if (i > 0) {
       morceaux.push({
         cle: `intertitre-${i}`, duree: d.durees.intertitre,
-        contenu: <Intertitre titre={p.titre} numero={i + 1} duree={d.durees.intertitre} />,
+        contenu: <Intertitre titre={p.titre} duree={d.durees.intertitre} />,
       });
     }
     morceaux.push({
