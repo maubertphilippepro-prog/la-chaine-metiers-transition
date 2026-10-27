@@ -1,4 +1,4 @@
-import { type FC, type MouseEvent, useEffect, useMemo, useState } from 'react';
+import { type FC, type MouseEvent, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import {
   ajouterChapitre, basculerCoupe, couperPassage, deplacerLimite, fusionnerChapitre, renommerChapitre,
 } from '../../../noyau/edition';
@@ -7,6 +7,7 @@ import { LIBELLES_NATURE } from '../../../noyau/elements';
 import type { Analyse, Coupe, Montage, NatureElement, PositionTexte, TypeCoupe } from '../../../noyau/types';
 import { textePrerempli } from '../logique/elements';
 import { duree, horodatage } from '../logique/format';
+import type { Suivi } from '../logique/suivi';
 import { clicSurLaCoupe, construireTexte, type ElementTexte } from '../logique/texte';
 import { ChoixPosition } from './ChoixPosition';
 
@@ -31,6 +32,8 @@ interface Props {
   surSelection: (a: Ancrage | null) => void;
   // Crée un élément sur le passage ; renvoie le problème qui l'empêche, ou null.
   creerElement: (nature: NatureElement, a: Ancrage, saisie?: SaisieTexte) => string | null;
+  // Mot sous l'image de l'aperçu.
+  motLu: Suivi<number | null>;
 }
 
 export const LIBELLES_COUPE: Record<TypeCoupe, string> = {
@@ -50,6 +53,7 @@ function classeCoupe(c: Coupe | null): string {
 // Texte horodaté : clic sur un mot ou un trou pour le choisir, glisser pour choisir un passage.
 export const Texte: FC<Props> = props => {
   const { analyse, montage, texteMax, modifier, ecouter, lireDansApercu, calerApercu, consignerPassage, surSelection, creerElement } = props;
+  const motLu = useSyncExternalStore(props.motLu.abonner, props.motLu.lire);
   const blocs = useMemo(() => construireTexte(analyse, montage), [analyse, montage]);
   const rangs = useMemo(() => new Map(analyse.mots.map((m, i) => [m.id, i])), [analyse]);
   const coupesDesMots = useMemo(() => {
@@ -146,7 +150,7 @@ export const Texte: FC<Props> = props => {
         title={[e.terme, ...e.reperes.map(n => LIBELLES_NATURE[n])].filter(Boolean).join(' · ') || undefined}
         className={[
           'mot', classeCoupe(e.coupe), e.terme ? 'terme' : '', e.reperes[0] ? `repere repere-${e.reperes[0]}` : '',
-          estChoisi(e) ? 'choisi' : '',
+          estChoisi(e) ? 'choisi' : '', e.mot.id === motLu ? 'lu' : '',
         ].join(' ')}
       >
         {e.mot.texte}{' '}

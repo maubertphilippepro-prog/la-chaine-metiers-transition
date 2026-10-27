@@ -5,7 +5,8 @@ import { ajouterElement, modifierElement, prochainIdElement, type NouvelElement 
 import { problemeDe } from '../../../noyau/elements';
 import type { ElementEcran, Montage, NatureElement, Zone } from '../../../noyau/types';
 import { useEcoute } from '../ecoute';
-import { imageEpisode, imageVideoComplete, positionDansParties } from '../logique/apercu';
+import { imageEpisode, imageVideoComplete, motA, positionDansParties } from '../logique/apercu';
+import { creerSuivi } from '../logique/suivi';
 import { useConsignes } from '../useConsignes';
 import { type EtatEnregistrement, useMontage } from '../useMontage';
 import { Apercu, type DemandeLecture, type ModeLecture, type Vue } from './Apercu';
@@ -34,6 +35,9 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
   const [ancrage, setAncrage] = useState<Ancrage | null>(null);
   const [selection, setSelection] = useState<Ancrage | null>(null);
   const [dessin, setDessin] = useState<Dessin | null>(null);
+  // Mot sous l'image de l'aperçu, souligné dans le texte. Hors de l'état de l'écran : pendant la lecture, seul le
+  // texte se redessine, pas l'aperçu (un redessin du lecteur à chaque mot fait bégayer le son).
+  const [motLu] = useState(() => creerSuivi<number | null>(null));
   // Pendant le retracé d'une zone, l'aperçu montre l'image sans cet élément.
   const montageApercu = useMemo(() => {
     const cible = dessin?.cible;
@@ -163,6 +167,7 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
           texteMax={detail.reglages.elements.texteMaxCaracteres}
           surSelection={setSelection}
           creerElement={creerElement}
+          motLu={motLu}
         />
       </main>
       <aside className="cote">
@@ -174,6 +179,7 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
           largeurMin={detail.reglages.elements.zoomLargeurMin}
           validerDessin={zone => (dessin ? validerDessin(dessin, zone) : null)}
           onFinDessin={() => setDessin(null)}
+          onInstant={t => motLu.changer(motA(detail.analyse.mots, t))}
         />
         <PanneauElements
           analyse={detail.analyse}

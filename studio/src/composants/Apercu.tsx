@@ -1,5 +1,6 @@
 import { Player, type PlayerRef } from '@remotion/player';
-import { type FC, useEffect, useRef } from 'react';
+import { type FC, useEffect, useMemo, useRef } from 'react';
+import { instantEpisode, instantVideoComplete } from '../logique/apercu';
 import { dureeEpisode, dureeVideoComplete, type DecisionsEpisode, type DecisionsVideoComplete } from '../../../noyau/decisions';
 import type { Zone } from '../../../noyau/types';
 import { HAUTEUR, LARGEUR } from '../../../remotion/charte';
@@ -31,10 +32,14 @@ interface Props {
   largeurMin: number;
   validerDessin: (zone: Zone) => string | null;
   onFinDessin: () => void;
+  // Instant de la source sous l'image affichée (null hors des parties), à chaque image lue ou calée.
+  onInstant: (t: number | null) => void;
 }
 
+const STYLE = { width: '100%' };
+
 // Lecteur Remotion sur les compositions de rendu, recalculé à chaque modification du montage.
-export const Apercu: FC<Props> = ({ episodes, complete, vue, onVue, demande, dessin, largeurMin, validerDessin, onFinDessin }) => {
+export const Apercu: FC<Props> = ({ episodes, complete, vue, onVue, demande, dessin, largeurMin, validerDessin, onFinDessin, onInstant }) => {
   const ref = useRef<PlayerRef>(null);
   useEffect(() => {
     if (!demande || !ref.current) return;
@@ -44,7 +49,26 @@ export const Apercu: FC<Props> = ({ episodes, complete, vue, onVue, demande, des
   }, [demande]);
 
   const episode = typeof vue === 'number' ? episodes[vue] : undefined;
-  const style = { width: '100%' };
+  const versSource = (image: number) => (episode ? instantEpisode(episode, image) : instantVideoComplete(complete, image));
+  // Toujours le dernier rendu, sans se réabonner au lecteur à chaque modification du montage.
+  const signaler = useRef((image: number) => onInstant(versSource(image)));
+  signaler.current = image => onInstant(versSource(image));
+  // Le lecteur change de clé avec la vue : on s'abonne à nouveau au nouveau lecteur.
+  useEffect(() => {
+    const lecteur = ref.current;
+    if (!lecteur) return;
+    const surImage = (e: { detail: { frame: number } }) => signaler.current(e.detail.frame);
+    lecteur.addEventListener('frameupdate', surImage);
+    lecteur.addEventListener('seeked', surImage);
+    signaler.current(lecteur.getCurrentFrame());
+    return () => {
+      lecteur.removeEventListener('frameupdate', surImage);
+      lecteur.removeEventListener('seeked', surImage);
+    };
+  }, [vue]);
+  // Propriétés stables tant que le montage ne change pas : le lecteur ne recalcule pas la composition pour rien.
+  const proprietesEpisode = useMemo(() => (episode ? { decisions: episode } : null), [episode]);
+  const proprietesComplete = useMemo(() => ({ decisions: complete }), [complete]);
   return (
     <section className="panneau">
       <div className="vues">
@@ -56,31 +80,31 @@ export const Apercu: FC<Props> = ({ episodes, complete, vue, onVue, demande, des
         ))}
       </div>
       <div className="cadre-apercu">
-        {episode ? (
+        {proprietesEpisode && episode ? (
           <Player
             key={`episode-${vue}`}
             ref={ref}
             component={Episode}
-            inputProps={{ decisions: episode }}
+            inputProps={proprietesEpisode}
             durationInFrames={Math.max(1, dureeEpisode(episode))}
             fps={episode.fps}
             compositionWidth={LARGEUR}
             compositionHeight={HAUTEUR}
             controls
-            style={style}
+            style={STYLE}
           />
         ) : (
           <Player
             key="complete"
             ref={ref}
             component={VideoComplete}
-            inputProps={{ decisions: complete }}
+            inputProps={proprietesComplete}
             durationInFrames={Math.max(1, dureeVideoComplete(complete))}
             fps={complete.fps}
             compositionWidth={LARGEUR}
             compositionHeight={HAUTEUR}
             controls
-            style={style}
+            style={STYLE}
           />
         )}
         {dessin && (

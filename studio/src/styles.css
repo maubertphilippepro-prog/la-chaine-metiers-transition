@@ -39,6 +39,8 @@ button.principal { background: var(--bleu); color: white; padding: 6px 12px; }
 .mot:hover, .trou:hover { background: #eef3f8; }
 .terme { background: #fde68a; }
 .choisi { outline: 2px solid var(--bleu); }
+/* Mot sous l'image de l'aperçu : bordure plutôt qu'ombre ou soulignement, pris par repères et coupes. */
+.lu { border-bottom: 3px solid var(--rouge); }
 .trou { font-size: 12px; padding: 0 4px; margin: 0 2px; border-radius: 8px; border: 1px solid currentColor; cursor: pointer; }
 .coupe-active { text-decoration: line-through; opacity: 0.55; }
 .coupe-attente { background: #fde2e4; }
