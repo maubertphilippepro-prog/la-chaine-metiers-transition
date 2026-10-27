@@ -12,6 +12,8 @@ Le studio sert à relire un tournage analysé, corriger les décisions de montag
 
 L'icône `outils/metiers-transition.ico` se régénère par `.venv\Scripts\python outils\generer-icone.py`. L'analyse reste possible en ligne de commande : `cd pipeline; ..\.venv\Scripts\python -m mtpipeline.cli analyser ..\donnees\tournages\<dossier> --titre "<titre>"`.
 
+L'audio est décodé à ses horodatages : un trou de la piste audio (fréquent dans un enregistrement `.webm`) reste du silence. Dans un tournage analysé avant cette correction, les coupes glissent peu à peu vers la fin. La commande `..\.venv\Scripts\python -m mtpipeline.cli recaler ..\donnees\tournages\<dossier>`, lancée depuis `pipeline` avec le tournage fermé dans le studio, recale tous ses temps sans nouvelle transcription. Le montage et les consignes sont gardés, et les fichiers d'avant sont copiés dans `historique/`.
+
 ## Écran de montage
 
 - **Texte** (à gauche) : les passages coupés sont barrés, avec une couleur par type (silence, hésitation, répétition, prise ratée, longueur, coupe manuelle). Les termes à définir sont surlignés en jaune, les longueurs proposées sur fond rose.
