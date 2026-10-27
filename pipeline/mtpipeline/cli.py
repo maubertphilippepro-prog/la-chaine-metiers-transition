@@ -11,6 +11,7 @@ from .erreurs import ErreurEntree, ErreurSuggestions
 from .glossaire import charger_glossaire
 from .images import detourer, extraire_image, lister_bruts, retirer_fond
 from .preparation import preparer
+from .recalage import MARQUE, recaler
 from .reglages import RACINE, charger_reglages
 from .suggestions import convertir, demander
 from .transcription import transcrire, transcrire_extraits
@@ -87,6 +88,7 @@ def analyser(dossier: Path, titre: str, reglages: dict, transcrire_fn=transcrire
 
         if not (dossier / "transcription.json").exists():
             ecrire(dossier / "transcription.json", transcrire_fn(source, reglages["modeles"]["whisper"]))
+            ecrire(dossier / "preparation.json", {**lire(dossier / "preparation.json"), MARQUE: True})
         mots = lire(dossier / "transcription.json")
 
         if not (dossier / "detections.json").exists():
@@ -133,6 +135,8 @@ def main(argv: list[str] | None = None) -> int:
     p_analyser.add_argument("--titre", required=True)
     p_relancer = sous.add_parser("relancer-suggestions", help="Relancer uniquement les suggestions Claude.")
     p_relancer.add_argument("dossier", type=Path)
+    p_recaler = sous.add_parser("recaler", help="Recaler les temps d'une analyse faite sur l'audio bout à bout.")
+    p_recaler.add_argument("dossier", type=Path)
     p_image = sous.add_parser("image", help="Extraire l'image d'une vidéo à un instant donné (PNG).")
     p_image.add_argument("video", type=Path)
     p_image.add_argument("instant", type=float)
@@ -149,6 +153,9 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.commande == "detourer":
             detourer(args.entree, args.sortie, retirer_fond(reglages["modeles"]["detourage"]))
+            return 0
+        if args.commande == "recaler":
+            print(recaler(args.dossier, ecrire))
             return 0
         if args.commande == "analyser":
             analyse = analyser(args.dossier, args.titre, reglages)
