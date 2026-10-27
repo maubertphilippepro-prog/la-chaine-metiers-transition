@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import exemple from '../../../fixtures/analyse-exemple.json';
 import type { Analyse, Montage } from '../../../noyau/types';
-import { construireTexte, type ElementTexte } from './texte';
+import { clicSurLaCoupe, construireTexte, type ElementTexte } from './texte';
 
 const analyse = exemple as Analyse;
 const resume = (e: ElementTexte) =>
@@ -57,5 +57,16 @@ describe('construireTexte', () => {
     expect(mots).toEqual([
       ['Bonjour', []], ['à', []], ['tous.', []], ["Aujourd'hui,", ['texte']], ['le', ['texte', 'zoom']], ['SSO.', ['texte']],
     ]);
+  });
+});
+
+describe('clicSurLaCoupe', () => {
+  it('choisit la coupe appliquée ou en attente, mais laisse choisir les mots d’une coupe rétablie', () => {
+    const base = { id: 'd1', type: 'prise', debut: 0, fin: 160 } as const;
+    expect(clicSurLaCoupe(null)).toBe(false);
+    expect(clicSurLaCoupe({ ...base, active: true })).toBe(true);
+    expect(clicSurLaCoupe({ ...base, active: false, enAttente: true })).toBe(true);
+    expect(clicSurLaCoupe({ ...base, active: false })).toBe(false);
+    expect(clicSurLaCoupe({ ...base, active: false, enAttente: false })).toBe(false);
   });
 });

@@ -17,6 +17,12 @@ function rang(c: Coupe): number {
   return c.active ? 0 : c.enAttente ? 1 : 2;
 }
 
+// Un clic sur un mot coupé choisit la coupe, pour la rétablir ; une fois rétablie,
+// ses mots redeviennent choisissables un à un.
+export function clicSurLaCoupe(c: Coupe | null): boolean {
+  return !!c && (c.active || !!c.enAttente);
+}
+
 const milieu = (m: Mot) => (m.debut + m.fin) / 2;
 const couvre = (p: { debut: number; fin: number }, t: number) => t >= p.debut && t <= p.fin;
 const cle = (t: number) => Math.round(t * 1000);

@@ -7,7 +7,7 @@ import { LIBELLES_NATURE } from '../../../noyau/elements';
 import type { Analyse, Coupe, Montage, NatureElement, PositionTexte, TypeCoupe } from '../../../noyau/types';
 import { textePrerempli } from '../logique/elements';
 import { duree, horodatage } from '../logique/format';
-import { construireTexte, type ElementTexte } from '../logique/texte';
+import { clicSurLaCoupe, construireTexte, type ElementTexte } from '../logique/texte';
 import { ChoixPosition } from './ChoixPosition';
 
 type Choix = { genre: 'mots'; debut: number; fin: number; rangs: [number, number] } | { genre: 'coupe'; id: string };
@@ -62,6 +62,12 @@ export const Texte: FC<Props> = props => {
   const [alerte, setAlerte] = useState<string | null>(null);
   const coupe = choix?.genre === 'coupe' ? montage.coupes.find(c => c.id === choix.id) ?? null : null;
   const paroles = coupe ? analyse.detections.find(d => d.id === coupe.id)?.paroles : undefined;
+  // Coupe rétablie qui contient le passage choisi : on peut la recouper d'un bouton.
+  const retablie = useMemo((): Coupe | null => {
+    if (choix?.genre !== 'mots') return null;
+    const c = coupesDesMots.get(analyse.mots[choix.rangs[0]]?.id ?? -1) ?? null;
+    return c && !clicSurLaCoupe(c) && c.debut <= choix.debut && c.fin >= choix.fin ? c : null;
+  }, [choix, analyse, coupesDesMots]);
   const ancrage = useMemo((): Ancrage | null => {
     if (choix?.genre !== 'mots') return null;
     const premier = analyse.mots[choix.rangs[0]];
@@ -111,7 +117,7 @@ export const Texte: FC<Props> = props => {
       const id = Number(cible.dataset.mot);
       const c = coupesDesMots.get(id);
       const r = rangs.get(id);
-      if (c) choisirCoupe(c.id);
+      if (c && clicSurLaCoupe(c)) choisirCoupe(c.id);
       else if (r !== undefined) choisirMots(r, r);
     }
   };
@@ -175,6 +181,14 @@ export const Texte: FC<Props> = props => {
               Ajouter un texte
             </button>
             <button onClick={() => creer('camera')}>Caméra en grand</button>
+            {retablie && (
+              <button
+                title={`Passage rétabli : ${LIBELLES_COUPE[retablie.type]} · ${duree(retablie.fin - retablie.debut)}`}
+                onClick={() => { modifier(m => basculerCoupe(m, retablie.id)); setChoix(null); }}
+              >
+                Recouper tout le passage ({LIBELLES_COUPE[retablie.type]} · {duree(retablie.fin - retablie.debut)})
+              </button>
+            )}
             {saisie && (
               <span className="actions">
                 <input
