@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gabaritRetenu, gabaritsCompatibles, logosSuggeres } from './gabarits';
+import { DESCRIPTIONS_GABARIT, GABARITS, gabaritRetenu, gabaritsCompatibles, logosSuggeres } from './gabarits';
 
 describe('gabaritsCompatibles', () => {
   it('ne propose que le classique sans logo ni capture', () => {
@@ -33,5 +33,12 @@ describe('logosSuggeres', () => {
   it('ignore les logiciels sans logo et les doublons, et s’arrête à trois', () => {
     expect(logosSuggeres(['Word', 'excel', 'Excel'], banque)).toEqual(['excel.png']);
     expect(logosSuggeres(['excel', 'notion', 'chatgpt', 'power bi'], banque)).toEqual(['excel.png', 'notion.png', 'chatgpt.svg']);
+  });
+});
+
+describe('DESCRIPTIONS_GABARIT', () => {
+  it('décrit chaque gabarit avec sa condition', () => {
+    expect(Object.keys(DESCRIPTIONS_GABARIT).sort()).toEqual([...GABARITS].sort());
+    expect(DESCRIPTIONS_GABARIT.mosaique).toContain('dès deux captures');
   });
 });

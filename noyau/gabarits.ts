@@ -13,6 +13,14 @@ export const LIBELLES_GABARIT: Record<Gabarit, string> = {
   vitrine: 'Vitrine', demonstration: 'Démonstration', mosaique: 'Mosaïque', classique: 'Classique',
 };
 
+// Ce que montre chaque gabarit et quand il est possible, pour Claude.
+export const DESCRIPTIONS_GABARIT: Record<Gabarit, string> = {
+  vitrine: 'pose au centre sur fond bleu dégradé, jusqu’à trois logos autour de la tête, accroche en bandeau rouge en bas ; possible dès un logo',
+  demonstration: 'première capture en grande carte à gauche, premier logo épinglé dans son coin, pose à droite, accroche en bandeau dessous ; possible dès une capture',
+  mosaique: 'accroche en haut à gauche, deux ou trois captures en éventail dessous, premier logo en tuile, pose à droite ; possible dès deux captures',
+  classique: 'accroche en grand à gauche, pose en grand à droite, sans logo ni capture ; toujours possible',
+};
+
 const CONDITIONS: Record<Gabarit, (e: { logos: number; captures: number }) => boolean> = {
   vitrine: e => e.logos >= 1,
   demonstration: e => e.captures >= 1,
