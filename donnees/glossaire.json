@@ -11,6 +11,10 @@
     {
       "terme": "Markdown",
       "definition": "Format de texte simple, adapté aux IA, qui utilise des symboles (#, *, |…) pour la mise en forme."
+    },
+    {
+      "terme": "Tokens",
+      "definition": "Unités de texte consommées par une IA à chaque requête"
     }
   ]
 }
