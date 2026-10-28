@@ -101,7 +101,7 @@ const SchemaVignette = z.object({
     accroche: z.string(),
     explication: z.string(),
   })),
-});
+}) satisfies z.ZodType<ReponseVignette>;
 
 const cle = (p: PropositionVignette) => [p.pose, p.gabarit, p.accroche, p.logos.join(','), p.captures.join(',')].join('|');
 

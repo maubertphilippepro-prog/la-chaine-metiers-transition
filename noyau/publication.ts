@@ -137,9 +137,17 @@ export function appliquerModifications(ancienne: Publication, nouvelle: Publicat
       const vignette = n.vignette && { ...n.vignette, fichier: memeImage ? (a.vignette?.fichier ?? null) : null };
       const change = !memeQualification(a, n) || a.titre !== n.titre || a.description !== n.description
         || a.tags.join('\n') !== n.tags.join('\n') || !memeImage;
+      // Le serveur garde la liste des consignes (il est seul à en ajouter) : le studio ne fait que choisir une proposition.
+      // Une sauvegarde périmée ou un vieil onglet ne doit pas retirer une consigne que le serveur vient d’ajouter.
+      const consignesVignette = a.consignesVignette.map((c, i) => {
+        const choisie = n.consignesVignette[i]?.choisie;
+        const valide = choisie === null || (Number.isInteger(choisie) && choisie! >= 0 && choisie! < c.propositions.length);
+        return choisie !== undefined && valide ? { ...c, choisie } : c;
+      });
       return {
         ...n,
         vignette,
+        consignesVignette,
         statut: a.statut === 'prete' && change ? 'a-preparer' : a.statut,
         youtube: a.youtube,
         replit: { ...n.replit, id: a.replit.id },

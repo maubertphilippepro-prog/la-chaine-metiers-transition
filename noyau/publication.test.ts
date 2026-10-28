@@ -250,6 +250,27 @@ const CONSIGNE: ConsigneVignette = {
   choisie: 0,
 };
 
+describe('appliquerModifications et consignes de vignette', () => {
+  const C2: ConsigneVignette = { ...CONSIGNE, texte: 'Seconde', propositions: [CONSIGNE.propositions[0]!, CONSIGNE.propositions[0]!], choisie: null };
+  const avec = (consignes: ConsigneVignette[]): Publication => ({ ...prete(), videos: [{ ...prete().videos[0]!, consignesVignette: consignes }] });
+  it('garde la liste du serveur : une sauvegarde périmée ne retire pas une consigne', () => {
+    const p = appliquerModifications(avec([CONSIGNE, C2]), avec([CONSIGNE]));
+    expect(p.videos[0]!.consignesVignette).toEqual([CONSIGNE, C2]);
+  });
+  it('applique le choix de proposition fait dans le studio', () => {
+    const p = appliquerModifications(avec([CONSIGNE, C2]), avec([CONSIGNE, { ...C2, choisie: 1 }]));
+    expect(p.videos[0]!.consignesVignette.map(c => c.choisie)).toEqual([0, 1]);
+  });
+  it('ignore un choix hors des propositions de la consigne', () => {
+    const p = appliquerModifications(avec([CONSIGNE, C2]), avec([{ ...CONSIGNE, choisie: 1 }, { ...C2, choisie: 5 }]));
+    expect(p.videos[0]!.consignesVignette.map(c => c.choisie)).toEqual([0, null]);
+  });
+  it('ignore le texte et les propositions envoyés par le studio', () => {
+    const p = appliquerModifications(avec([CONSIGNE]), avec([{ ...CONSIGNE, texte: 'Autre', propositions: [] }]));
+    expect(p.videos[0]!.consignesVignette).toEqual([CONSIGNE]);
+  });
+});
+
 describe('captures candidates et consignes de vignette', () => {
   const avec = (changement: object) => ({ ...prete(), videos: [{ ...prete().videos[0]!, ...changement }] });
   it('part de listes vides, y compris à la lecture d’un fichier qui ne les a pas', () => {

@@ -22,12 +22,15 @@ interface Props {
 // Consigne libre pour la vignette : Claude répond par 2 ou 3 compositions en aperçu, un clic en applique une.
 export const ConsignesVignette: FC<Props> = ({ nom, video: v, bases, changer, lancer, occupe }) => {
   const [texte, setTexte] = useState('');
+  const [historique, setHistorique] = useState(false);
 
   const envoyer = () => {
     if (!texte.trim() || occupe) return;
+    const envoye = texte;
     void lancer(CONSIGNE_VIGNETTE, async () => {
-      const p = await api.consigneVignette(nom, v.cible, texte);
-      setTexte('');
+      const p = await api.consigneVignette(nom, v.cible, envoye);
+      // Ce que l’auteur a tapé pendant l’appel n’est pas effacé.
+      setTexte(t => (t === envoye ? '' : t));
       return p;
     });
   };
@@ -45,7 +48,7 @@ export const ConsignesVignette: FC<Props> = ({ nom, video: v, bases, changer, la
       {c.pasRealisable.length > 0 && (
         <div className="alerte">
           Pas réalisable :
-          <ul>{c.pasRealisable.map(n => <li key={n}>{n}</li>)}</ul>
+          <ul>{c.pasRealisable.map((n, k) => <li key={k}>{n}</li>)}</ul>
         </div>
       )}
       <div className="gabarits">
@@ -84,9 +87,9 @@ export const ConsignesVignette: FC<Props> = ({ nom, video: v, bases, changer, la
       </div>
       {n > 0 && carte(v.consignesVignette[n - 1]!, n - 1)}
       {n > 1 && (
-        <details>
+        <details onToggle={e => setHistorique(e.currentTarget.open)}>
           <summary>Consignes précédentes ({n - 1})</summary>
-          {v.consignesVignette.slice(0, -1).map((c, i) => ({ c, i })).reverse().map(({ c, i }) => carte(c, i))}
+          {historique && v.consignesVignette.slice(0, -1).map((c, i) => ({ c, i })).reverse().map(({ c, i }) => carte(c, i))}
         </details>
       )}
     </div>

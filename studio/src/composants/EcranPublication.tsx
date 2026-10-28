@@ -1,8 +1,8 @@
 import { type FC, useEffect, useState } from 'react';
+import { gabaritsAutres } from '../../../noyau/publication';
 import { diffusion, NATURES, type Nature } from '../../../noyau/qualification';
 import type { Pose } from '../../commun';
 import { api } from '../api';
-import { gabaritsAutres } from '../../../noyau/publication';
 import { changerQualificationParDefaut, LIBELLES_NATURE, resumeDiffusion } from '../logique/publication';
 import { usePublication } from '../usePublication';
 import type { EtatEnregistrement } from '../useMontage';

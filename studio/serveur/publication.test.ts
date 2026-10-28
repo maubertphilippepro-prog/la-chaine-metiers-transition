@@ -624,6 +624,28 @@ describe('consigne pour la vignette', () => {
     expect(vi.mocked(config.proposerVignettes).mock.calls[1]![0].precedentes.map(c => c.texte)).toEqual(['Première']);
     expect(((await r.json()) as Publication).videos[0]!.consignesVignette.map(c => c.texte)).toEqual(['Première', 'Seconde']);
   });
+  it('garde les consignes du disque quand le studio enregistre une publication qui n’en a pas', async () => {
+    const dossier = await preparer();
+    await consigne({ cible: 'complete', texte: 'Première' });
+    const p = await lirePublication('a');
+    const perimee = { ...p, videos: p.videos.map(v => ({ ...v, consignesVignette: [] })) };
+    expect((await envoyer('a', perimee)).status).toBe(200);
+    const enregistree = JSON.parse(await readFile(path.join(dossier, 'publication.json'), 'utf-8')) as Publication;
+    expect(enregistree.videos[0]!.consignesVignette.map(c => c.texte)).toEqual(['Première']);
+  });
+  it('refuse une seconde consigne pendant qu’une première est en cours, puis réaccepte', async () => {
+    await preparer();
+    let echouer!: (e: Error) => void;
+    vi.mocked(config.proposerVignettes).mockImplementationOnce(() => new Promise((_, rejeter) => { echouer = rejeter; }));
+    const a = consigne({ cible: 'complete', texte: 'Première' });
+    await vi.waitFor(() => expect(config.proposerVignettes).toHaveBeenCalledTimes(1));
+    const b = await consigne({ cible: 'complete', texte: 'Seconde' });
+    expect(b.status).toBe(409);
+    expect((await b.json()).erreur).toBe('Une consigne est déjà en cours pour cette vignette.');
+    echouer(new Error('boum'));
+    expect((await a).status).toBe(500);
+    expect((await consigne({ cible: 'complete', texte: 'Troisième' })).status).toBe(200);
+  });
   it('refuse une consigne vide sans appeler Claude', async () => {
     await preparer();
     expect((await consigne({ cible: 'complete', texte: '  ' })).status).toBe(400);

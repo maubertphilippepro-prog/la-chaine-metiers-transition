@@ -23,7 +23,7 @@ import { ErreurInterpretation } from './consignes';
 import { dossierTournage, ecrireJson, ErreurHttp, lireCorps, lireOctets, message, repondre, repondreErreur } from './http';
 import type { Rediger } from './redaction';
 import type { ClientSite, ReferencesSite } from './site-replit';
-import { nettoyerPropositionsVignette, type ProposerVignettes } from './vignette-claude';
+import { nettoyerPropositionsVignette, type ProposerVignettes, type ReponseVignette } from './vignette-claude';
 import { ecrireDossierYoutube } from './youtube';
 
 export interface ConfigPublication {
@@ -221,7 +221,7 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
         poses: await photosBanque(), logos: await banqueLogos(), captures: candidates.length > 0 ? candidates : toutes, accroches: video.accroches,
       };
       const dejaUtilises = gabaritsAutres(ctx.publication, cible);
-      let reponse;
+      let reponse: ReponseVignette;
       try {
         reponse = await c.proposerVignettes({
           consigne: texte,
