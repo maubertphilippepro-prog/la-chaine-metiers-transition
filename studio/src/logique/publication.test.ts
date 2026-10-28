@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { accorderPublication, modifierVideo, videoParDefaut } from '../../../noyau/publication';
+import { accorderPublication, modifierVideo } from '../../../noyau/publication';
 import { diffusion, type Qualification } from '../../../noyau/qualification';
 import {
-  basculer, basePose, changerQualificationParDefaut, EXPLICATIONS_RELAIS, gabaritsAutres, isoDepuisLocal, libelleCible, LIBELLES_VISIBILITE, localDepuisIso,
+  basculer, basePose, changerQualificationParDefaut, EXPLICATIONS_RELAIS, isoDepuisLocal, libelleCible, LIBELLES_VISIBILITE, localDepuisIso,
   requalificationRetire, resumeDiffusion, tagsDepuisTexte, texteDepuisTags,
 } from './publication';
 
@@ -101,24 +101,5 @@ describe('basculer', () => {
     expect(basculer([], 'a')).toEqual(['a']);
     expect(basculer(['a', 'b'], 'a')).toEqual(['b']);
     expect(basculer(['a', 'b', 'c'], 'd')).toEqual(['a', 'b', 'c']);
-  });
-});
-
-describe('gabaritsAutres', () => {
-  it('donne les gabarits des autres vidéos qui ont une vignette', () => {
-    const q = { nature: 'perso' as const, confidentielle: false };
-    const vignette = (gabarit: 'vitrine' | 'mosaique') => ({
-      pose: { source: 'banque' as const, fichier: 'a.jpg' }, accroche: '', gabarit, logos: [], captures: [], fichier: null,
-    });
-    const p = {
-      version: 2 as const, qualificationParDefaut: q,
-      videos: [
-        { ...videoParDefaut('complete', q), vignette: vignette('vitrine') },
-        { ...videoParDefaut(1, q), vignette: vignette('mosaique') },
-        videoParDefaut(2, q),
-      ],
-    };
-    expect(gabaritsAutres(p, 1)).toEqual(['vitrine']);
-    expect(gabaritsAutres(p, 2)).toEqual(['vitrine', 'mosaique']);
   });
 });

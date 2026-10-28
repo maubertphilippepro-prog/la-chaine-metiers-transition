@@ -1,4 +1,4 @@
-import { MAX_ELEMENTS, type Gabarit } from '../../../noyau/gabarits';
+import { MAX_ELEMENTS } from '../../../noyau/gabarits';
 import type { CiblePublication, PoseVignette, Publication, StatutPublication, VideoPubliee, Vignette } from '../../../noyau/publication';
 import { diffusion, memeQualification, type Diffusion, type DiffusionSite, type DiffusionYoutube, type Nature, type Qualification } from '../../../noyau/qualification';
 import type { VisibiliteYoutube } from '../../../noyau/youtube';
@@ -87,7 +87,3 @@ export function basculer(liste: string[], fichier: string, max = MAX_ELEMENTS): 
   if (liste.includes(fichier)) return liste.filter(f => f !== fichier);
   return liste.length < max ? [...liste, fichier] : liste;
 }
-
-// Gabarits pris par les autres vidéos de la publication : proposés en dernier, pour varier.
-export const gabaritsAutres = (p: Publication, cible: CiblePublication): Gabarit[] =>
-  p.videos.flatMap(v => (v.cible !== cible && v.vignette ? [v.vignette.gabarit] : []));

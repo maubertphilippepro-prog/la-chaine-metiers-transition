@@ -5,8 +5,8 @@ import path from 'node:path';
 import { logosSuggeres } from '../../noyau/gabarits';
 import { decisionsEpisodes, decisionsVideoComplete, dureeEpisode, dureeVideoComplete } from '../../noyau/decisions';
 import {
-  accorderPublication, appliquerModifications, cleVignette, DOSSIER_CAPTURES, fichierRendu, fichierVignette, modifierVideo,
-  migrerPublication, poseDetouree, problemesPreparation, raisonPublication, proprietesVignette, type CiblePublication, type ProprietesVignette, type Publication, type VideoPubliee, type Vignette,
+  accorderPublication, appliquerModifications, cleVignette, DOSSIER_CAPTURES, fichierRendu, fichierVignette, gabaritsAutres, modifierVideo,
+  migrerPublication, poseDetouree, problemesPreparation, raisonPublication, proprietesVignette, type CiblePublication, type ConsigneVignette, type ProprietesVignette, type Publication, type VideoPubliee, type Vignette,
 } from '../../noyau/publication';
 import { chapitresYoutube, descriptionYoutube, segmentsSecondes, texteConserve } from '../../noyau/publication-textes';
 import { diffusion, NATURES, type Nature } from '../../noyau/qualification';
@@ -23,6 +23,7 @@ import { ErreurInterpretation } from './consignes';
 import { dossierTournage, ecrireJson, ErreurHttp, lireCorps, lireOctets, message, repondre, repondreErreur } from './http';
 import type { Rediger } from './redaction';
 import type { ClientSite, ReferencesSite } from './site-replit';
+import { nettoyerPropositionsVignette, type ProposerVignettes } from './vignette-claude';
 import { ecrireDossierYoutube } from './youtube';
 
 export interface ConfigPublication {
@@ -36,6 +37,7 @@ export interface ConfigPublication {
   urlSite: string | undefined;
   lireSite: (urlSite: string | undefined) => Promise<ReferencesSite | null>;
   rediger: Rediger;
+  proposerVignettes: ProposerVignettes;
   detourer: (entree: string, sortie: string) => Promise<void>;
   rendreVignette: (props: ProprietesVignette, sortie: string, octetsMax: number) => Promise<ResultatVignette>;
   // Visibilité vue par l’adresse publique oEmbed, et ouverture d’un dossier dans l’Explorateur.
@@ -93,6 +95,8 @@ function lireCible(corps: unknown, cibles: CiblePublication[]): CiblePublication
 export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage, res: ServerResponse) => Promise<boolean> {
   let vignetteEnCours = false;
   let relaisEnCours = false;
+  // Une consigne de vignette à la fois par vidéo (« dossier|cible »).
+  const consignesEnCours = new Set<string>();
   const urlTournage = (dossier: string) => `${c.urlFichiers}/${encodeURIComponent(path.basename(dossier))}`;
 
   const banqueLogos = () => listerImages(c.cheminLogos, EXTENSIONS_LOGO);
@@ -196,6 +200,61 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
     const p = appliquerModifications(actuelle, modifierVideo(actuelle, cible, changement));
     await ecrirePublication(ctx.dossier, p);
     return p;
+  }
+
+  // Consigne libre pour la vignette : Claude propose des compositions, nettoyées puis ajoutées à l'historique de la vidéo.
+  // La vignette elle-même ne change pas : l'auteur applique une proposition depuis le studio.
+  async function consigneVignette(req: IncomingMessage, ctx: Contexte): Promise<Publication> {
+    const corps = await lireCorps(req);
+    const cible = lireCible(corps, ctx.cibles);
+    const brut = objet(corps).texte;
+    const texte = typeof brut === 'string' ? brut.trim() : '';
+    if (!texte) throw new ErreurHttp(400, 'Consigne vide.');
+    const enCours = `${ctx.dossier}|${cible}`;
+    if (consignesEnCours.has(enCours)) throw new ErreurHttp(409, 'Une consigne est déjà en cours pour cette vignette.');
+    consignesEnCours.add(enCours);
+    try {
+      const video = videoDe(ctx.publication, cible);
+      const toutes = await captures(ctx.dossier);
+      const candidates = video.capturesCandidates.filter(f => toutes.includes(f));
+      const disponibles = {
+        poses: await photosBanque(), logos: await banqueLogos(), captures: candidates.length > 0 ? candidates : toutes, accroches: video.accroches,
+      };
+      const dejaUtilises = gabaritsAutres(ctx.publication, cible);
+      let reponse;
+      try {
+        reponse = await c.proposerVignettes({
+          consigne: texte,
+          titre: video.titre || ctx.videos.find(v => v.cible === cible)!.titre,
+          description: video.description,
+          logiciels: video.logiciels,
+          disponibles,
+          actuelle: video.vignette,
+          dejaUtilises,
+          precedentes: video.consignesVignette,
+          qualification: { nature: video.nature, confidentielle: video.confidentielle },
+          modele: ctx.tournage.reglages.modeles.claude,
+        });
+      } catch (e) {
+        if (e instanceof ErreurInterpretation) throw new ErreurHttp(e.statut, e.message);
+        throw new ErreurHttp(500, `Proposition de vignette impossible : ${message(e)}`);
+      }
+      const propositions = nettoyerPropositionsVignette(reponse.propositions, disponibles, video.vignette, dejaUtilises);
+      if (propositions.length === 0) throw new ErreurHttp(422, 'Claude n’a proposé aucune composition utilisable.');
+      const nouvelle: ConsigneVignette = {
+        texte,
+        compris: reponse.compris.trim(),
+        pasRealisable: reponse.pasRealisable.map(t => t.trim()).filter(t => t !== ''),
+        propositions,
+        choisie: null,
+      };
+      const actuelle = await relire(ctx);
+      const p = modifierVideo(actuelle, cible, { consignesVignette: [...videoDe(actuelle, cible).consignesVignette, nouvelle] });
+      await ecrirePublication(ctx.dossier, p);
+      return p;
+    } finally {
+      consignesEnCours.delete(enCours);
+    }
   }
 
   // Capture glissée dans le studio : copiée dans captures/, sous un nom libre (suffixe -2, -3… si le nom est pris).
@@ -406,6 +465,12 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
     return p;
   }
 
+  // Photos de donnees/poses/, sans leurs versions détourées.
+  async function photosBanque(): Promise<string[]> {
+    const fichiers = existsSync(c.cheminPoses) ? await readdir(c.cheminPoses) : [];
+    return fichiers.filter(f => EXTENSIONS_PHOTO.has(path.extname(f).toLowerCase()) && !f.toLowerCase().endsWith('.detoure.png')).sort();
+  }
+
   // Photos de donnees/poses/, détourées à la première demande puis chaque fois que la photo change.
   // Les appels simultanés (double montage de l’écran) partagent le même passage : un seul détourage par photo.
   let posesEnCours: Promise<Pose[]> | null = null;
@@ -415,10 +480,7 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
   }
 
   async function calculerPoses(): Promise<Pose[]> {
-    const fichiers = existsSync(c.cheminPoses) ? await readdir(c.cheminPoses) : [];
-    const photos = fichiers
-      .filter(f => EXTENSIONS_PHOTO.has(path.extname(f).toLowerCase()) && !f.toLowerCase().endsWith('.detoure.png'))
-      .sort();
+    const photos = await photosBanque();
     const resultat: Pose[] = [];
     for (const photo of photos) {
       const source = path.join(c.cheminPoses, photo);
@@ -438,7 +500,7 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
 
   return async function traiter(req, res) {
     const chemin = new URL(req.url ?? '/', 'http://local').pathname;
-    const route = /^\/api\/tournages\/([^/]+)\/publication(?:\/(redaction|vignette|captures|valider|relais|site\/retirer|youtube\/(?:preparer|ouvrir|envoi|verifier)))?$/
+    const route = /^\/api\/tournages\/([^/]+)\/publication(?:\/(redaction|vignette\/consigne|vignette|captures|valider|relais|site\/retirer|youtube\/(?:preparer|ouvrir|envoi|verifier)))?$/
       .exec(chemin);
     if (!route && chemin !== '/api/poses') return false;
     try {
@@ -452,6 +514,7 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
       if (!action && req.method === 'GET') repondre(res, 200, await detail(ctx));
       else if (!action && req.method === 'PUT') repondre(res, 200, await enregistrer(req, ctx));
       else if (action === 'redaction' && req.method === 'POST') repondre(res, 200, await rediger(req, ctx));
+      else if (action === 'vignette/consigne' && req.method === 'POST') repondre(res, 200, await consigneVignette(req, ctx));
       else if (action === 'vignette' && req.method === 'POST') repondre(res, 200, await vignette(req, ctx));
       else if (action === 'captures' && req.method === 'GET') repondre(res, 200, await captures(ctx.dossier));
       else if (action === 'captures' && req.method === 'POST') repondre(res, 200, await deposerCapture(req, ctx));

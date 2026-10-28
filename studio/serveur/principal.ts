@@ -13,6 +13,7 @@ import { requeteAutorisee } from './origine';
 import { analyserTournage, detourerImage } from './pipeline';
 import { creerApiPublication } from './publication';
 import { redigerPublication } from './redaction';
+import { proposerVignettes } from './vignette-claude';
 import { creerClientSite, lireReferencesSite } from './site-replit';
 import { relancerSuggestions } from './suggestions';
 import { SuiviAnalyse } from './suivi-analyse';
@@ -59,6 +60,7 @@ async function main(): Promise<void> {
     urlSite: process.env.REPLIT_SITE_URL,
     lireSite: url => lireReferencesSite(url),
     rediger: d => redigerPublication(d),
+    proposerVignettes: d => proposerVignettes(d),
     detourer: detourerImage,
     rendreVignette: (props, sortie, octetsMax) => rendreVignette(props, sortie, octetsMax),
     lireVisibiliteYoutube: id => lireVisibiliteYoutube(id),

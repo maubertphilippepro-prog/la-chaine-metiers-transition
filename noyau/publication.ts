@@ -334,3 +334,7 @@ export function problemesPreparation(
   }
   return problemes;
 }
+
+// Gabarits pris par les autres vidéos de la publication : proposés en dernier, pour varier.
+export const gabaritsAutres = (p: Publication, cible: CiblePublication): Gabarit[] =>
+  p.videos.flatMap(v => (v.cible !== cible && v.vignette ? [v.vignette.gabarit] : []));

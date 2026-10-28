@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import reglagesJson from '../reglages.json';
 import {
-  accorderPublication, appliquerModifications, cleVignette, fichierRendu, fichierVignette,
+  accorderPublication, appliquerModifications, cleVignette, fichierRendu, fichierVignette, gabaritsAutres,
   longueurTags, mentionsTrouvees, migrerPublication, modifierVideo, nomCible, poseDetouree, problemesPreparation, raisonPublication, retraitAFaire,
   proprietesVignette, videoParDefaut, type ConsigneVignette, type Publication, type Vignette,
 } from './publication';
@@ -282,5 +282,24 @@ describe('captures candidates et consignes de vignette', () => {
       .toBe('videos[0] : consignesVignette[0] : proposition invalide');
     expect(raisonPublication(avec({ consignesVignette: [{ ...CONSIGNE, choisie: 1 }] })))
       .toBe('videos[0] : consignesVignette[0] : choisie invalide');
+  });
+});
+
+describe('gabaritsAutres', () => {
+  it('donne les gabarits des autres vidéos qui ont une vignette', () => {
+    const q = { nature: 'perso' as const, confidentielle: false };
+    const vignette = (gabarit: 'vitrine' | 'mosaique') => ({
+      pose: { source: 'banque' as const, fichier: 'a.jpg' }, accroche: '', gabarit, logos: [], captures: [], fichier: null,
+    });
+    const p = {
+      version: 2 as const, qualificationParDefaut: q,
+      videos: [
+        { ...videoParDefaut('complete', q), vignette: vignette('vitrine') },
+        { ...videoParDefaut(1, q), vignette: vignette('mosaique') },
+        videoParDefaut(2, q),
+      ],
+    };
+    expect(gabaritsAutres(p, 1)).toEqual(['vitrine']);
+    expect(gabaritsAutres(p, 2)).toEqual(['vitrine', 'mosaique']);
   });
 });
