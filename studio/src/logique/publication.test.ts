@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { accorderPublication, modifierVideo, videoParDefaut } from '../../../noyau/publication';
 import { diffusion, type Qualification } from '../../../noyau/qualification';
 import {
-  basculer, baseVignette, changerQualificationParDefaut, EXPLICATIONS_RELAIS, gabaritsAutres, isoDepuisLocal, libelleCible, LIBELLES_VISIBILITE, localDepuisIso,
+  basculer, basePose, changerQualificationParDefaut, EXPLICATIONS_RELAIS, gabaritsAutres, isoDepuisLocal, libelleCible, LIBELLES_VISIBILITE, localDepuisIso,
   requalificationRetire, resumeDiffusion, tagsDepuisTexte, texteDepuisTags,
 } from './publication';
 
@@ -53,18 +53,18 @@ describe('resumeDiffusion', () => {
   });
 });
 
-describe('baseVignette', () => {
-  const complete = { pose: { source: 'camera' as const, instant: 4 }, fond: { source: 'ecran' as const, instant: 9 }, accroche: 'Titre', gabarit: 'classique' as const, logos: [], captures: [], fichier: 'x.jpg' };
-  const propre = { pose: { source: 'banque' as const, fichier: 'a.jpg' }, fond: { source: 'charte' as const }, accroche: '', gabarit: 'classique' as const, logos: [], captures: [], fichier: null };
-  it('garde la vignette de l’épisode quand elle existe', () => {
-    expect(baseVignette(propre, complete, 'b.jpg')).toEqual({ pose: propre.pose, fond: propre.fond });
+describe('basePose', () => {
+  const complete = { pose: { source: 'banque' as const, fichier: 'c.jpg' }, accroche: 'Titre', gabarit: 'classique' as const, logos: [], captures: [], fichier: 'x.jpg' };
+  const propre = { pose: { source: 'banque' as const, fichier: 'a.jpg' }, accroche: '', gabarit: 'classique' as const, logos: [], captures: [], fichier: null };
+  it('garde la pose de l’épisode quand il a une vignette', () => {
+    expect(basePose(propre, complete, 'b.jpg')).toEqual(propre.pose);
   });
-  it('reprend pose et fond de la vidéo complète, pas l’accroche', () => {
-    expect(baseVignette(null, complete, 'b.jpg')).toEqual({ pose: complete.pose, fond: complete.fond });
+  it('reprend la pose de la vidéo complète', () => {
+    expect(basePose(null, complete, 'b.jpg')).toEqual(complete.pose);
   });
-  it('retombe sur la première pose de la banque et la charte', () => {
-    expect(baseVignette(null, null, 'b.jpg')).toEqual({ pose: { source: 'banque', fichier: 'b.jpg' }, fond: { source: 'charte' } });
-    expect(baseVignette(null, null, undefined)).toEqual({ pose: null, fond: { source: 'charte' } });
+  it('retombe sur la première pose de la banque, sinon aucune', () => {
+    expect(basePose(null, null, 'b.jpg')).toEqual({ source: 'banque', fichier: 'b.jpg' });
+    expect(basePose(null, null, undefined)).toBeNull();
   });
 });
 
@@ -104,7 +104,7 @@ describe('gabaritsAutres', () => {
   it('donne les gabarits des autres vidéos qui ont une vignette', () => {
     const q = { nature: 'perso' as const, confidentielle: false };
     const vignette = (gabarit: 'vitrine' | 'mosaique') => ({
-      pose: { source: 'banque' as const, fichier: 'a.jpg' }, fond: { source: 'charte' as const }, accroche: '', gabarit, logos: [], captures: [], fichier: null,
+      pose: { source: 'banque' as const, fichier: 'a.jpg' }, accroche: '', gabarit, logos: [], captures: [], fichier: null,
     });
     const p = {
       version: 2 as const, qualificationParDefaut: q,

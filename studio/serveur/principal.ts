@@ -10,7 +10,7 @@ import { RACINE } from '../../remotion/scripts/tournage';
 import { creerApi } from './api';
 import { interpreterConsigne } from './interpretation';
 import { requeteAutorisee } from './origine';
-import { analyserTournage, detourerImage, extraireImage } from './pipeline';
+import { analyserTournage, detourerImage } from './pipeline';
 import { creerApiPublication } from './publication';
 import { redigerPublication } from './redaction';
 import { creerClientSite, lireReferencesSite } from './site-replit';
@@ -59,7 +59,6 @@ async function main(): Promise<void> {
     urlSite: process.env.REPLIT_SITE_URL,
     lireSite: url => lireReferencesSite(url),
     rediger: d => redigerPublication(d),
-    extraireImage,
     detourer: detourerImage,
     rendreVignette: (props, sortie, octetsMax) => rendreVignette(props, sortie, octetsMax),
     lireVisibiliteYoutube: id => lireVisibiliteYoutube(id),

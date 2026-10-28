@@ -5,7 +5,7 @@ import { cleVignette, DOSSIER_CAPTURES, proprietesVignette, type Publication, ty
 import { HAUTEUR_VIGNETTE, LARGEUR_VIGNETTE, Vignette as CompositionVignette } from '../../../remotion/composants/Vignette';
 import type { DetailPublication, Pose } from '../../commun';
 import { api } from '../api';
-import { basculer, baseVignette } from '../logique/publication';
+import { basculer, basePose } from '../logique/publication';
 import { Attente } from './Attente';
 
 export const RENDU_VIGNETTE = 'Rendu de la vignette…';
@@ -15,24 +15,19 @@ interface Props {
   video: VideoPubliee;
   detail: DetailPublication;
   poses: Pose[];
-  // Vignette de la vidéo complète : pose et fond de départ des épisodes.
+  // Vignette de la vidéo complète : pose de départ des épisodes.
   complete: Vignette | null;
   // Gabarits des autres vidéos de la publication, proposés en dernier.
   gabaritsAutres: Gabarit[];
-  // Instant affiché dans le lecteur de l'écran, en secondes de la source.
-  instant: () => number;
   changer: (c: Partial<VideoPubliee>) => void;
   lancer: (libelle: string, action: () => Promise<Publication>) => Promise<void>;
   // Libellé de l’action en cours sur la carte, null si aucune.
   occupe: string | null;
 }
 
-const arrondi = (t: number) => Math.round(t * 1000) / 1000;
-
-// Pose (banque ou caméra), fond (charte ou écran), accroche ; aperçu immédiat, puis rendu en JPEG par le serveur.
-export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complete, gabaritsAutres, instant, changer, lancer, occupe }) => {
+// Pose de la banque, accroche, logos et captures ; aperçu immédiat, puis rendu en JPEG par le serveur.
+export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complete, gabaritsAutres, changer, lancer, occupe }) => {
   const [erreur, setErreur] = useState<string | null>(null);
-  const [extraction, setExtraction] = useState(false);
   // Repère du dernier rendu : un nouveau rendu de la même vignette (logo ou charte changés) garde le même nom de fichier,
   // le navigateur réafficherait sinon l’ancienne image.
   const [tirage, setTirage] = useState(() => Date.now());
@@ -44,10 +39,9 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
   const bases = { tournage: detail.urlTournage, poses: detail.urlPoses, logos: detail.urlLogos };
 
   const composer = (c: Partial<Omit<Vignette, 'fichier'>>) => {
-    const base = baseVignette(vignette, complete, poses[0]?.fichier);
-    const pose = c.pose ?? base.pose;
+    const pose = c.pose ?? basePose(vignette, complete, poses[0]?.fichier);
     if (!pose) {
-      setErreur('Aucune pose : ajoutez des photos dans donnees/poses/ ou utilisez la caméra séparée.');
+      setErreur('Aucune pose : ajoutez des photos dans donnees/poses/.');
       return;
     }
     setErreur(null);
@@ -58,7 +52,6 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
     changer({
       vignette: {
         pose,
-        fond: c.fond ?? base.fond,
         accroche: c.accroche ?? vignette?.accroche ?? v.accroches[0] ?? '',
         gabarit: gabaritRetenu(c.gabarit ?? vignette?.gabarit ?? null, compatibles),
         logos,
@@ -92,20 +85,6 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
     : [];
   const urlCapture = (f: string) => `${detail.urlTournage}/${DOSSIER_CAPTURES}/${encodeURIComponent(f)}`;
 
-  const prendre = async (source: 'ecran' | 'camera') => {
-    const t = arrondi(instant());
-    setExtraction(true);
-    setErreur(null);
-    try {
-      await api.image(nom, source, t);
-      composer(source === 'ecran' ? { fond: { source: 'ecran', instant: t } } : { pose: { source: 'camera', instant: t } });
-    } catch (e) {
-      setErreur(e instanceof Error ? e.message : String(e));
-    } finally {
-      setExtraction(false);
-    }
-  };
-
   return (
     <fieldset className="vignette">
       <legend>Vignette</legend>
@@ -121,14 +100,6 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
             <img src={p.url} alt={p.fichier} />
           </button>
         ))}
-        {detail.camera && (
-          <button disabled={extraction} onClick={() => void prendre('camera')}>Caméra à l’image affichée</button>
-        )}
-      </div>
-      <div className="actions">
-        <span>Fond :</span>
-        <button onClick={() => composer({ fond: { source: 'charte' } })}>Formes de la charte</button>
-        <button disabled={extraction} onClick={() => void prendre('ecran')}>Écran à l’image affichée</button>
       </div>
       <label>
         Accroche (3 à 5 mots)
@@ -200,7 +171,6 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
           </div>
         </>
       )}
-      {extraction && <p><Attente libelle="Extraction de l’image…" /></p>}
       {erreur && <p className="alerte">{erreur}</p>}
       {vignette && (
         <div className="apercus-vignette">
@@ -239,7 +209,7 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
           </div>
           <p className="discret">
             L’aperçu est calculé par le navigateur ; le rendu fabrique le fichier JPEG 1280×720 qui sera téléversé sur YouTube.
-            À refaire après chaque changement de pose, de fond, d’accroche, de logos, de captures ou de gabarit, avant de valider.
+            À refaire après chaque changement de pose, d’accroche, de logos, de captures ou de gabarit, avant de valider.
           </p>
         </>
       )}

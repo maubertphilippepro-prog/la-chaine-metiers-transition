@@ -5,7 +5,7 @@ import path from 'node:path';
 import { logosSuggeres } from '../../noyau/gabarits';
 import { decisionsEpisodes, decisionsVideoComplete, dureeEpisode, dureeVideoComplete } from '../../noyau/decisions';
 import {
-  accorderPublication, appliquerModifications, cleVignette, DOSSIER_CAPTURES, fichierRendu, fichierVignette, imageCamera, imageEcran, modifierVideo,
+  accorderPublication, appliquerModifications, cleVignette, DOSSIER_CAPTURES, fichierRendu, fichierVignette, modifierVideo,
   migrerPublication, poseDetouree, problemesPreparation, raisonPublication, proprietesVignette, type CiblePublication, type ProprietesVignette, type Publication, type VideoPubliee, type Vignette,
 } from '../../noyau/publication';
 import { chapitresYoutube, descriptionYoutube, segmentsSecondes, texteConserve } from '../../noyau/publication-textes';
@@ -17,7 +17,7 @@ import {
   type LectureYoutube, type VisibiliteYoutube,
 } from '../../noyau/youtube';
 import type { ResultatVignette } from '../../remotion/scripts/vignette';
-import { chargerTournage, lireEpisode, urlSource, type Tournage } from '../../remotion/scripts/tournage';
+import { chargerTournage, lireEpisode, type Tournage } from '../../remotion/scripts/tournage';
 import type { DetailPublication, DossierYoutube, Logo, Pose, VerificationYoutube, VideoDisponible } from '../commun';
 import { ErreurInterpretation } from './consignes';
 import { dossierTournage, ecrireJson, ErreurHttp, lireCorps, lireOctets, message, repondre, repondreErreur } from './http';
@@ -36,7 +36,6 @@ export interface ConfigPublication {
   urlSite: string | undefined;
   lireSite: (urlSite: string | undefined) => Promise<ReferencesSite | null>;
   rediger: Rediger;
-  extraireImage: (video: string, instant: number, sortie: string) => Promise<void>;
   detourer: (entree: string, sortie: string) => Promise<void>;
   rendreVignette: (props: ProprietesVignette, sortie: string, octetsMax: number) => Promise<ResultatVignette>;
   // Visibilité vue par l’adresse publique oEmbed, et ouverture d’un dossier dans l’Explorateur.
@@ -46,7 +45,6 @@ export interface ConfigPublication {
   site: ClientSite | null;
 }
 
-const EXTENSIONS_VIDEO = new Set(['.mp4', '.mkv', '.mov', '.webm']);
 const EXTENSIONS_PHOTO = new Set(['.jpg', '.jpeg', '.png']);
 const EXTENSIONS_LOGO = new Set(['.png', '.svg']);
 const EXTENSIONS_CAPTURE = new Set(['.png', '.jpg', '.jpeg', '.svg']);
@@ -54,16 +52,6 @@ const EXTENSIONS_CAPTURE = new Set(['.png', '.jpg', '.jpeg', '.svg']);
 async function listerImages(dossier: string, extensions: Set<string>): Promise<string[]> {
   if (!existsSync(dossier)) return [];
   return (await readdir(dossier)).filter(f => extensions.has(path.extname(f).toLowerCase())).sort();
-}
-
-const estCamera = (fichier: string) => path.parse(fichier).name.toLowerCase().endsWith('-camera');
-
-// Enregistrement de la webcam seule, utilisable s'il accompagne un seul autre enregistrement (mêmes temps que source.mp4).
-export async function fichierCamera(dossier: string): Promise<string | null> {
-  const bruts = path.join(dossier, 'bruts');
-  const fichiers = existsSync(bruts) ? (await readdir(bruts)).filter(f => EXTENSIONS_VIDEO.has(path.extname(f).toLowerCase())) : [];
-  const cameras = fichiers.filter(estCamera);
-  return cameras.length === 1 && fichiers.length === 2 ? cameras[0]! : null;
 }
 
 async function lirePublication(dossier: string): Promise<Publication | null> {
@@ -156,7 +144,6 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
     return {
       nom: path.basename(ctx.dossier),
       titre: ctx.tournage.titre,
-      sourceUrl: urlSource(c.urlFichiers, ctx.tournage.nom),
       urlTournage: urlTournage(ctx.dossier),
       urlPoses: c.urlPoses,
       urlLogos: c.urlLogos,
@@ -164,7 +151,6 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
       captures: await captures(ctx.dossier),
       publication: ctx.publication,
       videos: ctx.videos,
-      camera: await fichierCamera(ctx.dossier),
       site: await c.lireSite(c.urlSite),
       urlSite: c.urlSite ?? null,
       reglages: ctx.tournage.reglages.publication,
@@ -230,51 +216,14 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
     return { fichier, captures: await captures(ctx.dossier) };
   }
 
-  async function executerPipeline(f: () => Promise<void>): Promise<void> {
-    try {
-      await f();
-    } catch (e) {
-      throw new ErreurHttp(500, `Image impossible : ${message(e)}`);
-    }
-  }
-
-  async function image(req: IncomingMessage, ctx: Contexte): Promise<{ chemin: string }> {
-    const o = objet(await lireCorps(req));
-    const duree = ctx.tournage.analyse.duree;
-    const instant = o.instant;
-    if (typeof instant !== 'number' || !Number.isFinite(instant) || instant < 0 || instant > duree) {
-      throw new ErreurHttp(400, `instant attendu entre 0 et ${duree} s.`);
-    }
-    if (o.source === 'ecran') {
-      const chemin = imageEcran(instant);
-      const sortie = path.join(ctx.dossier, chemin);
-      if (!existsSync(sortie)) await executerPipeline(() => c.extraireImage(path.join(ctx.dossier, 'source.mp4'), instant, sortie));
-      return { chemin };
-    }
-    if (o.source === 'camera') {
-      const camera = await fichierCamera(ctx.dossier);
-      if (!camera) throw new ErreurHttp(409, 'Aucun enregistrement caméra séparé dans bruts/ (accompagnant un seul autre enregistrement).');
-      const { brute, detouree } = imageCamera(instant);
-      const sortie = path.join(ctx.dossier, detouree);
-      if (!existsSync(sortie)) {
-        await executerPipeline(() => c.extraireImage(path.join(ctx.dossier, 'bruts', camera), instant, path.join(ctx.dossier, brute)));
-        await executerPipeline(() => c.detourer(path.join(ctx.dossier, brute), sortie));
-      }
-      return { chemin: detouree };
-    }
-    throw new ErreurHttp(400, 'source attendue : « ecran » ou « camera ».');
-  }
-
   async function vignette(req: IncomingMessage, ctx: Contexte): Promise<Publication> {
     const cible = lireCible(await lireCorps(req), ctx.cibles);
     const v = videoDe(ctx.publication, cible).vignette;
-    if (!v) throw new ErreurHttp(422, 'Composez d’abord la vignette : pose, fond et accroche.');
+    if (!v) throw new ErreurHttp(422, 'Composez d’abord la vignette : pose et accroche.');
     if (!v.accroche.trim()) throw new ErreurHttp(422, 'Accroche vide.');
-    const images = [
-      v.pose.source === 'banque' ? path.join(c.cheminPoses, poseDetouree(v.pose.fichier)) : path.join(ctx.dossier, imageCamera(v.pose.instant).detouree),
-      ...(v.fond.source === 'ecran' ? [path.join(ctx.dossier, imageEcran(v.fond.instant))] : []),
-    ];
-    if (!images.every(f => existsSync(f))) throw new ErreurHttp(409, 'Image de la vignette absente : choisissez de nouveau la pose ou le fond.');
+    if (!existsSync(path.join(c.cheminPoses, poseDetouree(v.pose.fichier)))) {
+      throw new ErreurHttp(409, 'Image de la vignette absente : choisissez de nouveau la pose.');
+    }
     const absents = elementsAbsents(v, ctx.dossier);
     if (absents.length > 0) throw new ErreurHttp(409, `Image de la vignette absente : ${absents.join(', ')}.`);
     if (vignetteEnCours) throw new ErreurHttp(409, 'Une vignette est déjà en cours de rendu.');
@@ -489,7 +438,7 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
 
   return async function traiter(req, res) {
     const chemin = new URL(req.url ?? '/', 'http://local').pathname;
-    const route = /^\/api\/tournages\/([^/]+)\/publication(?:\/(redaction|image|vignette|captures|valider|relais|site\/retirer|youtube\/(?:preparer|ouvrir|envoi|verifier)))?$/
+    const route = /^\/api\/tournages\/([^/]+)\/publication(?:\/(redaction|vignette|captures|valider|relais|site\/retirer|youtube\/(?:preparer|ouvrir|envoi|verifier)))?$/
       .exec(chemin);
     if (!route && chemin !== '/api/poses') return false;
     try {
@@ -503,7 +452,6 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
       if (!action && req.method === 'GET') repondre(res, 200, await detail(ctx));
       else if (!action && req.method === 'PUT') repondre(res, 200, await enregistrer(req, ctx));
       else if (action === 'redaction' && req.method === 'POST') repondre(res, 200, await rediger(req, ctx));
-      else if (action === 'image' && req.method === 'POST') repondre(res, 200, await image(req, ctx));
       else if (action === 'vignette' && req.method === 'POST') repondre(res, 200, await vignette(req, ctx));
       else if (action === 'captures' && req.method === 'GET') repondre(res, 200, await captures(ctx.dossier));
       else if (action === 'captures' && req.method === 'POST') repondre(res, 200, await deposerCapture(req, ctx));

@@ -1,5 +1,5 @@
 import { MAX_ELEMENTS, type Gabarit } from '../../../noyau/gabarits';
-import type { CiblePublication, FondVignette, PoseVignette, Publication, StatutPublication, VideoPubliee, Vignette } from '../../../noyau/publication';
+import type { CiblePublication, PoseVignette, Publication, StatutPublication, VideoPubliee, Vignette } from '../../../noyau/publication';
 import { diffusion, memeQualification, type Diffusion, type DiffusionSite, type DiffusionYoutube, type Nature, type Qualification } from '../../../noyau/qualification';
 import type { VisibiliteYoutube } from '../../../noyau/youtube';
 
@@ -57,13 +57,11 @@ export function changerQualificationParDefaut(p: Publication, q: Qualification):
   };
 }
 
-// Pose et fond de départ d’une vignette : les siens, sinon ceux de la vidéo complète, sinon la première pose de la banque et la charte.
-export function baseVignette(
-  vignette: Vignette | null, complete: Vignette | null, premierePose: string | undefined,
-): { pose: PoseVignette | null; fond: FondVignette } {
+// Pose de départ d’une vignette : la sienne, sinon celle de la vidéo complète, sinon la première pose de la banque.
+export function basePose(vignette: Vignette | null, complete: Vignette | null, premierePose: string | undefined): PoseVignette | null {
   const source = vignette ?? complete;
-  if (source) return { pose: source.pose, fond: source.fond };
-  return { pose: premierePose ? { source: 'banque', fichier: premierePose } : null, fond: { source: 'charte' } };
+  if (source) return source.pose;
+  return premierePose ? { source: 'banque', fichier: premierePose } : null;
 }
 
 export const LIBELLES_VISIBILITE: Record<VisibiliteYoutube, string> = {

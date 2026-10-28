@@ -10,7 +10,7 @@ const PLACES_LOGOS = [
   { place: { right: 210, top: 340 }, angle: -4 },
 ];
 
-// Pose au centre sur fond dégradé, logos flottant autour de la tête, accroche en bandeau en bas. Le fond choisi est ignoré.
+// Pose au centre sur fond dégradé, logos flottant autour de la tête, accroche en bandeau en bas.
 export const Vitrine: FC<ProprietesVignette> = ({ poseUrl, logoUrls, accroche }) => (
   <>
     <FondDegrade />

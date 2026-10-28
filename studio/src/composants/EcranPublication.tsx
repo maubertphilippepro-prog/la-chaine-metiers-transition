@@ -1,4 +1,4 @@
-import { type FC, useEffect, useRef, useState } from 'react';
+import { type FC, useEffect, useState } from 'react';
 import { diffusion, NATURES, type Nature } from '../../../noyau/qualification';
 import type { Pose } from '../../commun';
 import { api } from '../api';
@@ -14,13 +14,11 @@ const LIBELLES_ENREGISTREMENT: Record<EtatEnregistrement, string> = {
   erreur: 'Échec de l’enregistrement : la prochaine modification réessaiera',
 };
 
-// Une carte par vidéo rendue ; le lecteur de la source sert à choisir l'image d'un fond ou d'une pose caméra.
+// Une carte par vidéo rendue.
 export const EcranPublication: FC<{ nom: string }> = ({ nom }) => {
   const { detail, publication, erreur, enregistrement, modifier, executer, synchroniser } = usePublication(nom);
   const [poses, setPoses] = useState<Pose[] | null>(null);
   const [erreurPoses, setErreurPoses] = useState<string | null>(null);
-  const [sourceAbsente, setSourceAbsente] = useState(false);
-  const lecteur = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     api.poses().then(p => { setPoses(p); setErreurPoses(null); }, (e: Error) => setErreurPoses(e.message));
   }, []);
@@ -29,7 +27,6 @@ export const EcranPublication: FC<{ nom: string }> = ({ nom }) => {
   if (erreur) return <div className="page">{retour}<p className="alerte">{erreur}</p></div>;
   if (!detail || !publication) return <div className="page">Chargement…</div>;
 
-  const instant = () => lecteur.current?.currentTime ?? 0;
   return (
     <div className="page publication">
       <header className="entete">
@@ -59,16 +56,6 @@ export const EcranPublication: FC<{ nom: string }> = ({ nom }) => {
         <p className="discret">
           {resumeDiffusion(diffusion(publication.qualificationParDefaut))}. S’applique aux vidéos qui suivaient la précédente, sauf celles déjà sur le site.
         </p>
-        <h3>Images pour les vignettes</h3>
-        <p className="discret">
-          Enregistrement d’origine, avant montage. Placez-le sur l’image voulue, puis, dans la vignette d’une vidéo,
-          « Écran à l’image affichée » la prend comme fond (ou « Caméra à l’image affichée » comme pose).
-        </p>
-        <video
-          ref={lecteur} className="lecteur-publication" src={detail.sourceUrl} controls preload="metadata"
-          onError={() => setSourceAbsente(true)} onLoadedMetadata={() => setSourceAbsente(false)}
-        />
-        {sourceAbsente && <p className="alerte">Enregistrement d’origine illisible : source.mp4 manque dans le dossier du tournage.</p>}
         {poses === null && !erreurPoses && <p><Attente libelle="Préparation de la banque de poses…" /></p>}
         {erreurPoses && <p className="alerte">Banque de poses : {erreurPoses}</p>}
         {!detail.site && (
@@ -82,7 +69,7 @@ export const EcranPublication: FC<{ nom: string }> = ({ nom }) => {
             key={String(v.cible)} nom={nom} video={v} disponible={disponible} detail={detail} poses={poses ?? []}
             complete={publication.videos.find(x => x.cible === 'complete')?.vignette ?? null}
             gabaritsAutres={gabaritsAutres(publication, v.cible)}
-            instant={instant} modifier={modifier} executer={executer} synchroniser={synchroniser}
+            modifier={modifier} executer={executer} synchroniser={synchroniser}
           />
         );
       })}

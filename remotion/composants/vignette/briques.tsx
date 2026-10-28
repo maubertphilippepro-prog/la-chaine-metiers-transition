@@ -2,23 +2,14 @@ import type { CSSProperties, FC } from 'react';
 import { AbsoluteFill, Img } from 'remotion';
 import { tailleAccroche } from '../../calculs';
 import { charte } from '../../charte';
-import { HAUTEUR_VIGNETTE, LARGEUR_VIGNETTE } from './dimensions';
 
-// Fond : écran flouté et assombri, sinon formes de la charte sur blanc.
-export const Fond: FC<{ url: string | null }> = ({ url }) => (url ? (
-  <>
-    <Img
-      src={url}
-      style={{ position: 'absolute', left: -20, top: -20, width: LARGEUR_VIGNETTE + 40, height: HAUTEUR_VIGNETTE + 40, objectFit: 'cover', filter: 'blur(6px)' }}
-    />
-    <AbsoluteFill style={{ backgroundColor: 'rgba(0, 28, 64, 0.55)' }} />
-  </>
-) : (
+// Fond de la charte : formes sur blanc.
+export const Fond: FC = () => (
   <>
     <div style={{ position: 'absolute', right: -120, top: -120, width: 520, height: 520, borderRadius: '50%', backgroundColor: charte.bleuGris, opacity: 0.6 }} />
     <div style={{ position: 'absolute', right: 0, bottom: 0, width: 0, height: 0, borderBottom: `320px solid ${charte.bleu}`, borderLeft: '320px solid transparent' }} />
   </>
-));
+);
 
 // Fond sombre de la vitrine : dégradé bleu et formes de la charte, pour que les tuiles blanches ressortent.
 export const FondDegrade: FC = () => (
@@ -38,16 +29,13 @@ export const Pose: FC<{ url: string | null; style: CSSProperties }> = ({ url, st
   ? <Img src={url} style={{ position: 'absolute', bottom: 0, height: '100%', objectFit: 'contain', ...style }} />
   : null);
 
-// Accroche en capitales : blanche et ombrée sur un fond sombre, bleue avec un halo blanc sur la charte
-// (elle reste lisible là où la pose passe dessous).
-export const Accroche: FC<{ texte: string; largeur: number; sombre: boolean; tailleMax?: number }> = ({ texte, largeur, sombre, tailleMax = Infinity }) => (
+// Accroche en capitales, bleue avec un halo blanc (elle reste lisible là où la pose passe dessous).
+export const Accroche: FC<{ texte: string; largeur: number; tailleMax?: number }> = ({ texte, largeur, tailleMax = Infinity }) => (
   <div
     style={{
       fontSize: Math.min(tailleMax, tailleAccroche(texte, largeur)), fontWeight: 800, lineHeight: 1.05, textTransform: 'uppercase',
-      color: sombre ? charte.blanc : charte.bleu,
-      textShadow: sombre
-        ? '0 4px 18px rgba(0, 0, 0, 0.6)'
-        : '0 0 4px rgba(255, 255, 255, 1), 0 0 10px rgba(255, 255, 255, 1), 0 0 22px rgba(255, 255, 255, 0.9)',
+      color: charte.bleu,
+      textShadow: '0 0 4px rgba(255, 255, 255, 1), 0 0 10px rgba(255, 255, 255, 1), 0 0 22px rgba(255, 255, 255, 0.9)',
     }}
   >
     {texte}

@@ -17,6 +17,5 @@ export function lancerPipeline(args: string[]): Promise<void> {
   });
 }
 
-export const extraireImage = (video: string, instant: number, sortie: string) => lancerPipeline(['image', video, String(instant), sortie]);
 export const detourerImage = (entree: string, sortie: string) => lancerPipeline(['detourer', entree, sortie]);
 export const analyserTournage = (dossier: string, titre: string) => lancerPipeline(['analyser', dossier, '--titre', titre]);

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProprietesVignette } from '../composants/Vignette';
 import { oublierPaquet, rendreVignette, type DependancesVignette } from './vignette';
 
-const PROPS: ProprietesVignette = { gabarit: 'classique', fondUrl: null, poseUrl: null, logoUrls: [], captureUrls: [], accroche: 'Essai' };
+const PROPS: ProprietesVignette = { gabarit: 'classique', poseUrl: null, logoUrls: [], captureUrls: [], accroche: 'Essai' };
 
 // Faux moteur : chaque qualité JPEG produit un fichier de la taille indiquée.
 function dependances(tailles: Record<number, number>) {

@@ -61,7 +61,6 @@ export interface Logo { fichier: string; url: string }
 export interface DetailPublication {
   nom: string;
   titre: string;
-  sourceUrl: string;
   urlTournage: string;      // sert le dossier du tournage (images, vignettes)
   urlPoses: string;
   urlLogos: string;
@@ -69,7 +68,6 @@ export interface DetailPublication {
   captures: string[];       // fichiers de captures/ du tournage
   publication: Publication;
   videos: VideoDisponible[];
-  camera: string | null;    // nom du fichier caméra dans bruts/
   site: ReferencesSite | null;
   urlSite: string | null;   // adresse du site, pour ouvrir une vidéo relayée
   reglages: ReglagesPublication;

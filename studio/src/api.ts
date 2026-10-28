@@ -80,8 +80,6 @@ export const api = {
   publication: (nom: string) => appeler<DetailPublication>(`${chemin(nom)}/publication`),
   enregistrerPublication: (nom: string, p: Publication) => appeler<Publication>(`${chemin(nom)}/publication`, enJson('PUT', p)),
   rediger: (nom: string, cible: CiblePublication) => appeler<Publication>(`${chemin(nom)}/publication/redaction`, enJson('POST', { cible })),
-  image: (nom: string, source: 'ecran' | 'camera', instant: number) =>
-    appeler<{ chemin: string }>(`${chemin(nom)}/publication/image`, enJson('POST', { source, instant })),
   rendreVignette: (nom: string, cible: CiblePublication) => appeler<Publication>(`${chemin(nom)}/publication/vignette`, enJson('POST', { cible })),
   captures: (nom: string) => appeler<string[]>(`${chemin(nom)}/publication/captures`),
   deposerCapture: (nom: string, fichier: string, contenu: Blob) => appeler<{ fichier: string; captures: string[] }>(

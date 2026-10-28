@@ -11,9 +11,9 @@ const PLACES_CAPTURES = [
 ];
 
 // Accroche en haut à gauche, 2 ou 3 captures en éventail dessous, pose à droite, premier logo en tuile.
-export const Mosaique: FC<ProprietesVignette> = ({ fondUrl, poseUrl, logoUrls, captureUrls, accroche }) => (
+export const Mosaique: FC<ProprietesVignette> = ({ poseUrl, logoUrls, captureUrls, accroche }) => (
   <>
-    <Fond url={fondUrl} />
+    <Fond />
     <BandeRouge />
     {captureUrls.slice(0, PLACES_CAPTURES.length).map((url, i) => (
       <CarteCapture key={url} url={url} largeur={400} hauteur={225} angle={PLACES_CAPTURES[i]!.angle} style={PLACES_CAPTURES[i]!.place} />
@@ -21,10 +21,10 @@ export const Mosaique: FC<ProprietesVignette> = ({ fondUrl, poseUrl, logoUrls, c
     <Pose url={poseUrl} style={{ right: 0, maxWidth: '42%', objectPosition: 'right bottom' }} />
     {logoUrls[0] && <TuileLogo url={logoUrls[0]} taille={120} angle={8} style={{ left: 640, top: 230 }} />}
     <div style={{ position: 'absolute', left: 64, top: 36, width: 700, height: 190, display: 'flex', alignItems: 'center' }}>
-      <Accroche texte={accroche} largeur={700} sombre={fondUrl !== null} tailleMax={80} />
+      <Accroche texte={accroche} largeur={700} tailleMax={80} />
     </div>
     <div style={{ position: 'absolute', left: 64, bottom: 24 }}>
-      <LogoMT hauteur={52} plaque={fondUrl !== null} />
+      <LogoMT hauteur={52} />
     </div>
   </>
 );

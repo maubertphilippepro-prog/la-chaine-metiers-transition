@@ -22,7 +22,6 @@ interface Props {
   poses: Pose[];
   complete: Vignette | null;
   gabaritsAutres: Gabarit[];
-  instant: () => number;
   modifier: (f: (p: Publication) => Publication) => void;
   executer: (action: () => Promise<Publication>) => Promise<void>;
   synchroniser: () => Promise<void>;
@@ -33,7 +32,7 @@ const VERIFICATION = 'Vérification…';
 const RETRAIT = 'Retrait du site…';
 
 
-export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail, poses, complete, gabaritsAutres, instant, modifier, executer, synchroniser }) => {
+export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail, poses, complete, gabaritsAutres, modifier, executer, synchroniser }) => {
   const [occupe, setOccupe] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [problemes, setProblemes] = useState<string[]>([]);
@@ -128,7 +127,7 @@ export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail,
             Tags, séparés par des virgules ({longueurTags(tagsDepuisTexte(tags))}/{r.tagsMax})
             <input value={tags} onChange={e => setTags(e.target.value)} onBlur={() => changer({ tags: tagsDepuisTexte(tags) })} />
           </label>
-          <ChoixVignette nom={nom} video={v} detail={detail} poses={poses} complete={complete} gabaritsAutres={gabaritsAutres} instant={instant} changer={changer} lancer={lancer} occupe={occupe} />
+          <ChoixVignette nom={nom} video={v} detail={detail} poses={poses} complete={complete} gabaritsAutres={gabaritsAutres} changer={changer} lancer={lancer} occupe={occupe} />
           <div className="actions">
             <button className="principal" disabled={!!occupe} onClick={() => void lancer(VERIFICATION, () => api.validerVideo(nom, v.cible))}>
               Valider pour la publication

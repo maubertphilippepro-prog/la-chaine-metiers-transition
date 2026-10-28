@@ -7,12 +7,11 @@ export type StatutPublication = 'a-preparer' | 'prete' | 'envoyee-youtube' | 're
 // Vidéo complète ou numéro d'épisode (1, 2…), comme la cible du rendu.
 export type CiblePublication = 'complete' | number;
 
-export type PoseVignette = { source: 'banque'; fichier: string } | { source: 'camera'; instant: number };
-export type FondVignette = { source: 'ecran'; instant: number } | { source: 'charte' };
+// Pose prise dans donnees/poses/ ; la forme { source, fichier } est celle des fichiers déjà enregistrés.
+export type PoseVignette = { source: 'banque'; fichier: string };
 
 export interface Vignette {
   pose: PoseVignette;
-  fond: FondVignette;
   accroche: string;
   gabarit: Gabarit;
   // Fichiers de donnees/logos/ et de captures/ du tournage, dans l'ordre choisi ; 3 au plus.
@@ -93,12 +92,10 @@ export function modifierVideo(p: Publication, cible: CiblePublication, changemen
   return { ...p, videos: p.videos.map(v => (v.cible === cible ? { ...v, ...changement } : v)) };
 }
 
-// Ce qui distingue deux vignettes à l'image : pose, fond, accroche, gabarit, logos et captures (pas le fichier rendu).
+// Ce qui distingue deux vignettes à l'image : pose, accroche, gabarit, logos et captures (pas le fichier rendu).
 export function cleVignette(v: Vignette | null): string {
   if (!v) return '';
-  const pose = v.pose.source === 'banque' ? `banque:${v.pose.fichier}` : `camera:${v.pose.instant}`;
-  const fond = v.fond.source === 'ecran' ? `ecran:${v.fond.instant}` : 'charte';
-  return [pose, fond, v.accroche, v.gabarit, v.logos.join(','), v.captures.join(',')].join('|');
+  return [v.pose.fichier, v.accroche, v.gabarit, v.logos.join(','), v.captures.join(',')].join('|');
 }
 
 // Modifications venues du studio : statut, fichier de vignette, états YouTube et Replit et erreur ne changent
@@ -130,7 +127,6 @@ export const retraitAFaire = (v: VideoPubliee) => diffusion(v).site === 'aucun' 
 const estObjet = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const estTexte = (v: unknown): v is string => typeof v === 'string';
 const listeDeTextes = (v: unknown) => Array.isArray(v) && v.every(estTexte);
-const estInstant = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
 const estId = (v: unknown) => v === null || (typeof v === 'number' && Number.isInteger(v));
 
 const estQualification = (q: unknown) => estObjet(q) && NATURES.includes(q.nature as Nature) && typeof q.confidentielle === 'boolean';
@@ -152,10 +148,15 @@ function migrerVersion1(valeur: unknown): unknown {
   };
 }
 
-// Champs venus après la version 2 (vignettes variées), absents des fichiers plus anciens.
+// Champs venus après la version 2 (vignettes variées), absents des fichiers plus anciens. Le fond (charte ou écran),
+// abandonné depuis, est ignoré.
 function completerVideo(v: unknown): unknown {
   if (!estObjet(v)) return v;
-  const vignette = estObjet(v.vignette) ? { gabarit: 'classique', logos: [], captures: [], ...v.vignette } : v.vignette;
+  let vignette = v.vignette;
+  if (estObjet(vignette)) {
+    const { fond: _, ...reste } = vignette;
+    vignette = { gabarit: 'classique', logos: [], captures: [], ...reste };
+  }
   return { logiciels: [], ...v, vignette };
 }
 
@@ -166,21 +167,18 @@ export function migrerPublication(valeur: unknown): unknown {
   return { ...v2, videos: v2.videos.map(completerVideo) };
 }
 
+const estNomFichier = (f: unknown) => estTexte(f) && f !== '' && !/[\/]/.test(f);
+
 function raisonVignette(v: unknown): string | null {
   if (v === null) return null;
-  if (!estObjet(v) || !estObjet(v.pose) || !estObjet(v.fond)) return 'vignette : pose et fond attendus';
-  const pose = v.pose;
-  const poseValide = (pose.source === 'banque' && estTexte(pose.fichier) && pose.fichier !== '' && !/[\\/]/.test(pose.fichier))
-    || (pose.source === 'camera' && estInstant(pose.instant));
-  if (!poseValide) return 'vignette : pose invalide';
-  if (!(v.fond.source === 'charte' || (v.fond.source === 'ecran' && estInstant(v.fond.instant)))) return 'vignette : fond invalide';
+  if (!estObjet(v) || !estObjet(v.pose)) return 'vignette : pose attendue';
+  if (v.pose.source === 'camera') return 'vignette : pose caméra plus prise en charge, choisissez une pose de la banque';
+  if (v.pose.source !== 'banque' || !estNomFichier(v.pose.fichier)) return 'vignette : pose invalide';
   if (!estTexte(v.accroche)) return 'vignette : accroche attendue';
   if (!GABARITS.includes(v.gabarit as Gabarit)) return 'vignette : gabarit invalide';
   for (const champ of ['logos', 'captures']) {
     const liste = v[champ];
-    const valide = Array.isArray(liste) && liste.length <= MAX_ELEMENTS
-      && liste.every(f => estTexte(f) && f !== '' && !/[\\/]/.test(f));
-    if (!valide) return `vignette : ${champ} invalides`;
+    if (!(Array.isArray(liste) && liste.length <= MAX_ELEMENTS && liste.every(estNomFichier))) return `vignette : ${champ} invalides`;
   }
   if (v.fichier !== null && !estTexte(v.fichier)) return 'vignette : fichier invalide';
   return null;
@@ -219,12 +217,6 @@ export function fichierRendu(c: CiblePublication, titresEpisodes: string[]): str
 
 export const fichierVignette = (c: CiblePublication) => `rendus/vignettes/${nomCible(c)}.jpg`;
 
-const ms = (instant: number) => Math.round(instant * 1000);
-export const imageEcran = (instant: number) => `publication/images/ecran-${ms(instant)}.png`;
-export const imageCamera = (instant: number) => ({
-  brute: `publication/images/camera-${ms(instant)}.png`,
-  detouree: `publication/images/camera-${ms(instant)}.detoure.png`,
-});
 export const poseDetouree = (fichier: string) => `${fichier.replace(/\.[^.]+$/, '')}.detoure.png`;
 
 export const DOSSIER_CAPTURES = 'captures';
@@ -232,8 +224,6 @@ export const DOSSIER_CAPTURES = 'captures';
 // Ce que la composition Remotion « Vignette » reçoit : gabarit, adresses HTTP des images, accroche.
 export type ProprietesVignette = {
   gabarit: Gabarit;
-  // Image du partage d'écran, ou null pour le fond de la charte.
-  fondUrl: string | null;
   // Pose détourée (PNG transparent).
   poseUrl: string | null;
   logoUrls: string[];
@@ -244,10 +234,7 @@ export type ProprietesVignette = {
 export function proprietesVignette(v: Vignette, b: BasesImages): ProprietesVignette {
   return {
     gabarit: v.gabarit,
-    poseUrl: v.pose.source === 'banque'
-      ? `${b.poses}/${encodeURIComponent(poseDetouree(v.pose.fichier))}`
-      : `${b.tournage}/${imageCamera(v.pose.instant).detouree}`,
-    fondUrl: v.fond.source === 'ecran' ? `${b.tournage}/${imageEcran(v.fond.instant)}` : null,
+    poseUrl: `${b.poses}/${encodeURIComponent(poseDetouree(v.pose.fichier))}`,
     logoUrls: v.logos.map(f => `${b.logos}/${encodeURIComponent(f)}`),
     captureUrls: v.captures.map(f => `${b.tournage}/${DOSSIER_CAPTURES}/${encodeURIComponent(f)}`),
     accroche: v.accroche.trim(),
