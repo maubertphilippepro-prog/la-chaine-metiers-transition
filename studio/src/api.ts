@@ -81,6 +81,8 @@ export const api = {
   enregistrerPublication: (nom: string, p: Publication) => appeler<Publication>(`${chemin(nom)}/publication`, enJson('PUT', p)),
   rediger: (nom: string, cible: CiblePublication) => appeler<Publication>(`${chemin(nom)}/publication/redaction`, enJson('POST', { cible })),
   rendreVignette: (nom: string, cible: CiblePublication) => appeler<Publication>(`${chemin(nom)}/publication/vignette`, enJson('POST', { cible })),
+  consigneVignette: (nom: string, cible: CiblePublication, texte: string) =>
+    appeler<Publication>(`${chemin(nom)}/publication/vignette/consigne`, enJson('POST', { cible, texte })),
   captures: (nom: string) => appeler<string[]>(`${chemin(nom)}/publication/captures`),
   deposerCapture: (nom: string, fichier: string, contenu: Blob) => appeler<{ fichier: string; captures: string[] }>(
     `${chemin(nom)}/publication/captures?fichier=${encodeURIComponent(fichier)}`,

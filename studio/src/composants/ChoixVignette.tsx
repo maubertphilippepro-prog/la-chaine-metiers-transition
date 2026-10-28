@@ -7,6 +7,7 @@ import type { DetailPublication, Pose } from '../../commun';
 import { api } from '../api';
 import { basculer, basePose } from '../logique/publication';
 import { Attente } from './Attente';
+import { ConsignesVignette } from './ConsignesVignette';
 
 export const RENDU_VIGNETTE = 'Rendu de la vignette…';
 
@@ -161,6 +162,7 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
       >
         Glissez ici des captures (PNG, JPEG ou SVG), ou déposez-les dans captures/ du tournage puis « Actualiser ».
       </div>
+      <ConsignesVignette nom={nom} video={v} bases={bases} changer={changer} lancer={lancer} occupe={occupe} />
       {vignette && (
         <>
           <p className="discret">Gabarit : cliquez sur un aperçu.</p>

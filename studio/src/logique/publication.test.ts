@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { accorderPublication, modifierVideo } from '../../../noyau/publication';
+import { accorderPublication, modifierVideo, videoParDefaut } from '../../../noyau/publication';
 import { diffusion, type Qualification } from '../../../noyau/qualification';
 import {
-  basculer, basePose, changerQualificationParDefaut, EXPLICATIONS_RELAIS, isoDepuisLocal, libelleCible, LIBELLES_VISIBILITE, localDepuisIso,
-  requalificationRetire, resumeDiffusion, tagsDepuisTexte, texteDepuisTags,
+  appliquerProposition, basculer, basePose, changerQualificationParDefaut, EXPLICATIONS_RELAIS, isoDepuisLocal, libelleCible, LIBELLES_VISIBILITE, localDepuisIso,
+  requalificationRetire, resumeDiffusion, tagsDepuisTexte, texteDepuisTags, vignetteDepuisProposition,
 } from './publication';
 
 const PERSO: Qualification = { nature: 'perso', confidentielle: false };
@@ -101,5 +101,30 @@ describe('basculer', () => {
     expect(basculer([], 'a')).toEqual(['a']);
     expect(basculer(['a', 'b'], 'a')).toEqual(['b']);
     expect(basculer(['a', 'b', 'c'], 'd')).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('appliquerProposition', () => {
+  const proposition = { pose: 'b.jpg', logos: ['excel.png'], captures: ['a.png'], gabarit: 'demonstration' as const, accroche: 'Planning facile', explication: 'En grand.' };
+  const consigne = { texte: 'Le planning', compris: 'Planning.', pasRealisable: [], propositions: [proposition, { ...proposition, gabarit: 'classique' as const }], choisie: null };
+  const video = {
+    ...videoParDefaut('complete', PERSO),
+    vignette: { pose: { source: 'banque' as const, fichier: 'a.jpg' }, accroche: 'Ancienne', gabarit: 'classique' as const, logos: [], captures: [], fichier: 'rendus/vignettes/complete.jpg' },
+    consignesVignette: [consigne, { ...consigne, texte: 'Autre', choisie: 0 }],
+  };
+  it('compose la vignette d’après la proposition et la marque retenue', () => {
+    const c = appliquerProposition(video, 0, 1);
+    expect(c.vignette).toEqual({
+      pose: { source: 'banque', fichier: 'b.jpg' }, accroche: 'Planning facile', gabarit: 'classique', logos: ['excel.png'], captures: ['a.png'],
+      fichier: 'rendus/vignettes/complete.jpg',
+    });
+    expect(c.consignesVignette!.map(x => x.choisie)).toEqual([1, 0]);
+  });
+  it('ne change rien pour une proposition inconnue', () => {
+    expect(appliquerProposition(video, 5, 0)).toEqual({});
+    expect(appliquerProposition(video, 0, 7)).toEqual({});
+  });
+  it('compose une vignette sans fichier rendu pour l’aperçu', () => {
+    expect(vignetteDepuisProposition(proposition, null)).toMatchObject({ pose: { source: 'banque', fichier: 'b.jpg' }, fichier: null });
   });
 });

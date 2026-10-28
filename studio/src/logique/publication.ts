@@ -1,5 +1,5 @@
 import { MAX_ELEMENTS } from '../../../noyau/gabarits';
-import type { CiblePublication, PoseVignette, Publication, StatutPublication, VideoPubliee, Vignette } from '../../../noyau/publication';
+import type { CiblePublication, PoseVignette, PropositionVignette, Publication, StatutPublication, VideoPubliee, Vignette } from '../../../noyau/publication';
 import { diffusion, memeQualification, type Diffusion, type DiffusionSite, type DiffusionYoutube, type Nature, type Qualification } from '../../../noyau/qualification';
 import type { VisibiliteYoutube } from '../../../noyau/youtube';
 
@@ -86,4 +86,20 @@ export function localDepuisIso(iso: string | null): string {
 export function basculer(liste: string[], fichier: string, max = MAX_ELEMENTS): string[] {
   if (liste.includes(fichier)) return liste.filter(f => f !== fichier);
   return liste.length < max ? [...liste, fichier] : liste;
+}
+
+// Vignette composée d'après une proposition de Claude.
+export function vignetteDepuisProposition(p: PropositionVignette, fichier: string | null): Vignette {
+  return { pose: { source: 'banque', fichier: p.pose }, accroche: p.accroche, gabarit: p.gabarit, logos: p.logos, captures: p.captures, fichier };
+}
+
+// Applique à la vignette la proposition `indice` de la consigne `consigne` et la marque retenue ; le fichier rendu
+// est gardé tel quel (il redevient « à rendre » dès que l'image change, comme pour une retouche à la main).
+export function appliquerProposition(v: VideoPubliee, consigne: number, indice: number): Partial<VideoPubliee> {
+  const p = v.consignesVignette[consigne]?.propositions[indice];
+  if (!p) return {};
+  return {
+    vignette: vignetteDepuisProposition(p, v.vignette?.fichier ?? null),
+    consignesVignette: v.consignesVignette.map((c, i) => (i === consigne ? { ...c, choisie: indice } : c)),
+  };
 }
