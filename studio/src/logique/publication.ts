@@ -82,10 +82,10 @@ export function localDepuisIso(iso: string | null): string {
   return `${d.getFullYear()}-${deux(d.getMonth() + 1)}-${deux(d.getDate())}T${deux(d.getHours())}:${deux(d.getMinutes())}`;
 }
 
-// Logo ou capture coché ou décoché ; au plus MAX_ELEMENTS, dans l'ordre des clics.
-export function basculer(liste: string[], fichier: string): string[] {
+// Logo ou capture coché ou décoché ; au plus `max`, dans l'ordre des clics.
+export function basculer(liste: string[], fichier: string, max = MAX_ELEMENTS): string[] {
   if (liste.includes(fichier)) return liste.filter(f => f !== fichier);
-  return liste.length < MAX_ELEMENTS ? [...liste, fichier] : liste;
+  return liste.length < max ? [...liste, fichier] : liste;
 }
 
 // Gabarits pris par les autres vidéos de la publication : proposés en dernier, pour varier.

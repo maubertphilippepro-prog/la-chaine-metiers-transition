@@ -1,6 +1,6 @@
 import { Thumbnail } from '@remotion/player';
 import { type FC, useEffect, useState } from 'react';
-import { gabaritRetenu, gabaritsCompatibles, LIBELLES_GABARIT, logosSuggeres, MAX_ELEMENTS, type Gabarit } from '../../../noyau/gabarits';
+import { gabaritRetenu, gabaritsCompatibles, LIBELLES_GABARIT, logosSuggeres, MAX_CANDIDATES, MAX_ELEMENTS, type Gabarit } from '../../../noyau/gabarits';
 import { cleVignette, DOSSIER_CAPTURES, proprietesVignette, type Publication, type Vignette, type VideoPubliee } from '../../../noyau/publication';
 import { HAUTEUR_VIGNETTE, LARGEUR_VIGNETTE, Vignette as CompositionVignette } from '../../../remotion/composants/Vignette';
 import type { DetailPublication, Pose } from '../../commun';
@@ -85,6 +85,8 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
     : [];
   const urlCapture = (f: string) => `${detail.urlTournage}/${DOSSIER_CAPTURES}/${encodeURIComponent(f)}`;
 
+  // Candidates encore sur le disque : une capture disparue est ignorée.
+  const candidates = v.capturesCandidates.filter(f => captures.includes(f));
   return (
     <fieldset className="vignette">
       <legend>Vignette</legend>
@@ -128,16 +130,26 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
         ))}
       </div>
       <div className="actions">
-        <span>Captures ({vignette?.captures.length ?? 0}/{MAX_ELEMENTS}) :</span>
+        <span>Captures ({vignette?.captures.length ?? 0}/{MAX_ELEMENTS}) · pour Claude {candidates.length}/{MAX_CANDIDATES} :</span>
         {captures.map(f => (
-          <button
-            key={f}
-            className={vignette?.captures.includes(f) ? 'pose choisie' : 'pose'}
-            title={f}
-            onClick={() => composer({ captures: basculer(vignette?.captures ?? [], f) })}
-          >
-            <img src={urlCapture(f)} alt={f} />
-          </button>
+          <div key={f} className="capture-candidate">
+            <button
+              className={vignette?.captures.includes(f) ? 'pose choisie' : 'pose'}
+              title={f}
+              onClick={() => composer({ captures: basculer(vignette?.captures ?? [], f) })}
+            >
+              <img src={urlCapture(f)} alt={f} />
+            </button>
+            <label className="discret">
+              <input
+                type="checkbox"
+                checked={candidates.includes(f)}
+                disabled={!candidates.includes(f) && candidates.length >= MAX_CANDIDATES}
+                onChange={() => changer({ capturesCandidates: basculer(candidates, f, MAX_CANDIDATES) })}
+              />
+              {' '}Pour Claude
+            </label>
+          </div>
         ))}
         <button onClick={() => void actualiser()}>Actualiser</button>
       </div>

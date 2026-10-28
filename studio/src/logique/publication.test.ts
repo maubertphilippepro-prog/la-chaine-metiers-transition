@@ -93,6 +93,10 @@ describe('relais sur le site', () => {
 });
 
 describe('basculer', () => {
+  it('accepte un autre maximum', () => {
+    expect(basculer(['a', 'b', 'c', 'd'], 'e', 5)).toEqual(['a', 'b', 'c', 'd', 'e']);
+    expect(basculer(['a', 'b', 'c', 'd', 'e'], 'f', 5)).toEqual(['a', 'b', 'c', 'd', 'e']);
+  });
   it('coche dans l’ordre des clics, décoche, et s’arrête à trois', () => {
     expect(basculer([], 'a')).toEqual(['a']);
     expect(basculer(['a', 'b'], 'a')).toEqual(['b']);

@@ -3,7 +3,7 @@ import reglagesJson from '../reglages.json';
 import {
   accorderPublication, appliquerModifications, cleVignette, fichierRendu, fichierVignette,
   longueurTags, mentionsTrouvees, migrerPublication, modifierVideo, nomCible, poseDetouree, problemesPreparation, raisonPublication, retraitAFaire,
-  proprietesVignette, videoParDefaut, type Publication, type Vignette,
+  proprietesVignette, videoParDefaut, type ConsigneVignette, type Publication, type Vignette,
 } from './publication';
 import type { Qualification } from './qualification';
 import type { Reglages } from './types';
@@ -239,5 +239,48 @@ describe('requalification', () => {
     expect(retraitAFaire(v)).toBe(true);
     expect(retraitAFaire({ ...v, ...PRO })).toBe(false);
     expect(retraitAFaire({ ...v, replit: { id: null, categorieId: null, playlistId: null } })).toBe(false);
+  });
+});
+
+const CONSIGNE: ConsigneVignette = {
+  texte: 'Mets en avant le planning',
+  compris: 'Le planning au premier plan.',
+  pasRealisable: [],
+  propositions: [{ pose: 'surpris.jpg', logos: ['excel.png'], captures: ['planning.png'], gabarit: 'demonstration', accroche: 'Planning sans effort', explication: 'La capture du planning en grand.' }],
+  choisie: 0,
+};
+
+describe('captures candidates et consignes de vignette', () => {
+  const avec = (changement: object) => ({ ...prete(), videos: [{ ...prete().videos[0]!, ...changement }] });
+  it('part de listes vides, y compris à la lecture d’un fichier qui ne les a pas', () => {
+    expect(videoParDefaut('complete', PERSO)).toMatchObject({ capturesCandidates: [], consignesVignette: [] });
+    const { capturesCandidates: _, consignesVignette: __, ...ancienne } = prete().videos[0]!;
+    const p = migrerPublication({ ...prete(), videos: [ancienne] }) as Publication;
+    expect(p.videos[0]).toMatchObject({ capturesCandidates: [], consignesVignette: [] });
+  });
+  it('accepte 5 candidates et une consigne bien formée', () => {
+    expect(raisonPublication(avec({ capturesCandidates: ['a.png', 'b.png', 'c.png', 'd.png', 'e.png'], consignesVignette: [CONSIGNE] }))).toBeNull();
+    expect(raisonPublication(avec({ consignesVignette: [{ ...CONSIGNE, choisie: null }] }))).toBeNull();
+  });
+  it('refuse plus de 5 candidates ou un nom avec un chemin', () => {
+    expect(raisonPublication(avec({ capturesCandidates: ['a', 'b', 'c', 'd', 'e', 'f'].map(f => `${f}.png`) })))
+      .toBe('videos[0] : capturesCandidates invalides (5 au plus)');
+    expect(raisonPublication(avec({ capturesCandidates: ['../a.png'] }))).toBe('videos[0] : capturesCandidates invalides (5 au plus)');
+  });
+  it('refuse une consigne mal formée', () => {
+    const p = CONSIGNE.propositions[0]!;
+    expect(raisonPublication(avec({ consignesVignette: 'non' }))).toBe('videos[0] : consignesVignette doit être une liste');
+    expect(raisonPublication(avec({ consignesVignette: [{ ...CONSIGNE, compris: 3 }] })))
+      .toBe('videos[0] : consignesVignette[0] : texte, compris et pasRealisable attendus');
+    expect(raisonPublication(avec({ consignesVignette: [{ ...CONSIGNE, propositions: [], choisie: null }] })))
+      .toBe('videos[0] : consignesVignette[0] : 1 à 3 propositions attendues');
+    expect(raisonPublication(avec({ consignesVignette: [{ ...CONSIGNE, propositions: [p, p, p, p] }] })))
+      .toBe('videos[0] : consignesVignette[0] : 1 à 3 propositions attendues');
+    expect(raisonPublication(avec({ consignesVignette: [{ ...CONSIGNE, propositions: [{ ...p, gabarit: 'autre' }] }] })))
+      .toBe('videos[0] : consignesVignette[0] : proposition invalide');
+    expect(raisonPublication(avec({ consignesVignette: [{ ...CONSIGNE, propositions: [{ ...p, logos: ['a', 'b', 'c', 'd'] }] }] })))
+      .toBe('videos[0] : consignesVignette[0] : proposition invalide');
+    expect(raisonPublication(avec({ consignesVignette: [{ ...CONSIGNE, choisie: 1 }] })))
+      .toBe('videos[0] : consignesVignette[0] : choisie invalide');
   });
 });

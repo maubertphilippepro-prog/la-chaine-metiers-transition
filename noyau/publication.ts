@@ -1,4 +1,4 @@
-import { GABARITS, MAX_ELEMENTS, type Gabarit } from './gabarits';
+import { GABARITS, MAX_CANDIDATES, MAX_ELEMENTS, type Gabarit } from './gabarits';
 import { nomFichierEpisode } from './nommage';
 import { diffusion, memeQualification, NATURES, QUALIFICATION_PAR_DEFAUT, qualificationDepuisProfil, type Nature, type Qualification } from './qualification';
 import type { Reglages } from './types';
@@ -21,6 +21,29 @@ export interface Vignette {
   fichier: string | null;
 }
 
+// Composition proposée par Claude en réponse à une consigne : fichiers de donnees/poses/, donnees/logos/ et captures/.
+export interface PropositionVignette {
+  pose: string;
+  logos: string[];
+  captures: string[];
+  gabarit: Gabarit;
+  accroche: string;
+  // Une phrase : ce qui distingue cette composition.
+  explication: string;
+}
+
+export interface ConsigneVignette {
+  texte: string;
+  // Reformulation de Claude (« J’ai compris : … »).
+  compris: string;
+  pasRealisable: string[];
+  propositions: PropositionVignette[];
+  // Indice de la proposition appliquée à la vignette, null tant qu'aucune ne l'est.
+  choisie: number | null;
+}
+
+export const MAX_PROPOSITIONS_VIGNETTE = 3;
+
 export interface VideoPubliee {
   cible: CiblePublication;
   publier: boolean;
@@ -36,6 +59,9 @@ export interface VideoPubliee {
   // Logiciels et services cités dans la vidéo, d'après la rédaction : servent à pré-cocher les logos.
   logiciels: string[];
   vignette: Vignette | null;
+  // Captures de captures/ proposées à Claude pour les consignes de vignette, dans l'ordre de choix ; 5 au plus.
+  capturesCandidates: string[];
+  consignesVignette: ConsigneVignette[];
   youtube: { id: string | null; visibilite: 'privee' | 'non-repertoriee' | 'publique' | 'programmee'; programmeeLe: string | null; playlistId: string | null };
   replit: { id: number | null; categorieId: number | null; playlistId: number | null };
   erreur: { etape: 'vignette' | 'youtube' | 'replit'; message: string; le: string } | null;
@@ -72,6 +98,8 @@ export function videoParDefaut(cible: CiblePublication, q: Qualification): Video
     accroches: [],
     logiciels: [],
     vignette: null,
+    capturesCandidates: [],
+    consignesVignette: [],
     youtube: { id: null, visibilite: 'privee', programmeeLe: null, playlistId: null },
     replit: { id: null, categorieId: null, playlistId: null },
     erreur: null,
@@ -157,7 +185,7 @@ function completerVideo(v: unknown): unknown {
     const { fond: _, ...reste } = vignette;
     vignette = { gabarit: 'classique', logos: [], captures: [], ...reste };
   }
-  return { logiciels: [], ...v, vignette };
+  return { logiciels: [], capturesCandidates: [], consignesVignette: [], ...v, vignette };
 }
 
 // publication.json tel que lu sur le disque ou reçu du studio, mis à la forme actuelle.
@@ -169,6 +197,24 @@ export function migrerPublication(valeur: unknown): unknown {
 
 const estNomFichier = (f: unknown) => estTexte(f) && f !== '' && !/[\\/]/.test(f);
 
+const listeDeFichiers = (v: unknown, max: number) => Array.isArray(v) && v.length <= max && v.every(estNomFichier);
+
+function raisonConsigneVignette(c: unknown): string | null {
+  if (!estObjet(c) || !estTexte(c.texte) || !estTexte(c.compris) || !listeDeTextes(c.pasRealisable)) {
+    return 'texte, compris et pasRealisable attendus';
+  }
+  const propositions = c.propositions;
+  if (!Array.isArray(propositions) || propositions.length < 1 || propositions.length > MAX_PROPOSITIONS_VIGNETTE) {
+    return `1 à ${MAX_PROPOSITIONS_VIGNETTE} propositions attendues`;
+  }
+  const valide = (p: unknown) => estObjet(p) && estNomFichier(p.pose) && listeDeFichiers(p.logos, MAX_ELEMENTS)
+    && listeDeFichiers(p.captures, MAX_ELEMENTS) && GABARITS.includes(p.gabarit as Gabarit) && estTexte(p.accroche) && estTexte(p.explication);
+  if (!propositions.every(valide)) return 'proposition invalide';
+  const choisie = c.choisie;
+  if (choisie !== null && !(Number.isInteger(choisie) && (choisie as number) >= 0 && (choisie as number) < propositions.length)) return 'choisie invalide';
+  return null;
+}
+
 function raisonVignette(v: unknown): string | null {
   if (v === null) return null;
   if (!estObjet(v) || !estObjet(v.pose)) return 'vignette : pose attendue';
@@ -178,7 +224,7 @@ function raisonVignette(v: unknown): string | null {
   if (!GABARITS.includes(v.gabarit as Gabarit)) return 'vignette : gabarit invalide';
   for (const champ of ['logos', 'captures']) {
     const liste = v[champ];
-    if (!(Array.isArray(liste) && liste.length <= MAX_ELEMENTS && liste.every(estNomFichier))) return `vignette : ${champ} invalides`;
+    if (!listeDeFichiers(v[champ], MAX_ELEMENTS)) return `vignette : ${champ} invalides`;
   }
   if (v.fichier !== null && !estTexte(v.fichier)) return 'vignette : fichier invalide';
   return null;
@@ -201,6 +247,12 @@ export function raisonPublication(p: unknown): string | null {
     for (const champ of ['variantesTitre', 'tags', 'accroches', 'logiciels']) if (!listeDeTextes(v[champ])) return `${ou} : ${champ} doit être une liste de textes`;
     const vignette = raisonVignette(v.vignette);
     if (vignette) return `${ou} : ${vignette}`;
+    if (!listeDeFichiers(v.capturesCandidates, MAX_CANDIDATES)) return `${ou} : capturesCandidates invalides (${MAX_CANDIDATES} au plus)`;
+    if (!Array.isArray(v.consignesVignette)) return `${ou} : consignesVignette doit être une liste`;
+    for (const [j, c] of v.consignesVignette.entries()) {
+      const raison = raisonConsigneVignette(c);
+      if (raison) return `${ou} : consignesVignette[${j}] : ${raison}`;
+    }
     if (!estObjet(v.youtube) || !estObjet(v.replit)) return `${ou} : youtube et replit attendus`;
     if (!estId(v.replit.id) || !estId(v.replit.categorieId) || !estId(v.replit.playlistId)) return `${ou} : identifiants du site invalides`;
   }
