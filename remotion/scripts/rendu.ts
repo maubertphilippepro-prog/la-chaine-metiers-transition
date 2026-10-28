@@ -10,7 +10,10 @@ import { nomFichierEpisode } from '../../noyau/nommage';
 import { demarrerServeur } from './serveur-fichiers';
 import { chargerTournage, majStatutEpisode, RACINE, urlSource } from './tournage';
 
-export type Cible = 'tout' | 'complete' | number;
+// Une vidéo du tournage : la vidéo complète ou un épisode (numéroté à partir de 1).
+export type Video = 'complete' | number;
+// Tout, une vidéo seule (relance d'un échec) ou une sélection de vidéos choisie dans le studio.
+export type Cible = 'tout' | Video | Video[];
 
 export interface ResultatRendu {
   fichier: string;
@@ -91,7 +94,7 @@ export async function rendreTournage(
     const source = urlSource(serveur.url, t.nom);
     const episodes = decisionsEpisodes(t.analyse, t.montage, t.reglages, source);
     // Tous les rendus d'un tournage, dans l'ordre ; la cible n'en retient qu'une partie.
-    const tous: (Travail & { cibles: Cible[] })[] = episodes.map((decisions, i) => ({
+    const tous: (Travail & { cibles: Video[] })[] = episodes.map((decisions, i) => ({
       fichier: nomFichierEpisode(i, decisions.titre), composition: 'Episode' as const, props: { decisions }, cibles: [i + 1],
     }));
     tous.push({
@@ -101,7 +104,8 @@ export async function rendreTournage(
       cibles: ['complete'],
     });
     attendus = tous.map(w => w.fichier);
-    const travaux = tous.filter(w => options.cible === 'tout' || w.cibles.includes(options.cible));
+    const choisies = options.cible === 'tout' ? null : [options.cible].flat();
+    const travaux = tous.filter(w => !choisies || w.cibles.some(c => choisies.includes(c)));
     if (travaux.length === 0) throw new Error(`Rien à rendre pour « ${options.cible} » : ${episodes.length} épisode(s).`);
 
     await ensureBrowser();
@@ -141,8 +145,9 @@ export async function rendreTournage(
   if (!options.brouillon && echecs.length > 0) {
     const noms = echecs.map(r => path.basename(r.fichier)).join(', ');
     await majStatutEpisode(dossier, 'erreur', `${echecs.length} rendu(s) en échec : ${noms}`);
-  } else if (!options.brouillon && (options.cible === 'tout' || attendus.every(f => existsSync(path.join(sortie, f))))) {
-    // Rendu partiel réussi : le tournage est « rendu » si tous les fichiers attendus existent.
+  } else if (!options.brouillon && (options.cible === 'tout' || Array.isArray(options.cible) || attendus.every(f => existsSync(path.join(sortie, f))))) {
+    // Une sélection réussie suffit : les vidéos écartées ne sont pas à rendre. Une relance seule
+    // ne rend le tournage « rendu » que si tous les fichiers attendus existent.
     await majStatutEpisode(dossier, 'rendu', null);
   }
   return resultats;

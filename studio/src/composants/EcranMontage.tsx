@@ -4,6 +4,7 @@ import { passageEnTemps, tracerZoneProposition, type Ancrage, type Operation } f
 import { ajouterElement, modifierElement, prochainIdElement, type NouvelElement } from '../../../noyau/edition';
 import { problemeDe } from '../../../noyau/elements';
 import type { ElementEcran, Montage, NatureElement, Zone } from '../../../noyau/types';
+import { api } from '../api';
 import { useEcoute } from '../ecoute';
 import { imageEpisode, imageVideoComplete, motA, positionDansParties } from '../logique/apercu';
 import { creerSuivi } from '../logique/suivi';
@@ -64,6 +65,13 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
     );
   }
   if (!detail || !montage || !decisions || !consignes.fichier) return <div className="page">Chargement…</div>;
+
+  // Rendu réussi : le tournage passe « rendu » côté serveur, on enchaîne sur la publication.
+  const ouvrirPublication = () => {
+    void api.tournage(nom).then(d => {
+      if (d.statut === 'rendu') window.location.hash = `#/${encodeURIComponent(nom)}/publication`;
+    }, () => undefined);
+  };
 
   const lireDansApercu = (t: number, mode: ModeLecture = 'lire') => {
     const fps = detail.analyse.fps;
@@ -229,6 +237,8 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
           reglages={detail.reglages}
           consignes={consignes.fichier.consignes}
           enregistrement={enregistrement}
+          titresEpisodes={decisions.episodes.map(e => e.titre)}
+          onTermine={ouvrirPublication}
         />
       </aside>
       {audio}

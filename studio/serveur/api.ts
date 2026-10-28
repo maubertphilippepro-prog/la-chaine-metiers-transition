@@ -6,7 +6,7 @@ import path from 'node:path';
 import { passageEnTemps, proposer, raisonFichierConsignes, type Ancrage, type Consigne, type FichierConsignes, type ReponseConsigne } from '../../noyau/consignes';
 import { majGlossaire, type Glossaire } from '../../noyau/glossaire';
 import { verifierAvantRendu } from '../../noyau/verifications';
-import type { Cible, ResultatRendu } from '../../remotion/scripts/rendu';
+import type { Cible, ResultatRendu, Video } from '../../remotion/scripts/rendu';
 import { chargerTournage, lireEpisode, majStatutEpisode, raisonMontage, urlSource, type Tournage } from '../../remotion/scripts/tournage';
 import type { DetailTournage, EtatRendu, ResumeTournage } from '../commun';
 import { ErreurInterpretation, lireConsignes, type InterpreterConsigne } from './consignes';
@@ -44,11 +44,13 @@ async function lireGlossaire(chemin: string): Promise<Glossaire> {
   throw new ErreurHttp(500, 'glossaire.json illisible : corrigez-le avant de lancer le rendu.');
 }
 
+const estVideo = (v: unknown): v is Video => v === 'complete' || (typeof v === 'number' && Number.isInteger(v) && v >= 1);
+
 function lireCible(corps: unknown): Cible {
   const v = corps && typeof corps === 'object' ? (corps as Record<string, unknown>).cible : undefined;
-  if (v === 'tout' || v === 'complete') return v;
-  if (typeof v === 'number' && Number.isInteger(v) && v >= 1) return v;
-  throw new ErreurHttp(400, 'cible attendue : « tout », « complete » ou un numéro d’épisode.');
+  if (v === 'tout' || estVideo(v)) return v;
+  if (Array.isArray(v) && v.length > 0 && v.every(estVideo)) return [...new Set(v)];
+  throw new ErreurHttp(400, 'cible attendue : « tout », « complete », un numéro d’épisode ou une liste de ces vidéos.');
 }
 
 function lireDemandeConsigne(corps: unknown): { texte: string; ancrage: Ancrage | null } {

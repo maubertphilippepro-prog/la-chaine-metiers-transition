@@ -240,6 +240,14 @@ describe('rendu', () => {
   it('refuse une cible inconnue', async () => {
     await tournage('a', { 'analyse.json': exemple, 'montage.json': MONTAGE_PRET });
     expect((await demanderRendu('a', 0)).status).toBe(400);
+    expect((await demanderRendu('a', [])).status).toBe(400);
+    expect((await demanderRendu('a', ['complete', 0])).status).toBe(400);
+  });
+  it('lance le rendu des vidéos choisies, sans doublon', async () => {
+    const d = await tournage('a', { 'analyse.json': exemple, 'montage.json': MONTAGE_PRET });
+    expect((await demanderRendu('a', [2, 'complete', 2])).status).toBe(202);
+    expect(config.rendre).toHaveBeenCalledWith(d, [2, 'complete'], expect.any(Function));
+    await config.suivi.attendre();
   });
   it('met à jour le glossaire, valide le tournage et lance le rendu', async () => {
     await writeFile(config.cheminGlossaire, JSON.stringify({

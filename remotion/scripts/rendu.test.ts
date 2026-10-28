@@ -92,6 +92,17 @@ describe('rendreTournage', () => {
     await rendreTournage(d, { brouillon: false, cible: 'complete' }, dependances(null));
     expect(await statut(d)).toMatchObject({ statut: 'valide', message: null });
   });
+  it('rend seulement les vidéos choisies et passe à « rendu » quand elles réussissent', async () => {
+    const d = await tournage(true);
+    const resultats = await rendreTournage(d, { brouillon: false, cible: [1, 'complete'] }, dependances(null));
+    expect(resultats.map(r => path.basename(r.fichier))).toEqual([expect.stringMatching(/^episode-01-/), 'video-complete.mp4']);
+    expect((await readdir(path.join(d, 'rendus'))).filter(f => f.startsWith('episode-02-'))).toEqual([]);
+    expect(await statut(d)).toMatchObject({ statut: 'rendu', message: null });
+  });
+  it('refuse une sélection sans vidéo du tournage', async () => {
+    const d = await tournage(true);
+    await expect(rendreTournage(d, { brouillon: false, cible: [99] }, dependances(null))).rejects.toThrow('Rien à rendre');
+  });
   it('ne touche pas au statut en brouillon', async () => {
     const d = await tournage(false);
     await rendreTournage(d, { brouillon: true, cible: 'tout' }, dependances('video-complete'));

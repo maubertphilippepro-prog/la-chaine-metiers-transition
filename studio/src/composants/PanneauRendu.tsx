@@ -1,11 +1,11 @@
-import { type FC, useEffect, useMemo, useState } from 'react';
+import { type FC, useEffect, useMemo, useRef, useState } from 'react';
 import type { Consigne } from '../../../noyau/consignes';
 import type { Analyse, Montage } from '../../../noyau/types';
 import { verifierAvantRendu, type ReglagesRendu } from '../../../noyau/verifications';
-import type { Cible } from '../../../remotion/scripts/rendu';
+import type { Cible, Video } from '../../../remotion/scripts/rendu';
 import type { EtatRendu } from '../../commun';
 import { api, ErreurApi } from '../api';
-import { cibleDuFichier } from '../logique/rendu';
+import { cibleDeSelection, cibleDuFichier } from '../logique/rendu';
 import type { EtatEnregistrement } from '../useMontage';
 import { Attente } from './Attente';
 
@@ -16,13 +16,22 @@ interface Props {
   reglages: ReglagesRendu;
   consignes: Consigne[];
   enregistrement: EtatEnregistrement;
+  titresEpisodes: string[];
+  // Appelé quand un rendu de ce tournage lancé ou suivi ici se termine sans échec.
+  onTermine: () => void;
 }
 
 const INTERVALLE_SUIVI = 1000;
 
-// Vérifications, puis rendu de la vidéo complète et de chaque épisode avec suivi ; relance d'un rendu en échec.
-export const PanneauRendu: FC<Props> = ({ nom, analyse, montage, reglages, consignes, enregistrement }) => {
+// Vérifications, puis rendu des vidéos cochées (vidéo complète, épisodes) avec suivi ; relance d'un rendu en échec.
+export const PanneauRendu: FC<Props> = ({ nom, analyse, montage, reglages, consignes, enregistrement, titresEpisodes, onTermine }) => {
   const [etat, setEtat] = useState<EtatRendu | null>(null);
+  const [ecartees, setEcartees] = useState<Video[]>([]);
+  const videos: { video: Video; libelle: string }[] = [
+    { video: 'complete', libelle: 'Vidéo complète' },
+    ...titresEpisodes.map((titre, i) => ({ video: i + 1, libelle: `Épisode ${i + 1} : ${titre || 'sans titre'}` })),
+  ];
+  const cible = cibleDeSelection(videos.map(v => v.video), ecartees);
   const [erreur, setErreur] = useState<string | null>(null);
   const [problemesServeur, setProblemesServeur] = useState<string[]>([]);
   const problemes = useMemo(
@@ -30,6 +39,16 @@ export const PanneauRendu: FC<Props> = ({ nom, analyse, montage, reglages, consi
     [analyse, montage, reglages, consignes],
   );
   const enCours = etat?.enCours ?? false;
+  const ici = etat?.nom === nom ? etat : null;
+  // Fin d'un rendu vu en cours ici : un état déjà terminé au chargement ne compte pas.
+  const vuEnCours = useRef(false);
+  useEffect(() => {
+    if (ici?.enCours) vuEnCours.current = true;
+    else if (ici && vuEnCours.current) {
+      vuEnCours.current = false;
+      if (!ici.erreur && ici.resultats.length > 0 && ici.resultats.every(r => r.ok)) onTermine();
+    }
+  }, [ici, onTermine]);
 
   useEffect(() => {
     api.etatRendu().then(setEtat, () => undefined);
@@ -53,7 +72,8 @@ export const PanneauRendu: FC<Props> = ({ nom, analyse, montage, reglages, consi
     }
   };
 
-  const ici = etat?.nom === nom ? etat : null;
+  const basculer = (video: Video) =>
+    setEcartees(e => (e.includes(video) ? e.filter(v => v !== video) : [...e, video]));
   return (
     <section className="panneau">
       <h3>Rendu</h3>
@@ -63,10 +83,17 @@ export const PanneauRendu: FC<Props> = ({ nom, analyse, montage, reglages, consi
           <ul>{problemes.map(p => <li key={p}>{p}</li>)}</ul>
         </>
       )}
+      <p className="discret">Vidéos à rendre :</p>
+      {videos.map(({ video, libelle }) => (
+        <label key={video} className="actions">
+          <input type="checkbox" checked={!ecartees.includes(video)} disabled={enCours} onChange={() => basculer(video)} />
+          {libelle}
+        </label>
+      ))}
       <button
         className="principal"
-        disabled={problemes.length > 0 || enCours || enregistrement === 'en-attente'}
-        onClick={() => void lancer('tout')}
+        disabled={problemes.length > 0 || enCours || enregistrement === 'en-attente' || cible === null}
+        onClick={() => { if (cible !== null) void lancer(cible); }}
       >
         Valider et lancer le rendu
       </button>
