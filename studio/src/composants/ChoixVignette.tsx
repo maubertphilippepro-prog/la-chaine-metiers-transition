@@ -176,7 +176,7 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
         onDragLeave={() => setDepot(false)}
         onDrop={e => { e.preventDefault(); setDepot(false); void deposer([...e.dataTransfer.files]); }}
       >
-        Glissez ici des captures (PNG ou JPEG), ou déposez-les dans captures/ du tournage puis « Actualiser ».
+        Glissez ici des captures (PNG, JPEG ou SVG), ou déposez-les dans captures/ du tournage puis « Actualiser ».
       </div>
       {vignette && (
         <>

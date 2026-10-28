@@ -120,11 +120,12 @@ describe('détail de la publication', () => {
     await mkdir(path.join(dossier, 'captures'));
     await writeFile(path.join(dossier, 'captures', 'b.jpg'), 'jpg');
     await writeFile(path.join(dossier, 'captures', 'a.png'), 'png');
+    await writeFile(path.join(dossier, 'captures', 'c.svg'), '<svg/>');
     const d = await (await fetch(`${url}/api/tournages/a/publication`)).json();
     expect(d.urlLogos).toBe('http://127.0.0.1:9997');
     expect(d.logos).toEqual([{ fichier: 'excel.png', url: 'http://127.0.0.1:9997/excel.png' }]);
-    expect(d.captures).toEqual(['a.png', 'b.jpg']);
-    expect(await (await fetch(`${url}/api/tournages/a/publication/captures`)).json()).toEqual(['a.png', 'b.jpg']);
+    expect(d.captures).toEqual(['a.png', 'b.jpg', 'c.svg']);
+    expect(await (await fetch(`${url}/api/tournages/a/publication/captures`)).json()).toEqual(['a.png', 'b.jpg', 'c.svg']);
   });
   it('repère un enregistrement caméra séparé s’il accompagne un seul autre enregistrement', async () => {
     const dossier = await tournage('a');
@@ -145,6 +146,7 @@ describe('dépôt de captures', () => {
     expect(await (await deposer('étape 1.png')).json()).toEqual({ fichier: 'étape 1.png', captures: ['étape 1.png'] });
     expect(await (await deposer('étape 1.png', 'autre')).json()).toEqual({ fichier: 'étape 1-2.png', captures: ['étape 1-2.png', 'étape 1.png'] });
     expect(await readFile(path.join(dossier, 'captures', 'étape 1.png'), 'utf-8')).toBe('png');
+    expect((await (await deposer('schéma.svg', '<svg/>')).json()).fichier).toBe('schéma.svg');
   });
   it('refuse un autre format, un chemin ou une image vide', async () => {
     await tournage('a');

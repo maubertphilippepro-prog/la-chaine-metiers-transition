@@ -49,7 +49,7 @@ export interface ConfigPublication {
 const EXTENSIONS_VIDEO = new Set(['.mp4', '.mkv', '.mov', '.webm']);
 const EXTENSIONS_PHOTO = new Set(['.jpg', '.jpeg', '.png']);
 const EXTENSIONS_LOGO = new Set(['.png', '.svg']);
-const EXTENSIONS_CAPTURE = new Set(['.png', '.jpg', '.jpeg']);
+const EXTENSIONS_CAPTURE = new Set(['.png', '.jpg', '.jpeg', '.svg']);
 
 async function listerImages(dossier: string, extensions: Set<string>): Promise<string[]> {
   if (!existsSync(dossier)) return [];
@@ -217,7 +217,7 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
     const demande = new URL(req.url ?? '/', 'http://local').searchParams.get('fichier') ?? '';
     const extension = path.extname(demande).toLowerCase();
     if (!demande || path.basename(demande) !== demande || demande.startsWith('.') || !EXTENSIONS_CAPTURE.has(extension)) {
-      throw new ErreurHttp(400, 'fichier attendu : une image PNG ou JPEG, sans chemin.');
+      throw new ErreurHttp(400, 'fichier attendu : une image PNG, JPEG ou SVG, sans chemin.');
     }
     const octets = await lireOctets(req);
     if (octets.length === 0) throw new ErreurHttp(400, 'Image vide.');

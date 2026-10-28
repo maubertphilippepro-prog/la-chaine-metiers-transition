@@ -90,6 +90,6 @@ export const CarteCapture: FC<{ url: string; largeur: number; hauteur: number; a
       borderRadius: 14, boxShadow: '0 18px 40px rgba(0, 0, 0, 0.4)', transform: `rotate(${angle}deg)`, ...style,
     }}
   >
-    <Img src={url} style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }} />
+    <Img src={url} style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain', borderRadius: 8 }} />
   </div>
 );
