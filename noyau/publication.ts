@@ -167,7 +167,7 @@ export function migrerPublication(valeur: unknown): unknown {
   return { ...v2, videos: v2.videos.map(completerVideo) };
 }
 
-const estNomFichier = (f: unknown) => estTexte(f) && f !== '' && !/[\/]/.test(f);
+const estNomFichier = (f: unknown) => estTexte(f) && f !== '' && !/[\\/]/.test(f);
 
 function raisonVignette(v: unknown): string | null {
   if (v === null) return null;

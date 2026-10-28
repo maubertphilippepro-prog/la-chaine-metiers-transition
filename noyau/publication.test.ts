@@ -89,6 +89,8 @@ describe('raisonPublication', () => {
     expect(raisonPublication(avec({ gabarit: 'autre' as never }))).toBe('videos[0] : vignette : gabarit invalide');
     expect(raisonPublication(avec({ logos: ['a.png', 'b.png', 'c.png', 'd.png'] }))).toBe('videos[0] : vignette : logos invalides');
     expect(raisonPublication(avec({ captures: ['../x.png'] }))).toBe('videos[0] : vignette : captures invalides');
+    expect(raisonPublication(avec({ captures: ['..\\x.png'] }))).toBe('videos[0] : vignette : captures invalides');
+    expect(raisonPublication(avec({ pose: { source: 'banque', fichier: 'a\\b.jpg' } }))).toBe('videos[0] : vignette : pose invalide');
     expect(raisonPublication(avec({ logos: ['excel.png'], captures: ['a.png', 'b.png'] }))).toBeNull();
   });
   it('exige la liste des logiciels', () => {
