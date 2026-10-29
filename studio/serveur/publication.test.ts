@@ -23,7 +23,13 @@ const PROPOSITION_VIGNETTE = {
   pose: 'surpris.jpg', logos: ['excel.png', 'inconnu.png'], captures: ['a.png', 'b.png'], gabarit: 'mosaique' as const, accroche: 'Planning facile', explication: 'Les captures en éventail.',
 };
 const REPONSE_VIGNETTE = { compris: 'Le planning en avant.', pasRealisable: [' Un fond vert — le fond est celui de la charte ', ''], propositions: [PROPOSITION_VIGNETTE] };
-const SITE = { categories: [{ id: 1, nom: 'IA' }], playlists: [] };
+const SITE = {
+  categories: [{ id: 1, nom: 'IA' }], playlists: [],
+  classements: [
+    { cle: 'outil', libelle: 'Par outil', multiple: false, obligatoire: true, valeurs: [{ id: 1, nom: 'Claude' }] },
+    { cle: 'theme', libelle: 'Par thème', multiple: true, obligatoire: false, valeurs: [{ id: 5, nom: 'vibe-coding' }] },
+  ],
+};
 
 let racine: string;
 let url: string;
@@ -74,6 +80,7 @@ beforeEach(async () => {
       envoyerFichier: vi.fn(async (chemin: string) => (chemin.endsWith('.mp4') ? 'objet-video' : 'objet-vignette')),
       enregistrerVideo: vi.fn(async () => 42),
       supprimerVideo: vi.fn(async () => {}),
+      creerValeur: vi.fn(async (_c: string, nom: string) => ({ id: 99, nom })),
     },
   };
   const api = creerApiPublication(config);
