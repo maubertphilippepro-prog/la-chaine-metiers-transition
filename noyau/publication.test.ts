@@ -235,10 +235,10 @@ describe('requalification', () => {
     expect(q.videos[0]).toMatchObject({ nature: 'pro', confidentielle: false, statut: 'a-preparer' });
   });
   it('signale un retrait du site à faire quand une vidéo sur le site n’y a plus sa place', () => {
-    const v = { ...prete().videos[0]!, replit: { id: 42, categorieId: 1, playlistId: null } };
+    const v = { ...prete().videos[0]!, replit: { id: 42, classements: { outil: [1] }, playlistId: null } };
     expect(retraitAFaire(v)).toBe(true);
     expect(retraitAFaire({ ...v, ...PRO })).toBe(false);
-    expect(retraitAFaire({ ...v, replit: { id: null, categorieId: null, playlistId: null } })).toBe(false);
+    expect(retraitAFaire({ ...v, replit: { id: null, classements: {}, playlistId: null } })).toBe(false);
   });
 });
 
@@ -322,5 +322,23 @@ describe('gabaritsAutres', () => {
     };
     expect(gabaritsAutres(p, 1)).toEqual(['vitrine']);
     expect(gabaritsAutres(p, 2)).toEqual(['vitrine', 'mosaique']);
+  });
+});
+
+describe('classements du site', () => {
+  const avecReplit = (replit: unknown) => ({
+    version: 2, qualificationParDefaut: { nature: 'pro', confidentielle: false },
+    videos: [{ ...videoParDefaut('complete', { nature: 'pro', confidentielle: false }), replit }],
+  });
+  it('reprend l’ancienne catégorie comme outil', () => {
+    const p = migrerPublication(avecReplit({ id: 42, categorieId: 3, playlistId: null })) as Publication;
+    expect(p.videos[0]!.replit).toEqual({ id: 42, classements: { outil: [3] }, playlistId: null });
+    const sans = migrerPublication(avecReplit({ id: null, categorieId: null, playlistId: null })) as Publication;
+    expect(sans.videos[0]!.replit).toEqual({ id: null, classements: {}, playlistId: null });
+  });
+  it('valide les classements', () => {
+    expect(raisonPublication(avecReplit({ id: null, classements: { outil: [1], theme: 'aucun' }, playlistId: null }))).toBeNull();
+    expect(raisonPublication(avecReplit({ id: null, classements: { theme: ['x'] }, playlistId: null })))
+      .toBe('videos[0] : classements du site invalides');
   });
 });

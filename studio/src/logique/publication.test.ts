@@ -28,7 +28,7 @@ describe('changerQualificationParDefaut', () => {
   it('requalifie les vidéos qui suivaient l’ancien défaut, sauf celles déjà sur le site', () => {
     let p = accorderPublication(null, ['complete', 1, 2]);
     p = modifierVideo(p, 1, PRO_CONF);
-    p = modifierVideo(p, 2, { replit: { id: 42, categorieId: 1, playlistId: null } });
+    p = modifierVideo(p, 2, { replit: { id: 42, classements: { outil: [1] }, playlistId: null } });
     const q = changerQualificationParDefaut(p, PRO);
     expect(q.qualificationParDefaut).toEqual(PRO);
     expect(q.videos.map(v => [v.nature, v.confidentielle])).toEqual([['pro', false], ['pro', true], ['perso', false]]);
@@ -36,11 +36,11 @@ describe('changerQualificationParDefaut', () => {
 });
 
 describe('requalificationRetire', () => {
-  const surLeSite = { ...modifierVideo(accorderPublication(null, ['complete']), 'complete', PRO_CONF).videos[0]!, replit: { id: 42, categorieId: 1, playlistId: null } };
+  const surLeSite = { ...modifierVideo(accorderPublication(null, ['complete']), 'complete', PRO_CONF).videos[0]!, replit: { id: 42, classements: { outil: [1] }, playlistId: null } };
   it('demande le retrait d’une vidéo du site passée en Perso', () => {
     expect(requalificationRetire(surLeSite, PERSO)).toBe(true);
     expect(requalificationRetire(surLeSite, PRO)).toBe(false);
-    expect(requalificationRetire({ ...surLeSite, replit: { id: null, categorieId: null, playlistId: null } }, PERSO)).toBe(false);
+    expect(requalificationRetire({ ...surLeSite, replit: { id: null, classements: {}, playlistId: null } }, PERSO)).toBe(false);
   });
 });
 

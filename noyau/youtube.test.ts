@@ -66,7 +66,7 @@ describe('visibilités et statuts', () => {
     expect(pretePourYoutube(prete({ publier: false }))).toBe(false);
     expect(validee(prete({ ...PRO_CONF }))).toBe(true);
     expect(pretePourYoutube(prete({ ...PRO_CONF }))).toBe(false);
-    expect(pretePourYoutube(prete({ statut: 'relayee', replit: { id: 42, categorieId: 1, playlistId: null } }))).toBe(false);
+    expect(pretePourYoutube(prete({ statut: 'relayee', replit: { id: 42, classements: { outil: [1] }, playlistId: null } }))).toBe(false);
   });
   it('range le dossier par cible', () => {
     expect(dossierYoutube('complete')).toBe('publication/complete');
@@ -95,7 +95,7 @@ describe('problemesEnvoi : diffusion', () => {
   it('refuse une vidéo Pro confidentielle et une vidéo encore sur le site', () => {
     expect(problemesEnvoi(prete({ ...PRO_CONF }), 'Desc', R, { rendu: RENDU, octetsVignette: 1000 })).toEqual([SANS_YOUTUBE]);
     expect(problemesDiffusion(prete({ ...PRO_CONF }), 'Desc', R, { rendu: RENDU, octetsVignette: 1000 })).toEqual([]);
-    expect(problemesEnvoi(prete({ statut: 'relayee', replit: { id: 42, categorieId: 1, playlistId: null } }), 'Desc', R, {
+    expect(problemesEnvoi(prete({ statut: 'relayee', replit: { id: 42, classements: { outil: [1] }, playlistId: null } }), 'Desc', R, {
       rendu: RENDU, octetsVignette: 1000,
     })).toEqual([RETRAIT_D_ABORD]);
   });
@@ -138,7 +138,7 @@ describe('envoi', () => {
   it('refuse une vidéo non validée, une visibilité contraire à la qualification et une date incohérente', () => {
     expect(raisonEnvoi(prete({ statut: 'a-preparer' }), envoi)).toBe('Validez d’abord la vidéo pour la publication.');
     expect(raisonEnvoi(prete({ ...PRO_CONF }), envoi)).toBe(SANS_YOUTUBE);
-    expect(raisonEnvoi(prete({ statut: 'relayee', replit: { id: 42, categorieId: 1, playlistId: null } }), envoi)).toBe(RETRAIT_D_ABORD);
+    expect(raisonEnvoi(prete({ statut: 'relayee', replit: { id: 42, classements: { outil: [1] }, playlistId: null } }), envoi)).toBe(RETRAIT_D_ABORD);
     expect(raisonEnvoi(prete({ ...PERSO_CONF }), envoi)).toBe('Une vidéo Perso confidentielle reste privée sur YouTube.');
     expect(raisonEnvoi(prete({ ...PRO }), envoi)).toBe('Une vidéo Pro non confidentielle est non répertoriée sur YouTube.');
     expect(raisonEnvoi(prete(), { ...envoi, visibilite: 'non-repertoriee' }))

@@ -1,3 +1,4 @@
+import type { ChoixClassements } from './classements';
 import { GABARITS, MAX_CANDIDATES, MAX_ELEMENTS, type Gabarit } from './gabarits';
 import { nomFichierEpisode } from './nommage';
 import { diffusion, memeQualification, NATURES, QUALIFICATION_PAR_DEFAUT, qualificationDepuisProfil, type Nature, type Qualification } from './qualification';
@@ -63,7 +64,7 @@ export interface VideoPubliee {
   capturesCandidates: string[];
   consignesVignette: ConsigneVignette[];
   youtube: { id: string | null; visibilite: 'privee' | 'non-repertoriee' | 'publique' | 'programmee'; programmeeLe: string | null; playlistId: string | null };
-  replit: { id: number | null; categorieId: number | null; playlistId: number | null };
+  replit: { id: number | null; classements: ChoixClassements; playlistId: number | null };
   erreur: { etape: 'vignette' | 'youtube' | 'replit'; message: string; le: string } | null;
 }
 
@@ -101,7 +102,7 @@ export function videoParDefaut(cible: CiblePublication, q: Qualification): Video
     capturesCandidates: [],
     consignesVignette: [],
     youtube: { id: null, visibilite: 'privee', programmeeLe: null, playlistId: null },
-    replit: { id: null, categorieId: null, playlistId: null },
+    replit: { id: null, classements: {}, playlistId: null },
     erreur: null,
   };
 }
@@ -164,6 +165,8 @@ const estObjet = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 const estTexte = (v: unknown): v is string => typeof v === 'string';
 const listeDeTextes = (v: unknown) => Array.isArray(v) && v.every(estTexte);
 const estId = (v: unknown) => v === null || (typeof v === 'number' && Number.isInteger(v));
+const estChoixClassements = (c: unknown) => estObjet(c)
+  && Object.values(c).every(x => x === 'aucun' || (Array.isArray(x) && x.every(id => Number.isInteger(id))));
 
 const estQualification = (q: unknown) => estObjet(q) && NATURES.includes(q.nature as Nature) && typeof q.confidentielle === 'boolean';
 
@@ -193,7 +196,13 @@ function completerVideo(v: unknown): unknown {
     const { fond: _, ...reste } = vignette;
     vignette = { gabarit: 'classique', logos: [], captures: [], ...reste };
   }
-  return { logiciels: [], capturesCandidates: [], consignesVignette: [], ...v, vignette };
+  // Avant les classements, l’outil était la seule catégorie du site.
+  let replit = v.replit;
+  if (estObjet(replit) && !('classements' in replit)) {
+    const { categorieId, ...reste } = replit;
+    replit = { ...reste, classements: typeof categorieId === 'number' ? { outil: [categorieId] } : {} };
+  }
+  return { logiciels: [], capturesCandidates: [], consignesVignette: [], ...v, vignette, replit };
 }
 
 // publication.json tel que lu sur le disque ou reçu du studio, mis à la forme actuelle.
@@ -262,7 +271,8 @@ export function raisonPublication(p: unknown): string | null {
       if (raison) return `${ou} : consignesVignette[${j}] : ${raison}`;
     }
     if (!estObjet(v.youtube) || !estObjet(v.replit)) return `${ou} : youtube et replit attendus`;
-    if (!estId(v.replit.id) || !estId(v.replit.categorieId) || !estId(v.replit.playlistId)) return `${ou} : identifiants du site invalides`;
+    if (!estId(v.replit.id) || !estId(v.replit.playlistId)) return `${ou} : identifiants du site invalides`;
+    if (!estChoixClassements(v.replit.classements)) return `${ou} : classements du site invalides`;
   }
   const cles = p.videos.map(v => String((v as Record<string, unknown>).cible));
   if (new Set(cles).size !== cles.length) return 'une vidéo apparaît deux fois';

@@ -1,3 +1,4 @@
+import { CLE_OUTIL, classementsManquants, classificationsSite, type TypeClassement } from './classements';
 import type { ReglagesPublication, VideoPubliee } from './publication';
 import { diffusion } from './qualification';
 import { bilanLecture, problemesDiffusion, type LectureYoutube } from './youtube';
@@ -12,6 +13,7 @@ export type CorpsVideoSite = {
   description: string;
   tags: string[];
   categoryId: number;
+  classifications: Record<string, number[]>;
   playlistId: number | null;
   durationSeconds: number;
   format: 'long';
@@ -20,7 +22,7 @@ export type CorpsVideoSite = {
   thumbnailObject: string;
 } & FichierVideoSite;
 
-export type EtatRelais = Parameters<typeof problemesDiffusion>[3] & { siteConfigure: boolean };
+export type EtatRelais = Parameters<typeof problemesDiffusion>[3] & { siteConfigure: boolean; classements: TypeClassement[] | null };
 
 const STATUTS_LIEN: VideoPubliee['statut'][] = ['envoyee-youtube', 'relayee'];
 
@@ -33,7 +35,8 @@ export function problemesRelais(v: VideoPubliee, descriptionFinale: string, r: R
   if (site === 'lien' && (!STATUTS_LIEN.includes(v.statut) || !v.youtube.id)) {
     problemes.push('Enregistrez d’abord l’envoi sur YouTube : une vidéo Pro non confidentielle est relayée avec son lien YouTube.');
   }
-  if (v.replit.categorieId === null) problemes.push('Choisissez la catégorie du site.');
+  if (etat.classements === null) problemes.push('Site injoignable : classements indisponibles, réessayez dans un instant.');
+  else problemes.push(...classementsManquants(etat.classements, v.replit.classements));
   if (!etat.siteConfigure) problemes.push('Site non configuré : renseignez REPLIT_SITE_URL et REPLIT_API_KEY dans .env, puis relancez le studio.');
   return problemes;
 }
@@ -43,15 +46,17 @@ export const raisonLectureRelais = (v: VideoPubliee, lecture: LectureYoutube, ma
   (lecture === 'publique' ? null : bilanLecture(v, lecture, maintenant).message);
 
 export function corpsRelais(
-  v: VideoPubliee, o: { dureeSecondes: number; fichier: FichierVideoSite; thumbnailObject: string },
+  v: VideoPubliee, o: { classements: TypeClassement[]; dureeSecondes: number; fichier: FichierVideoSite; thumbnailObject: string },
 ): CorpsVideoSite {
-  if (v.replit.categorieId === null) throw new Error('Catégorie du site manquante.');
+  const outil = v.replit.classements[CLE_OUTIL];
+  if (!Array.isArray(outil) || outil.length !== 1) throw new Error('Outil du site manquant.');
   return {
     title: v.titre.trim(),
     // Sans les chapitres horodatés : ils ne servent qu’à YouTube.
     description: v.description.trim(),
     tags: v.tags,
-    categoryId: v.replit.categorieId,
+    categoryId: outil[0]!,
+    classifications: classificationsSite(o.classements, v.replit.classements),
     playlistId: v.replit.playlistId,
     durationSeconds: Math.round(o.dureeSecondes),
     format: 'long',
@@ -65,8 +70,8 @@ export function corpsRelais(
 export const enregistrerRelais = (v: VideoPubliee, id: number): Partial<VideoPubliee> =>
   ({ statut: 'relayee', replit: { ...v.replit, id }, erreur: null });
 
-// Vidéo retirée du site : plus d’identifiant ni de catégorie, et le statut d’avant le relais.
+// Vidéo retirée du site : plus d’identifiant, et le statut d’avant le relais.
 export function enregistrerRetrait(v: VideoPubliee): Partial<VideoPubliee> {
   const statut = v.statut === 'relayee' ? (v.youtube.id ? 'envoyee-youtube' : 'prete') : v.statut;
-  return { statut, replit: { id: null, categorieId: null, playlistId: null }, erreur: null };
+  return { statut, replit: { ...v.replit, id: null }, erreur: null };
 }

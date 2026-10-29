@@ -313,7 +313,7 @@ const PERSO: Qualification = { nature: 'perso', confidentielle: false };
 const PERSO_CONF: Qualification = { nature: 'perso', confidentielle: true };
 const PRO: Qualification = { nature: 'pro', confidentielle: false };
 const PRO_CONF: Qualification = { nature: 'pro', confidentielle: true };
-const SITE_CHOISI = { replit: { id: null, categorieId: 1, playlistId: null } };
+const SITE_CHOISI = { replit: { id: null, classements: { outil: [1] }, playlistId: null } };
 // Vidéo complète validée, vignette rendue ; `changement` complète ses champs (catégorie du site…).
 async function prete(q: Qualification = PERSO, changement: Record<string, unknown> = {}) {
   const dossier = await tournage('a');
@@ -435,7 +435,7 @@ describe('relais sur le site', () => {
     const dossier = await prete(PRO_CONF, SITE_CHOISI);
     const r = await relayer();
     expect(r.status).toBe(200);
-    expect(((await r.json()) as Publication).videos[0]).toMatchObject({ statut: 'relayee', replit: { id: 42, categorieId: 1 }, erreur: null });
+    expect(((await r.json()) as Publication).videos[0]).toMatchObject({ statut: 'relayee', replit: { id: 42, classements: { outil: [1] } }, erreur: null });
     expect(site().envoyerFichier).toHaveBeenCalledWith(path.join(dossier, 'rendus', 'vignettes', 'complete.jpg'), 'image/jpeg');
     expect(site().envoyerFichier).toHaveBeenCalledWith(path.join(dossier, 'rendus', 'video-complete.mp4'), 'video/mp4');
     expect(site().enregistrerVideo).toHaveBeenCalledWith(null, expect.objectContaining({
@@ -522,7 +522,7 @@ describe('retrait du site', () => {
     const r = await retirer();
     expect(r.status).toBe(200);
     expect(((await r.json()) as Publication).videos[0]).toMatchObject({
-      ...PERSO, statut: 'prete', replit: { id: null, categorieId: null, playlistId: null }, erreur: null,
+      ...PERSO, statut: 'prete', replit: { id: null, classements: { outil: [1] }, playlistId: null }, erreur: null,
     });
     expect(site().supprimerVideo).toHaveBeenCalledWith(42);
     const enregistree = JSON.parse(await readFile(path.join(dossier, 'publication.json'), 'utf-8')) as Publication;
