@@ -10,6 +10,7 @@ import {
 } from '../../noyau/publication';
 import { chapitresYoutube, descriptionYoutube, segmentsSecondes, texteConserve } from '../../noyau/publication-textes';
 import { diffusion, NATURES, type Nature } from '../../noyau/qualification';
+import type { ValeurClassement } from '../../noyau/classements';
 import { corpsRelais, enregistrerRelais, enregistrerRetrait, problemesRelais, raisonLectureRelais, urlYoutube } from '../../noyau/relais';
 import type { Segment } from '../../noyau/types';
 import {
@@ -387,16 +388,29 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
     return { lecture, ...bilanLecture(video, lecture, new Date()) };
   }
 
+  async function creerValeurClassement(req: IncomingMessage, cle: string): Promise<ValeurClassement> {
+    const nom = objet(await lireCorps(req)).nom;
+    if (typeof nom !== 'string' || nom.trim() === '') throw new ErreurHttp(400, 'nom attendu : texte non vide.');
+    if (!c.site) throw new ErreurHttp(422, 'Site non configuré : renseignez REPLIT_SITE_URL et REPLIT_API_KEY dans .env, puis relancez le studio.');
+    try {
+      return await c.site.creerValeur(cle, nom.trim());
+    } catch (e) {
+      throw new ErreurHttp(502, message(e));
+    }
+  }
+
   async function relayer(req: IncomingMessage, ctx: Contexte): Promise<Publication> {
     const cible = lireCible(await lireCorps(req), ctx.cibles);
     const video = videoDe(ctx.publication, cible);
     const disponible = ctx.videos.find(v => v.cible === cible)!;
     const vignette = video.vignette?.fichier ? path.join(ctx.dossier, video.vignette.fichier) : null;
     const octetsVignette = vignette && existsSync(vignette) ? (await stat(vignette)).size : null;
+    const references = await c.lireSite(c.urlSite);
     const problemes = problemesRelais(video, descriptionYoutube(video.description, disponible.chapitres), ctx.tournage.reglages.publication, {
       rendu: { fichier: disponible.fichier, present: disponible.rendue },
       octetsVignette,
       siteConfigure: c.site !== null,
+      classements: references?.classements ?? null,
     });
     if (problemes.length > 0 || !vignette || !c.site) throw new ErreurHttp(422, 'La vidéo ne peut pas être relayée sur le site.', problemes);
     const idYoutube = video.youtube.id;
@@ -414,7 +428,7 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
       const fichier = lien && idYoutube
         ? { videoUrl: urlYoutube(idYoutube), videoObject: null }
         : { videoObject: await c.site.envoyerFichier(path.join(ctx.dossier, 'rendus', disponible.fichier), 'video/mp4'), videoUrl: null };
-      id = await c.site.enregistrerVideo(video.replit.id, corpsRelais(video, { dureeSecondes: disponible.dureeSecondes, fichier, thumbnailObject }));
+      id = await c.site.enregistrerVideo(video.replit.id, corpsRelais(video, { classements: references!.classements, dureeSecondes: disponible.dureeSecondes, fichier, thumbnailObject }));
     } catch (e) {
       const actuelle = await relire(ctx);
       await ecrirePublication(ctx.dossier, modifierVideo(actuelle, cible, {
@@ -502,6 +516,16 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
     const chemin = new URL(req.url ?? '/', 'http://local').pathname;
     const route = /^\/api\/tournages\/([^/]+)\/publication(?:\/(redaction|vignette\/consigne|vignette|captures|valider|relais|site\/retirer|youtube\/(?:preparer|ouvrir|envoi|verifier)))?$/
       .exec(chemin);
+    const valeur = /^\/api\/site\/classements\/([^/]+)\/valeurs$/.exec(chemin);
+    if (valeur) {
+      try {
+        if (req.method !== 'POST') throw new ErreurHttp(405, 'Méthode non permise.');
+        repondre(res, 200, await creerValeurClassement(req, decodeURIComponent(valeur[1]!)));
+      } catch (e) {
+        repondreErreur(res, e);
+      }
+      return true;
+    }
     if (!route && chemin !== '/api/poses') return false;
     try {
       if (!route) {

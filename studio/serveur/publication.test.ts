@@ -320,7 +320,7 @@ const PERSO: Qualification = { nature: 'perso', confidentielle: false };
 const PERSO_CONF: Qualification = { nature: 'perso', confidentielle: true };
 const PRO: Qualification = { nature: 'pro', confidentielle: false };
 const PRO_CONF: Qualification = { nature: 'pro', confidentielle: true };
-const SITE_CHOISI = { replit: { id: null, classements: { outil: [1] }, playlistId: null } };
+const SITE_CHOISI = { replit: { id: null, classements: { outil: [1], theme: 'aucun' }, playlistId: null } };
 // Vidéo complète validée, vignette rendue ; `changement` complète ses champs (catégorie du site…).
 async function prete(q: Qualification = PERSO, changement: Record<string, unknown> = {}) {
   const dossier = await tournage('a');
@@ -464,9 +464,17 @@ describe('relais sur le site', () => {
     const perso = await relayer();
     expect(perso.status).toBe(422);
     expect((await perso.json()).problemes).toEqual(['Une vidéo Perso n’est pas relayée sur le site.']);
-    await prete(PRO_CONF);
-    expect((await (await relayer()).json()).problemes).toEqual(['Choisissez la catégorie du site.']);
     expect(site().enregistrerVideo).not.toHaveBeenCalled();
+  });
+  it('refuse le relais tant qu’un classement n’est pas décidé', async () => {
+    await prete(PRO_CONF, { replit: { id: null, classements: { outil: [1] }, playlistId: null } });
+    expect((await (await relayer()).json()).problemes).toEqual(['Par thème : choisissez une valeur ou cochez Aucune sélection.']);
+    expect(site().enregistrerVideo).not.toHaveBeenCalled();
+  });
+  it('relaie avec les classements du site', async () => {
+    await prete(PRO_CONF, SITE_CHOISI);
+    await relayer();
+    expect(site().enregistrerVideo).toHaveBeenCalledWith(null, expect.objectContaining({ categoryId: 1, classifications: { outil: [1], theme: [] } }));
   });
   it('refuse tant que le site n’est pas configuré', async () => {
     await prete(PRO_CONF, SITE_CHOISI);
@@ -499,6 +507,22 @@ describe('relais sur le site', () => {
     const apres = JSON.parse(await readFile(path.join(dossier, 'publication.json'), 'utf-8')) as Publication;
     expect(apres.videos[0]).toMatchObject({ statut: 'prete', erreur: { etape: 'replit' } });
     expect(((await (await relayer()).json()) as Publication).videos[0]).toMatchObject({ statut: 'relayee', erreur: null });
+  });
+});
+
+describe('valeurs de classement', () => {
+  const creer = (cle: string, corps: unknown) =>
+    fetch(`${url}/api/site/classements/${cle}/valeurs`, { method: 'POST', headers: json, body: JSON.stringify(corps) });
+  it('crée la valeur sur le site', async () => {
+    const r = await creer('theme', { nom: ' IA ' });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ id: 99, nom: 'IA' });
+    expect(config.site!.creerValeur).toHaveBeenCalledWith('theme', 'IA');
+  });
+  it('refuse un nom vide, et sans site configuré', async () => {
+    expect((await creer('theme', { nom: '  ' })).status).toBe(400);
+    config.site = null;
+    expect((await creer('theme', { nom: 'IA' })).status).toBe(422);
   });
 });
 

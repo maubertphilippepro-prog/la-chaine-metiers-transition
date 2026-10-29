@@ -1,3 +1,4 @@
+import type { ValeurClassement } from '../../noyau/classements';
 import type { Ancrage, Consigne, FichierConsignes } from '../../noyau/consignes';
 import type { Montage } from '../../noyau/types';
 import type { CiblePublication, Publication } from '../../noyau/publication';
@@ -33,6 +34,8 @@ const chemin = (nom: string) => `/api/tournages/${encodeURIComponent(nom)}`;
 export const api = {
   tournages: () => appeler<ResumeTournage[]>('/api/tournages'),
   tournage: (nom: string) => appeler<DetailTournage>(chemin(nom)),
+  creerValeurClassement: (cle: string, nom: string) =>
+    appeler<ValeurClassement>(`/api/site/classements/${encodeURIComponent(cle)}/valeurs`, enJson('POST', { nom })),
   creerTournage: (titre: string, date: string) => appeler<{ nom: string }>('/api/tournages', enJson('POST', { titre, date })),
   // XMLHttpRequest plutôt que fetch : lui seul donne la progression de l'envoi.
   deposerVideo: (nom: string, fichier: File, onProgression: (part: number) => void) => new Promise<void>((resoudre, rejeter) => {
