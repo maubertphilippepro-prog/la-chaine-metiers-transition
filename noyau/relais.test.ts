@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import reglagesJson from '../reglages.json';
 import { videoParDefaut, type VideoPubliee } from './publication';
 import { corpsRelais, enregistrerRelais, enregistrerRetrait, problemesRelais, raisonLectureRelais, urlYoutube } from './relais';
-import type { TypeClassement } from './classements';
+import { CLE_OUTIL, type TypeClassement } from './classements';
 import type { Qualification } from './qualification';
 import type { Reglages } from './types';
 
@@ -88,6 +88,10 @@ describe('corpsRelais', () => {
   it('intègre la vidéo YouTube d’une vidéo Pro non confidentielle, visible de tous, sans fichier', () => {
     const corps = corpsRelais(lienEnvoyee(), { classements: TYPES, dureeSecondes: 60, fichier: { videoUrl: urlYoutube(ID), videoObject: null }, thumbnailObject: 'v' });
     expect(corps).toMatchObject({ visibility: 'public', videoUrl: `https://www.youtube.com/watch?v=${ID}`, videoObject: null, thumbnailObject: 'v' });
+  });
+  it.each([[[1, 2]], ['aucun']])('refuse une vidéo dont l’outil est %j', (outil) => {
+    expect(() => corpsRelais(video({ replit: { id: null, classements: { [CLE_OUTIL]: outil as never }, playlistId: null } }),
+      { classements: TYPES, dureeSecondes: 1, fichier: { videoObject: 'o', videoUrl: null }, thumbnailObject: 'v' })).toThrow('Outil du site manquant.');
   });
   it('refuse une vidéo sans outil', () => {
     expect(() => corpsRelais(video({ replit: { id: null, classements: {}, playlistId: null } }),

@@ -520,7 +520,9 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
     if (valeur) {
       try {
         if (req.method !== 'POST') throw new ErreurHttp(405, 'Méthode non permise.');
-        repondre(res, 200, await creerValeurClassement(req, decodeURIComponent(valeur[1]!)));
+        let cle: string;
+        try { cle = decodeURIComponent(valeur[1]!); } catch { throw new ErreurHttp(400, 'Clé de classement mal encodée.'); }
+        repondre(res, 200, await creerValeurClassement(req, cle));
       } catch (e) {
         repondreErreur(res, e);
       }

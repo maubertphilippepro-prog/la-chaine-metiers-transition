@@ -519,6 +519,10 @@ describe('valeurs de classement', () => {
     expect(await r.json()).toEqual({ id: 99, nom: 'IA' });
     expect(config.site!.creerValeur).toHaveBeenCalledWith('theme', 'IA');
   });
+  it('répond 400 à une clé mal encodée', async () => {
+    expect((await creer('%E0%A4%A', { nom: 'IA' })).status).toBe(400);
+    expect(config.site!.creerValeur).not.toHaveBeenCalled();
+  });
   it('refuse un nom vide, et sans site configuré', async () => {
     expect((await creer('theme', { nom: '  ' })).status).toBe(400);
     config.site = null;

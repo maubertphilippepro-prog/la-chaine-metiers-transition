@@ -56,7 +56,7 @@ async function main(): Promise<void> {
     urlFichiers: fichiers.url,
     urlPoses: serveurPoses.url,
     urlLogos: serveurLogos.url,
-    // Adresse publiée du site Replit (catégories et playlists), dans .env.
+    // Adresse publiée du site Replit (classements et playlists), dans .env.
     urlSite: process.env.REPLIT_SITE_URL,
     lireSite: url => lireReferencesSite(url),
     rediger: d => redigerPublication(d),

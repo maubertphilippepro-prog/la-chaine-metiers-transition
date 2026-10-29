@@ -60,7 +60,7 @@ export const EcranPublication: FC<{ nom: string }> = ({ nom }) => {
         {poses === null && !erreurPoses && <p><Attente libelle="Préparation de la banque de poses…" /></p>}
         {erreurPoses && <p className="alerte">Banque de poses : {erreurPoses}</p>}
         {!detail.site && (
-          <p className="discret">Site Replit injoignable ou adresse absente (REPLIT_SITE_URL dans .env) : catégories et playlists indisponibles.</p>
+          <p className="discret">Site Replit injoignable ou adresse absente (REPLIT_SITE_URL dans .env) : classements et playlists du site indisponibles.</p>
         )}
       </section>
       {publication.videos.map(v => {

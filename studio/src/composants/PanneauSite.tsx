@@ -101,7 +101,7 @@ export const PanneauSite: FC<Props> = ({ nom, video: v, urlSite, site, changer, 
           </label>
         </div>
       ) : (
-        <p className="alerte">Site injoignable : catégories et playlists indisponibles, relais impossible pour l’instant.</p>
+        <p className="alerte">Site injoignable : classements et playlists du site indisponibles, relais impossible pour l’instant.</p>
       )}
       <div className="actions">
         <button className="principal" disabled={occupe || manquants.length > 0} onClick={() => void relayer()}>

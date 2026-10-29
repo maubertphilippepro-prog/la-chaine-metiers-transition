@@ -10,7 +10,7 @@ import { creerClientSite, lireReferencesSite } from './site-replit';
 const reponse = (corps: unknown, ok = true) => ({ ok, status: ok ? 200 : 500, json: async () => corps }) as Response;
 
 describe('lireReferencesSite', () => {
-  it('lit les catégories et les playlists du site', async () => {
+  it('lit les classements et les playlists du site', async () => {
     const recuperer = vi.fn(async (url: string) => reponse(
       url.endsWith('/api/categories') ? [{ id: 1, name: 'IA & outils numériques' }, { id: 'x' }]
       : url.endsWith('/api/classifications') ? [
