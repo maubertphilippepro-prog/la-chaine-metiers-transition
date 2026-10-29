@@ -17,7 +17,7 @@ const LIBELLES_ENREGISTREMENT: Record<EtatEnregistrement, string> = {
 
 // Une carte par vidéo rendue.
 export const EcranPublication: FC<{ nom: string }> = ({ nom }) => {
-  const { detail, publication, erreur, enregistrement, modifier, executer, synchroniser } = usePublication(nom);
+  const { detail, publication, erreur, enregistrement, modifier, executer, synchroniser, ajouterValeur } = usePublication(nom);
   const [poses, setPoses] = useState<Pose[] | null>(null);
   const [erreurPoses, setErreurPoses] = useState<string | null>(null);
   useEffect(() => {
@@ -70,7 +70,7 @@ export const EcranPublication: FC<{ nom: string }> = ({ nom }) => {
             key={String(v.cible)} nom={nom} video={v} disponible={disponible} detail={detail} poses={poses ?? []}
             complete={publication.videos.find(x => x.cible === 'complete')?.vignette ?? null}
             gabaritsAutres={gabaritsAutres(publication, v.cible)}
-            modifier={modifier} executer={executer} synchroniser={synchroniser}
+            modifier={modifier} executer={executer} synchroniser={synchroniser} ajouterValeur={ajouterValeur}
           />
         );
       })}

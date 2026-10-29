@@ -1,4 +1,5 @@
 import { type FC, useEffect, useState } from 'react';
+import type { ValeurClassement } from '../../../noyau/classements';
 import { longueurTags, modifierVideo, retraitAFaire, type Publication, type VideoPubliee, type Vignette } from '../../../noyau/publication';
 import type { Gabarit } from '../../../noyau/gabarits';
 import { diffusion, NATURES, type Nature, type Qualification } from '../../../noyau/qualification';
@@ -25,6 +26,7 @@ interface Props {
   modifier: (f: (p: Publication) => Publication) => void;
   executer: (action: () => Promise<Publication>) => Promise<void>;
   synchroniser: () => Promise<void>;
+  ajouterValeur: (cle: string, v: ValeurClassement) => void;
 }
 
 const REDACTION = 'Rédaction par Claude…';
@@ -32,7 +34,7 @@ const VERIFICATION = 'Vérification…';
 const RETRAIT = 'Retrait du site…';
 
 
-export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail, poses, complete, gabaritsAutres, modifier, executer, synchroniser }) => {
+export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail, poses, complete, gabaritsAutres, modifier, executer, synchroniser, ajouterValeur }) => {
   const [occupe, setOccupe] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [problemes, setProblemes] = useState<string[]>([]);
@@ -143,7 +145,7 @@ export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail,
           {((validee(v) && d.site !== 'aucun') || retraitAFaire(v)) && (
             <PanneauSite
               key={`site-${d.site}`} nom={nom} video={v} urlSite={detail.urlSite} site={detail.site}
-              changer={changer} synchroniser={synchroniser} executer={executer}
+              changer={changer} synchroniser={synchroniser} executer={executer} ajouterValeur={ajouterValeur}
             />
           )}
         </>
