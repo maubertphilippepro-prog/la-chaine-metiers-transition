@@ -74,9 +74,10 @@ export function extraireMail(reponse: string): string {
 
 export async function redigerMail(d: DemandeMail, client?: Anthropic): Promise<string> {
   verifierCleClaude(client);
+  // messages.parse (sans format) : seul à accepter « fallbacks » dans les types du SDK, comme redaction.ts.
   let reponse;
   try {
-    reponse = await (client ?? new Anthropic()).messages.create(
+    reponse = await (client ?? new Anthropic()).messages.parse(
       {
         model: d.modele,
         max_tokens: 8000,
