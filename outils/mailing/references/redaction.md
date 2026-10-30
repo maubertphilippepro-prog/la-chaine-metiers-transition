@@ -10,7 +10,7 @@ Les collaborateurs CICAD : ingénieurs, chargés d'affaires, techniciens, souven
 - Orienté bénéfice terrain : « la FICO se rédige pendant la visite », pas « nouvelle fonctionnalité de génération documentaire ».
 - Une pointe d'humour est bienvenue quand elle sert le propos (exemple des anciennes comms : « … Horrible 😱 », « … Flemme 😩 », « … Génial !!! 🤩 »).
 - Emojis : oui, comme repères visuels (puces, titres), un par élément au plus. Pas d'emoji décoratif au milieu des phrases.
-- Signature collective : « la cellule QIU » ou « le Pôle Métiers & Transition », selon ce que dit l'utilisateur.
+- Signature collective : « le Pôle Métiers & Transition ». Ne mentionne pas la cellule QIU.
 
 ## Structure type
 
@@ -23,7 +23,7 @@ Les collaborateurs CICAD : ingénieurs, chargés d'affaires, techniciens, souven
 7. **Démonstration** : capture, vidéo (`[[video:…]]`) ou bloc `:::info` par étape.
 8. **Appel à l'action** : un bouton principal, au plus deux. Libellé = verbe + objet (« 📄 Ouvrir le gabarit »).
 9. **Règles d'usage / mise en garde éventuelle** : bloc `:::attention`.
-10. **Pied de page** : contact (cellule QIU) et formule courte.
+10. **Pied de page** : formule courte, sans contact (le logo du Pôle est ajouté automatiquement dessous).
 
 Adapte la structure au sujet : une invitation à un webinaire n'a pas besoin de liste de fonctionnalités, et un retour d'expérience peut s'appuyer sur des chiffres en colonnes.
 

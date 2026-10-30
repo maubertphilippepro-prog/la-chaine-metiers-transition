@@ -55,7 +55,7 @@ Premier paragraphe : **le message clé** en une ou deux phrases.
 [[bouton: 👉 Découvrir | https://exemple.com | Petite légende sous le bouton]]
 
 :::footer
-Pour toute question, contactez la cellule QIU.
+Bonne découverte !
 :::
 """
 
@@ -412,6 +412,13 @@ def render_blocks(ctx, lines, avail_w=INNER, nested=False):
 
 # ---------------------------------------------------------------- bandeau + page
 
+def footer_logo_html(ctx):
+    """Logo du Pôle Métiers & Transition, centré en bas de chaque mail."""
+    pole = img_tag(ctx, "logo-pole-mt.png", 120, "Pôle Métiers & Transition", "margin:0 auto;", fluid=False)
+    return (f'<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">'
+            f'<tr><td align="center" style="padding:16px 0 8px 0;">{pole}</td></tr></table>')
+
+
 def banner_html(ctx, meta):
     title = meta.get("bandeau_titre") or meta.get("objet", "")
     sub = meta.get("bandeau_sous_titre", "")
@@ -438,12 +445,7 @@ def banner_html(ctx, meta):
     if meta.get("bandeau_accroche"):
         rows.append(f'<tr><td align="center" class="px" style="padding:6px {PAD}px 0 {PAD}px;font-family:{FONT};'
                     f'font-size:19px;line-height:1.35;color:{BLUE};">{inline(meta["bandeau_accroche"])}</td></tr>')
-    pole = img_tag(ctx, "logo-pole-mt.png", 120, "Pôle Métiers & Transition", fluid=False)
-    cicad = img_tag(ctx, "logo-cicad.png", 88, "Cicad", fluid=False)
-    rows.append(f'<tr><td style="padding:10px 18px 16px 18px;"><table role="presentation" cellpadding="0" '
-                f'cellspacing="0" border="0" width="100%"><tr><td align="left" valign="bottom">{pole}</td>'
-                f'<td align="right" valign="bottom">{cicad}</td></tr></table></td></tr>')
-    rows.append(f'<tr><td style="padding:0 {PAD}px;"><table role="presentation" cellpadding="0" cellspacing="0" '
+    rows.append(f'<tr><td style="padding:16px {PAD}px 0 {PAD}px;"><table role="presentation" cellpadding="0" cellspacing="0" '
                 f'border="0" width="100%"><tr><td style="border-top:3px solid {RED};font-size:0;line-height:0;'
                 f'height:3px;">&nbsp;</td></tr></table></td></tr>')
     return "\n".join(rows)
@@ -515,7 +517,7 @@ def build(comm: Path):
     (ctx.build / "images").mkdir(parents=True)
 
     banner = banner_html(ctx, meta) if meta.get("bandeau", "oui").lower() not in ("non", "no", "false") else ""
-    body = margins_to_padding(render_blocks(ctx, lines))
+    body = margins_to_padding(render_blocks(ctx, lines)) + footer_logo_html(ctx)
     subject = meta.get("objet") or meta.get("subject") or meta.get("bandeau_titre", "")
     page = PAGE.format(title=html.escape(subject), preheader=html.escape(meta.get("preheader", "")),
                        banner=banner, body=body, width=WIDTH, pad=PAD, blue=BLUE)

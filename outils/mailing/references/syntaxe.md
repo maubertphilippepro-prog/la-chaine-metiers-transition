@@ -21,7 +21,7 @@ cci:
 ---
 ```
 
-Le bandeau généré comporte, de haut en bas : la frise CICAD, le titre, la ligne « sous-titre + logo », l'accroche, le logo Pôle Métiers & Transition à gauche et celui de Cicad à droite, puis un filet rouge.
+Le bandeau généré comporte, de haut en bas : la frise CICAD, le titre, la ligne « sous-titre + logo », l'accroche, puis un filet rouge (aucun logo Pôle ni Cicad).
 
 ## Texte
 
@@ -94,12 +94,12 @@ Les colonnes (2 ou 3) sont côte à côte sur ordinateur et s'empilent sur mobil
 
 ```
 :::footer
-Pour toute question, contactez la cellule QIU.
+Bonne découverte !
 Bonne découverte !
 :::
 ```
 
-Le pied de page affiche un texte gris centré, précédé d'un filet.
+Le pied de page affiche un texte gris centré, précédé d'un filet. Le logo du Pôle Métiers & Transition est ajouté, centré, en bas de chaque mail.
 
 ## HTML brut
 

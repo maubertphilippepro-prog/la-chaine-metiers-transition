@@ -41,6 +41,5 @@ N'hésitez pas à l'utiliser sur vos prochaines visites de chantier et à partag
 :::
 
 :::footer
-Pour toute question ou besoin d'accompagnement, contactez la cellule QIU.
 Bonne découverte de There !
 :::

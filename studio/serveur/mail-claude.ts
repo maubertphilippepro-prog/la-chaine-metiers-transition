@@ -31,7 +31,7 @@ export function construirePromptMail(d: DemandeMail): string {
   const video = d.vignette ? `[[video: ${d.titreVideo} | ${d.urlVideo} | ${d.vignette}]]` : `[[video: ${d.titreVideo} | ${d.urlVideo}]]`;
   const chapitres = d.chapitres.length > 0 ? `\nChapitres :\n${d.chapitres.map(c => `- ${c}`).join('\n')}\n` : '';
   const images = d.images.length > 0 ? d.images.join(', ') : 'aucune';
-  return `Tu rédiges, pour le Pôle Métiers & Transition (cellule QIU), le mail de com interne qui annonce une vidéo aux collaborateurs CICAD. Le mail s'écrit dans le format mail.md décrit plus bas ; l'auteur le relira avant envoi.
+  return `Tu rédiges, pour le Pôle Métiers & Transition, le mail de com interne qui annonce une vidéo aux collaborateurs CICAD. Le mail s'écrit dans le format mail.md décrit plus bas ; l'auteur le relira avant envoi.
 
 Vidéo : ${d.titreVideo}
 Description publiée : ${d.description || '(aucune)'}
