@@ -38,6 +38,8 @@ export const api = {
     appeler<DetailMail>(`${chemin(nom)}/publication/mail`, enJson('PUT', { cible, ...champs })),
   actionMail: (nom: string, cible: CiblePublication, quoi: 'copie' | 'redaction' | 'construire' | 'brouillon') =>
     appeler<DetailMail>(`${chemin(nom)}/publication/mail/${quoi}`, enJson('POST', { cible })),
+  retoucherMail: (nom: string, cible: CiblePublication, consigne: string) =>
+    appeler<DetailMail & { resumeRetouche: string }>(`${chemin(nom)}/publication/mail/retouche`, enJson('POST', { cible, consigne })),
   deposerImageMail: (nom: string, cible: CiblePublication, fichier: string, contenu: Blob) => appeler<DetailMail>(
     `${chemin(nom)}/publication/mail/images?cible=${cible}&fichier=${encodeURIComponent(fichier)}`,
     { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: contenu },

@@ -534,7 +534,7 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
 
   return async function traiter(req, res) {
     const chemin = new URL(req.url ?? '/', 'http://local').pathname;
-    const route = /^\/api\/tournages\/([^/]+)\/publication(?:\/(redaction|vignette\/consigne|vignette|captures|valider|relais|site\/retirer|youtube\/(?:preparer|ouvrir|envoi|verifier)|mail(?:\/(?:copie|images|redaction|construire|brouillon))?))?$/
+    const route = /^\/api\/tournages\/([^/]+)\/publication(?:\/(redaction|vignette\/consigne|vignette|captures|valider|relais|site\/retirer|youtube\/(?:preparer|ouvrir|envoi|verifier)|mail(?:\/(?:copie|images|redaction|construire|retouche|brouillon))?))?$/
       .exec(chemin);
     const valeur = /^\/api\/site\/classements\/([^/]+)\/valeurs$/.exec(chemin);
     if (valeur) {
@@ -585,6 +585,7 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
           else if (req.method === 'POST' && action === 'mail/copie') repondre(res, 200, await mail.copier(v));
           else if (req.method === 'POST' && action === 'mail/redaction') repondre(res, 200, await mail.rediger(v));
           else if (req.method === 'POST' && action === 'mail/construire') repondre(res, 200, await mail.construire(v));
+          else if (req.method === 'POST' && action === 'mail/retouche') repondre(res, 200, await mail.retoucher(v, typeof corps.consigne === 'string' ? corps.consigne : ''));
           else if (req.method === 'POST' && action === 'mail/brouillon') repondre(res, 200, await mail.brouillon(v));
           else repondre(res, 404, { erreur: 'Route inconnue.' });
         }

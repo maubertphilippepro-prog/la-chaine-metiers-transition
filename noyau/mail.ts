@@ -35,3 +35,21 @@ export function raisonMail(nature: Nature, rendue: boolean): string | null {
 export function brouillonPossible(e: EtatMail, modifieLe: number | null): boolean {
   return e.construitLe !== null && modifieLe !== null && modifieLe <= Date.parse(e.construitLe);
 }
+
+// Retouche ponctuelle du HTML construit : chaque « avant » doit figurer une seule fois, pour ne rien toucher d'autre.
+export interface Remplacement {
+  avant: string;
+  apres: string;
+}
+
+export function appliquerRetouches(html: string, remplacements: Remplacement[]): string {
+  const introuvables = remplacements.filter(r => r.avant === '' || html.split(r.avant).length !== 2);
+  if (introuvables.length > 0) {
+    throw new Error(`${introuvables.length} morceau(x) introuvable(s) ou présent(s) plusieurs fois dans le HTML : rien n'a été modifié.`);
+  }
+  return remplacements.reduce((h, r) => h.replace(r.avant, () => r.apres), html);
+}
+
+// preview.html est mail.html avec les images servies par fichier plutôt que par pièce jointe (comme build_mail.py).
+export const apercuDepuisMail = (html: string, images: { cid: string; file: string }[]) =>
+  images.reduce((h, im) => h.split(`src="cid:${im.cid}"`).join(`src="${im.file}"`), html);

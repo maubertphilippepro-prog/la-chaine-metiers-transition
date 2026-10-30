@@ -86,8 +86,12 @@ beforeEach(async () => {
       construire: vi.fn(async (dossier: string) => {
         await mkdir(path.join(dossier, 'build'), { recursive: true });
         await writeFile(path.join(dossier, 'build', 'apercu-bureau.png'), 'png');
+        await writeFile(path.join(dossier, 'build', 'mail.html'), '<h1 style="color:#004D9B">T</h1><img src="cid:img1">');
+        await writeFile(path.join(dossier, 'build', 'manifest.json'), JSON.stringify({ html: 'mail.html', images: [{ cid: 'img1', file: 'images/a.png' }] }));
         return 'ok';
       }),
+      retoucher: vi.fn(async () => ({ remplacements: [{ avant: 'color:#004D9B', apres: 'color:#16a34a' }], resume: 'Titre passé en vert.' })),
+      capturer: vi.fn(async () => 'captures ok'),
       brouillon: vi.fn(async () => 'Brouillon Outlook cree'),
       lireReference: vi.fn(async (r: string) => `contenu de ${r}`),
       logosBandeau: vi.fn(async () => ['there']),
@@ -168,6 +172,36 @@ describe('mail de com', () => {
     await new Promise(r => setTimeout(r, 20));
     await fetch(`${url}/api/tournages/a/publication/mail`, { method: 'PUT', headers: json, body: JSON.stringify({ ...corps, texte: 'autre' }) });
     expect((await detailMail('a')).brouillonPossible).toBe(false);
+  });
+  it('retouche le HTML construit sans toucher à mail.md, puis refait les captures', async () => {
+    await tournage('a');
+    await qualifier('a', 'pro');
+    const corps = { cible: 'complete', texte: '---\nobjet: X\n---\nCorps\n' };
+    await fetch(`${url}/api/tournages/a/publication/mail`, { method: 'PUT', headers: json, body: JSON.stringify(corps) });
+    expect((await mail('a', 'retouche', { cible: 'complete', consigne: 'Titre en vert' })).status).toBe(409);
+    await mail('a', 'construire', { cible: 'complete' });
+    const d = await (await mail('a', 'retouche', { cible: 'complete', consigne: 'Titre en vert' })).json();
+    const build = path.join(racine, 'tournages', 'a', 'publication', 'complete', 'mail', 'build');
+    expect(vi.mocked(config.mail.retoucher).mock.calls[0]![0].consigne).toBe('Titre en vert');
+    expect(await readFile(path.join(build, 'mail.html'), 'utf-8')).toBe('<h1 style="color:#16a34a">T</h1><img src="cid:img1">');
+    expect(await readFile(path.join(build, 'preview.html'), 'utf-8')).toBe('<h1 style="color:#16a34a">T</h1><img src="images/a.png">');
+    expect(config.mail.capturer).toHaveBeenCalled();
+    expect(d.resumeRetouche).toBe('Titre passé en vert.');
+    expect(d.texte).toBe(corps.texte);
+    expect(d.brouillonPossible).toBe(true);
+  });
+  it('ne modifie rien si un extrait proposé par Claude est introuvable', async () => {
+    await tournage('a');
+    await qualifier('a', 'pro');
+    await fetch(`${url}/api/tournages/a/publication/mail`, { method: 'PUT', headers: json, body: JSON.stringify({ cible: 'complete', texte: 'Corps' }) });
+    await mail('a', 'construire', { cible: 'complete' });
+    vi.mocked(config.mail.retoucher).mockResolvedValueOnce({ remplacements: [{ avant: 'absent', apres: 'x' }], resume: 'r' });
+    const r = await mail('a', 'retouche', { cible: 'complete', consigne: 'X' });
+    expect(r.status).toBe(500);
+    expect((await r.json()).erreur).toContain('introuvable');
+    const build = path.join(racine, 'tournages', 'a', 'publication', 'complete', 'mail', 'build');
+    expect(await readFile(path.join(build, 'mail.html'), 'utf-8')).toContain('#004D9B');
+    expect(config.mail.capturer).not.toHaveBeenCalled();
   });
   it('refuse de construire un mail.md vide ou blanc', async () => {
     await tournage('a');

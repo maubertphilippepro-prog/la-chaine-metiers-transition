@@ -3,20 +3,22 @@ import { appendFile, copyFile, mkdir, readdir, readFile, stat, writeFile } from 
 import type { IncomingMessage } from 'node:http';
 import path from 'node:path';
 import {
-  A_COMPLETER, brouillonPossible, dossierMail, ETAT_MAIL_VIDE, fichierSharepoint, raisonMail, urlSharepoint, type EtatMail,
+  A_COMPLETER, apercuDepuisMail, appliquerRetouches, brouillonPossible, dossierMail, ETAT_MAIL_VIDE, fichierSharepoint, raisonMail, urlSharepoint, type EtatMail,
 } from '../../noyau/mail';
 import { fichierVignette, type CiblePublication, type VideoPubliee } from '../../noyau/publication';
 import type { Reglages } from '../../noyau/types';
 import type { DetailMail, VideoDisponible } from '../commun';
 import { ErreurInterpretation } from './consignes';
 import { ecrireJson, ErreurHttp, message } from './http';
-import type { RedigerMail } from './mail-claude';
+import type { RedigerMail, RetoucherMail } from './mail-claude';
 
 export interface OutilsMail {
   sharepoint: Reglages['sharepoint'];
   copier: (source: string, cible: string) => Promise<boolean>;
   rediger: RedigerMail;
   construire: (dossierMail: string) => Promise<string>;
+  retoucher: RetoucherMail;
+  capturer: (dossierMail: string) => Promise<string>;
   brouillon: (dossierBuild: string) => Promise<string>;
   lireReference: (relatif: string) => Promise<string>;
   logosBandeau: () => Promise<string[]>;
@@ -168,6 +170,28 @@ export function creerMail(o: OutilsMail) {
     return detail(v);
   }
 
+  // Retouche du HTML construit, pour ce mail seulement : mail.md n'est pas modifié, la prochaine construction l'efface.
+  async function retoucher(v: VideoMail, consigne: string): Promise<DetailMail & { resumeRetouche: string }> {
+    verifier(v);
+    if (!consigne.trim()) throw new ErreurHttp(400, 'Décrivez la retouche voulue.');
+    const build = path.join(dossier(v), 'build');
+    if (!existsSync(path.join(build, 'mail.html'))) throw new ErreurHttp(409, 'Construisez d’abord le mail : la retouche porte sur le HTML construit.');
+    let resume = '';
+    await exclusif(v, 'Retouche', async () => {
+      const html = await readFile(path.join(build, 'mail.html'), 'utf-8');
+      const r = await o.retoucher({ consigne, html, modele: v.modele });
+      resume = r.resume;
+      if (r.remplacements.length === 0) return;
+      const retouche = appliquerRetouches(html, r.remplacements);
+      const manifeste = JSON.parse(await readFile(path.join(build, 'manifest.json'), 'utf-8')) as { images: { cid: string; file: string }[] };
+      await writeFile(path.join(build, 'mail.html'), retouche, 'utf-8');
+      await writeFile(path.join(build, 'preview.html'), apercuDepuisMail(retouche, manifeste.images), 'utf-8');
+      await journaliser(v, `Retouche « ${consigne.trim()} » : ${resume}`);
+      await journaliser(v, await o.capturer(dossier(v)));
+    });
+    return { ...(await detail(v)), resumeRetouche: resume };
+  }
+
   async function brouillon(v: VideoMail): Promise<DetailMail> {
     verifier(v);
     if (!(await detail(v)).brouillonPossible) throw new ErreurHttp(409, 'Construisez d’abord le mail : le texte a changé depuis le dernier aperçu.');
@@ -178,5 +202,5 @@ export function creerMail(o: OutilsMail) {
     return detail(v);
   }
 
-  return { detail, copier, enregistrer, deposerImage, rediger, construire, brouillon };
+  return { detail, copier, enregistrer, deposerImage, rediger, construire, retoucher, brouillon };
 }

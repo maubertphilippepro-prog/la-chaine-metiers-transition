@@ -91,6 +91,8 @@ beforeEach(async () => {
         await writeFile(path.join(dossier, 'build', 'apercu-bureau.png'), 'png');
         return 'ok';
       }),
+      retoucher: vi.fn(async () => ({ remplacements: [], resume: '' })),
+      capturer: vi.fn(async () => 'ok'),
       brouillon: vi.fn(async () => 'Brouillon Outlook cree'),
       lireReference: vi.fn(async (r: string) => `contenu de ${r}`),
       logosBandeau: vi.fn(async () => ['there']),

@@ -10,8 +10,8 @@ import { RACINE } from '../../remotion/scripts/tournage';
 import type { Reglages } from '../../noyau/types';
 import { creerApi } from './api';
 import { interpreterConsigne } from './interpretation';
-import { redigerMail } from './mail-claude';
-import { construireMail, copierSiDifferent, creerBrouillon, DOSSIER_MAILING } from './mail-outils';
+import { redigerMail, retoucherMail } from './mail-claude';
+import { capturerMail, construireMail, copierSiDifferent, creerBrouillon, DOSSIER_MAILING } from './mail-outils';
 import { requeteAutorisee } from './origine';
 import { analyserTournage, detourerImage } from './pipeline';
 import { creerApiPublication } from './publication';
@@ -77,6 +77,8 @@ async function main(): Promise<void> {
       copier: copierSiDifferent,
       rediger: d => redigerMail(d),
       construire: construireMail,
+      retoucher: d => retoucherMail(d),
+      capturer: capturerMail,
       brouillon: creerBrouillon,
       lireReference: r => readFile(path.join(DOSSIER_MAILING, r), 'utf-8'),
       logosBandeau: async () => (await readdir(path.join(DOSSIER_MAILING, 'assets', 'logos'))).filter(f => f.endsWith('.png')).map(f => f.slice(0, -4)),

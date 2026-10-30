@@ -12,6 +12,7 @@ interface Props {
 const COPIE = 'Copie sur SharePoint…';
 const REDACTION = 'Rédaction par Claude…';
 const CONSTRUCTION = 'Construction et aperçus…';
+const RETOUCHE = 'Retouche par Claude…';
 const BROUILLON = 'Création du brouillon…';
 
 // Mail de com d'une vidéo Pro : copie SharePoint, rédaction par Claude, relecture, aperçus, brouillon Outlook.
@@ -23,6 +24,8 @@ export const PanneauMail: FC<Props> = ({ nom, cible }) => {
   const [erreur, setErreur] = useState<string | null>(null);
   const [copie, setCopie] = useState(false);
   const [envoi, setEnvoi] = useState(false);
+  const [consigne, setConsigne] = useState('');
+  const [resume, setResume] = useState<string | null>(null);
   // Change à chaque build : force le rechargement des aperçus servis sous le même nom.
   const [version, setVersion] = useState(0);
 
@@ -42,7 +45,8 @@ export const PanneauMail: FC<Props> = ({ nom, cible }) => {
     try {
       const n = await action();
       recevoir(n);
-      if (libelle === CONSTRUCTION) setVersion(Date.now());
+      if (libelle === CONSTRUCTION || libelle === RETOUCHE) setVersion(Date.now());
+      if (libelle === CONSTRUCTION) setResume(null);
     } catch (e) {
       setErreur(message(e));
     } finally {
@@ -110,6 +114,7 @@ export const PanneauMail: FC<Props> = ({ nom, cible }) => {
           </label>
           {d.aCompleter && <p className="alerte">Le texte contient encore [À COMPLÉTER].</p>}
           {bouton(CONSTRUCTION, 'construire', 'Construire et voir les aperçus', texte === d.texte)}
+          {d.apercus.length > 0 && <p className="discret">Construire repart de mail.md : les retouches du rendu sont alors effacées.</p>}
         </>
       )}
       {d.apercus.length > 0 && (
@@ -118,6 +123,20 @@ export const PanneauMail: FC<Props> = ({ nom, cible }) => {
           <div className="apercus-mail">
             {d.apercus.map(a => <img key={a} src={`${d.urlBuild}/${a}?v=${version}`} alt={a} title={a} />)}
           </div>
+          <label>
+            Retouche du rendu, pour ce mail seulement (ex. « titre du bandeau en vert »)
+            <textarea rows={2} value={consigne} onChange={ev => setConsigne(ev.target.value)} />
+          </label>
+          <div className="actions">
+            <button disabled={!!occupe || !consigne.trim()} onClick={() => void lancer(RETOUCHE, async () => {
+              const n = await api.retoucherMail(nom, cible, consigne);
+              setResume(n.resumeRetouche);
+              setConsigne('');
+              return n;
+            })}>Retoucher avec Claude</button>
+            {occupe === RETOUCHE && <Attente libelle={RETOUCHE} />}
+          </div>
+          {resume && <p className="discret">Claude : {resume}</p>}
         </>
       )}
       {bouton(BROUILLON, 'brouillon', 'Créer le brouillon Outlook', d.brouillonPossible)}

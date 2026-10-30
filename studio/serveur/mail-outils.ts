@@ -37,6 +37,8 @@ function executer(programme: string, args: string[]): Promise<string> {
 const python = path.join(RACINE, '.venv', 'Scripts', 'python.exe');
 const script = (nom: string) => path.join(DOSSIER_MAILING, 'scripts', nom);
 
+export const capturerMail = (dossierMail: string) => executer(python, [script('screenshot.py'), dossierMail]);
+
 export async function construireMail(dossierMail: string): Promise<string> {
   const build = await executer(python, [script('build_mail.py'), 'build', dossierMail]);
   const captures = await executer(python, [script('screenshot.py'), dossierMail]);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { construirePromptMail, extraireMail, type DemandeMail } from './mail-claude';
+import { construirePromptMail, construirePromptRetouche, extraireMail, type DemandeMail } from './mail-claude';
 
 const D: DemandeMail = {
   titreVideo: 'AnalyzTech en mode projet', description: 'Desc publiée', texte: 'Bonjour, aujourd’hui on ouvre AnalyzTech.',
@@ -25,5 +25,12 @@ describe('prompt du mail de com', () => {
   it('retire une éventuelle clôture de code autour de mail.md', () => {
     expect(extraireMail('```markdown\n---\nobjet: X\n---\nCorps\n```')).toBe('---\nobjet: X\n---\nCorps\n');
     expect(extraireMail('---\nobjet: X\n---\nCorps')).toBe('---\nobjet: X\n---\nCorps\n');
+  });
+});
+
+describe('prompt de retouche', () => {
+  it('donne la demande et le HTML, et demande des extraits uniques', () => {
+    const p = construirePromptRetouche({ consigne: 'Titre en vert', html: '<h1 style="color:#004D9B">T</h1>', modele: 'm' });
+    for (const t of ['Titre en vert', '<h1 style="color:#004D9B">T</h1>', 'une seule fois', 'VML']) expect(p).toContain(t);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { brouillonPossible, dossierMail, ETAT_MAIL_VIDE, fichierSharepoint, raisonMail, urlSharepoint } from './mail';
+import { apercuDepuisMail, appliquerRetouches, brouillonPossible, dossierMail, ETAT_MAIL_VIDE, fichierSharepoint, raisonMail, urlSharepoint } from './mail';
 
 const SP = { dossierLocal: 'C:\\x', site: 'https://ingeropgroup.sharepoint.com/sites/vitrin3', bibliotheque: 'Chane vido interne' };
 
@@ -29,5 +29,21 @@ describe('mail de com', () => {
     expect(brouillonPossible(construit, Date.parse('2026-10-30T09:59:00Z'))).toBe(true);
     expect(brouillonPossible(construit, Date.parse('2026-10-30T10:01:00Z'))).toBe(false);
     expect(brouillonPossible(construit, null)).toBe(false);
+  });
+});
+
+describe('retouche du HTML construit', () => {
+  it('remplace chaque morceau trouvé une seule fois', () => {
+    expect(appliquerRetouches('<p style="color:#333">a</p><b>$&</b>', [
+      { avant: 'color:#333', apres: 'color:#16a34a' },
+      { avant: '<b>$&</b>', apres: '<b>$1</b>' },
+    ])).toBe('<p style="color:#16a34a">a</p><b>$1</b>');
+  });
+  it('ne modifie rien si un morceau manque ou se répète', () => {
+    expect(() => appliquerRetouches('<p>a</p><p>a</p>', [{ avant: '<p>a</p>', apres: 'x' }])).toThrow('rien n');
+    expect(() => appliquerRetouches('<p>a</p>', [{ avant: 'absent', apres: 'x' }])).toThrow('1 morceau');
+  });
+  it('reconstruit l’aperçu à partir du mail', () => {
+    expect(apercuDepuisMail('<img src="cid:img1">', [{ cid: 'img1', file: 'images/a.png' }])).toBe('<img src="images/a.png">');
   });
 });

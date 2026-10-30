@@ -1,5 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { A_COMPLETER } from '../../noyau/mail';
+import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
+import { z } from 'zod';
+import { A_COMPLETER, type Remplacement } from '../../noyau/mail';
 import { traduireErreurClaude, verifierCleClaude } from './claude';
 import { ErreurInterpretation } from './consignes';
 
@@ -94,4 +96,60 @@ export async function redigerMail(d: DemandeMail, client?: Anthropic): Promise<s
   const texte = reponse.content.flatMap(b => (b.type === 'text' ? [b.text] : [])).join('');
   if (!texte.includes('objet:')) throw new ErreurInterpretation(500, `Réponse de Claude inexploitable (arrêt : ${reponse.stop_reason}).`);
   return extraireMail(texte);
+}
+
+// Retouche ponctuelle du HTML construit d'un mail, sans toucher à mail.md ni à la charte.
+export interface DemandeRetouche {
+  consigne: string;
+  html: string;
+  modele: string;
+}
+
+export interface Retouche {
+  remplacements: Remplacement[];
+  resume: string;
+}
+
+export type RetoucherMail = (d: DemandeRetouche) => Promise<Retouche>;
+
+const SchemaRetouche = z.object({
+  remplacements: z.array(z.object({ avant: z.string(), apres: z.string() })),
+  resume: z.string(),
+});
+
+export function construirePromptRetouche(d: DemandeRetouche): string {
+  return `Voici le HTML d'un mail interne, construit pour Outlook (tableaux, styles en ligne, blocs VML entre <!--[if mso]> et <![endif]-->). L'auteur demande une retouche ponctuelle de ce mail seulement :
+
+<demande>
+${d.consigne}
+</demande>
+
+<html>
+${d.html}
+</html>
+
+Réponds par une liste de remplacements : « avant » est un extrait exact du HTML, présent une seule fois (allonge-le si besoin pour qu'il soit unique), « apres » est ce qui le remplace. Touche le moins possible : garde la charte pour tout ce que la demande ne vise pas, et retouche aussi la version VML d'un bouton si tu changes sa couleur. N'utilise pas de CSS que Outlook ignore (flex, grid, position). « resume » dit en une phrase ce que tu as changé ; si la demande est impossible ou ambiguë, laisse la liste vide et explique pourquoi.
+`;
+}
+
+export async function retoucherMail(d: DemandeRetouche, client?: Anthropic): Promise<Retouche> {
+  verifierCleClaude(client);
+  let reponse;
+  try {
+    reponse = await (client ?? new Anthropic()).messages.parse(
+      {
+        model: d.modele,
+        max_tokens: 16000,
+        output_config: { effort: 'medium', format: zodOutputFormat(SchemaRetouche) },
+        messages: [{ role: 'user', content: construirePromptRetouche(d) }],
+        fallbacks: 'default',
+      },
+      { headers: { 'anthropic-beta': 'server-side-fallback-2026-07-01' } },
+    );
+  } catch (e) {
+    throw traduireErreurClaude(e);
+  }
+  if (reponse.stop_reason === 'refusal') throw new ErreurInterpretation(500, 'Claude a refusé de retoucher ce mail.');
+  if (!reponse.parsed_output) throw new ErreurInterpretation(500, `Réponse de Claude inexploitable (arrêt : ${reponse.stop_reason}).`);
+  return reponse.parsed_output;
 }
