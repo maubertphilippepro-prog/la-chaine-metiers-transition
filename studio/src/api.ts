@@ -5,7 +5,7 @@ import type { CiblePublication, Publication } from '../../noyau/publication';
 import type { Qualification } from '../../noyau/qualification';
 import type { Cible } from '../../remotion/scripts/rendu';
 import type { VisibiliteYoutube } from '../../noyau/youtube';
-import type { DetailPublication, DetailTournage, DossierYoutube, EtatRendu, Pose, ResumeTournage, VerificationYoutube } from '../commun';
+import type { DetailMail, DetailPublication, DetailTournage, DossierYoutube, EtatRendu, Pose, ResumeTournage, VerificationYoutube } from '../commun';
 
 export class ErreurApi extends Error {
   constructor(readonly statut: number, message: string, readonly problemes: string[]) {
@@ -33,6 +33,15 @@ const chemin = (nom: string) => `/api/tournages/${encodeURIComponent(nom)}`;
 
 export const api = {
   tournages: () => appeler<ResumeTournage[]>('/api/tournages'),
+  mail: (nom: string, cible: CiblePublication) => appeler<DetailMail>(`${chemin(nom)}/publication/mail?cible=${cible}`),
+  enregistrerMail: (nom: string, cible: CiblePublication, champs: { texte?: string; notes?: string }) =>
+    appeler<DetailMail>(`${chemin(nom)}/publication/mail`, enJson('PUT', { cible, ...champs })),
+  actionMail: (nom: string, cible: CiblePublication, quoi: 'copie' | 'redaction' | 'construire' | 'brouillon') =>
+    appeler<DetailMail>(`${chemin(nom)}/publication/mail/${quoi}`, enJson('POST', { cible })),
+  deposerImageMail: (nom: string, cible: CiblePublication, fichier: string, contenu: Blob) => appeler<DetailMail>(
+    `${chemin(nom)}/publication/mail/images?cible=${cible}&fichier=${encodeURIComponent(fichier)}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: contenu },
+  ),
   tournage: (nom: string) => appeler<DetailTournage>(chemin(nom)),
   creerValeurClassement: (cle: string, nom: string) =>
     appeler<ValeurClassement>(`/api/site/classements/${encodeURIComponent(cle)}/valeurs`, enJson('POST', { nom })),

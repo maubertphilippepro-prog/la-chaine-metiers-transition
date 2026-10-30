@@ -122,3 +122,7 @@ button.lien { background: none; border: none; padding: 0; text-align: left; curs
 .encadre h2 { margin-top: 0; color: var(--bleu); font-size: 18px; }
 .champs { display: flex; gap: 16px; flex-wrap: wrap; margin: 8px 0; }
 .champs input { font: inherit; }
+
+.panneau-mail .mail-md { font-family: Consolas, monospace; font-size: 0.85rem; }
+.apercus-mail { display: flex; gap: 0.5rem; overflow-x: auto; }
+.apercus-mail img { max-height: 420px; border: 1px solid #e5e7eb; }

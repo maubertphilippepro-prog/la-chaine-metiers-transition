@@ -4,6 +4,7 @@ import { longueurTags, modifierVideo, retraitAFaire, type Publication, type Vide
 import type { Gabarit } from '../../../noyau/gabarits';
 import { diffusion, NATURES, type Nature, type Qualification } from '../../../noyau/qualification';
 import { descriptionYoutube, formatHorodatage } from '../../../noyau/publication-textes';
+import { raisonMail } from '../../../noyau/mail';
 import { pretePourYoutube, validee } from '../../../noyau/youtube';
 import type { DetailPublication, Pose, VideoDisponible } from '../../commun';
 import { api, ErreurApi } from '../api';
@@ -12,6 +13,7 @@ import {
 } from '../logique/publication';
 import { Attente } from './Attente';
 import { ChoixVignette } from './ChoixVignette';
+import { PanneauMail } from './PanneauMail';
 import { PanneauSite } from './PanneauSite';
 import { PanneauYoutube } from './PanneauYoutube';
 
@@ -148,6 +150,7 @@ export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail,
               changer={changer} synchroniser={synchroniser} executer={executer} ajouterValeur={ajouterValeur}
             />
           )}
+          {raisonMail(v.nature, disponible.rendue) === null && <PanneauMail key={`mail-${v.cible}`} nom={nom} cible={v.cible} />}
         </>
       )}
       {erreur && <p className="alerte">{erreur}</p>}
