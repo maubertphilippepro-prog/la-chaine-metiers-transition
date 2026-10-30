@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import os from 'node:os';
@@ -168,6 +168,16 @@ describe('mail de com', () => {
     await new Promise(r => setTimeout(r, 20));
     await fetch(`${url}/api/tournages/a/publication/mail`, { method: 'PUT', headers: json, body: JSON.stringify({ ...corps, texte: 'autre' }) });
     expect((await detailMail('a')).brouillonPossible).toBe(false);
+  });
+  it('refuse de construire un mail.md vide ou blanc', async () => {
+    await tournage('a');
+    await qualifier('a', 'pro');
+    expect((await mail('a', 'construire', { cible: 'complete' })).status).toBe(409);
+    await fetch(`${url}/api/tournages/a/publication/mail`, { method: 'PUT', headers: json, body: JSON.stringify({ cible: 'complete', texte: '  \n ' }) });
+    const r = await mail('a', 'construire', { cible: 'complete' });
+    expect(r.status).toBe(409);
+    expect((await r.json()).erreur).toContain('mail.md est vide');
+    expect(vi.mocked(config.mail.construire)).not.toHaveBeenCalled();
   });
   it('rapporte l’échec du build et le journalise', async () => {
     await tournage('a');

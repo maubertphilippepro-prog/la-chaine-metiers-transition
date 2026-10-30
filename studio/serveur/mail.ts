@@ -159,7 +159,7 @@ export function creerMail(o: OutilsMail) {
 
   async function construire(v: VideoMail): Promise<DetailMail> {
     verifier(v);
-    if (!existsSync(path.join(dossier(v), 'mail.md'))) throw new ErreurHttp(409, 'Rien à construire : mail.md est vide.');
+    if (!(await lire(path.join(dossier(v), 'mail.md'))).trim()) throw new ErreurHttp(409, 'Rien à construire : mail.md est vide.');
     await exclusif(v, 'Construction', async () => {
       const debut = new Date().toISOString();
       await journaliser(v, await o.construire(dossier(v)));

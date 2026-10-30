@@ -67,6 +67,12 @@ describe('demarrerServeur', () => {
     expect(svg.headers.get('content-type')).toBe('image/svg+xml');
     expect((await fetch(`${serveur.url}/photo.jpeg`)).headers.get('content-type')).toBe('image/jpeg');
   });
+  it('sert les pages HTML et les GIF avec le bon Content-Type', async () => {
+    await writeFile(path.join(racine, 'preview.html'), '<p>essai</p>');
+    await writeFile(path.join(racine, 'anim.gif'), contenu);
+    expect((await fetch(`${serveur.url}/preview.html`)).headers.get('content-type')).toBe('text/html; charset=utf-8');
+    expect((await fetch(`${serveur.url}/anim.gif`)).headers.get('content-type')).toBe('image/gif');
+  });
   it('sert une plage', async () => {
     const r = await fetch(`${serveur.url}/a%20b/video.mp4`, { headers: { Range: 'bytes=100-199' } });
     expect(r.status).toBe(206);

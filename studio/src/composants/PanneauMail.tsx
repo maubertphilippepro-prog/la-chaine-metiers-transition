@@ -70,6 +70,8 @@ export const PanneauMail: FC<Props> = ({ nom, cible }) => {
       if (dernier) setD(dernier);
     } catch (e) {
       setErreur(message(e));
+      // Échec partiel : les images déjà envoyées doivent apparaître ; les textes en cours de saisie restent intacts.
+      try { setD(await api.mail(nom, cible)); } catch { /* l'erreur d'envoi reste affichée */ }
     } finally {
       setEnvoi(false);
     }
