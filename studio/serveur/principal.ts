@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readdir, readFile } from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import { createServer as creerVite } from 'vite';
@@ -7,8 +7,11 @@ import { rendreVignette } from '../../remotion/scripts/vignette';
 import { rendreTournage } from '../../remotion/scripts/rendu';
 import { demarrerServeur } from '../../remotion/scripts/serveur-fichiers';
 import { RACINE } from '../../remotion/scripts/tournage';
+import type { Reglages } from '../../noyau/types';
 import { creerApi } from './api';
 import { interpreterConsigne } from './interpretation';
+import { redigerMail } from './mail-claude';
+import { construireMail, copierSiDifferent, creerBrouillon, DOSSIER_MAILING } from './mail-outils';
 import { requeteAutorisee } from './origine';
 import { analyserTournage, detourerImage } from './pipeline';
 import { creerApiPublication } from './publication';
@@ -49,6 +52,8 @@ async function main(): Promise<void> {
   const cheminLogos = path.join(RACINE, 'donnees', 'logos');
   await mkdir(cheminLogos, { recursive: true });
   const serveurLogos = await demarrerServeur(cheminLogos);
+  // Réglages lus comme chargerTournage le fait : SharePoint de Vitrin3 pour le mail de com.
+  const reglages = JSON.parse(await readFile(path.join(RACINE, 'reglages.json'), 'utf-8')) as Reglages;
   const apiPublication = creerApiPublication({
     racineTournages,
     cheminPoses,
@@ -67,6 +72,15 @@ async function main(): Promise<void> {
     ouvrirDossier: ouvrirDansExplorateur,
     // Clé d’API du site (REPLIT_API_KEY dans .env), égale au secret AUTOMATION_API_KEY du site.
     site: creerClientSite(process.env.REPLIT_SITE_URL, process.env.REPLIT_API_KEY),
+    mail: {
+      sharepoint: reglages.sharepoint,
+      copier: copierSiDifferent,
+      rediger: d => redigerMail(d),
+      construire: construireMail,
+      brouillon: creerBrouillon,
+      lireReference: r => readFile(path.join(DOSSIER_MAILING, r), 'utf-8'),
+      logosBandeau: async () => (await readdir(path.join(DOSSIER_MAILING, 'assets', 'logos'))).filter(f => f.endsWith('.png')).map(f => f.slice(0, -4)),
+    },
   });
 
   const serveur = http.createServer();

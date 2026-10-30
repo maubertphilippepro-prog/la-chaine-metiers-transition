@@ -26,6 +26,7 @@ import type { Rediger } from './redaction';
 import type { ClientSite, ReferencesSite } from './site-replit';
 import { nettoyerPropositionsVignette, type ProposerVignettes, type ReponseVignette } from './vignette-claude';
 import { ecrireDossierYoutube } from './youtube';
+import { creerMail, type OutilsMail, type VideoMail } from './mail';
 
 export interface ConfigPublication {
   racineTournages: string;
@@ -46,6 +47,8 @@ export interface ConfigPublication {
   ouvrirDossier: (dossier: string) => Promise<void>;
   // Écritures sur le site (clé d’API de .env) ; null si l’adresse ou la clé manque.
   site: ClientSite | null;
+  // Mail de com : copie SharePoint, rédaction, scripts du skill de mailing.
+  mail: OutilsMail;
 }
 
 const EXTENSIONS_PHOTO = new Set(['.jpg', '.jpeg', '.png']);
@@ -86,6 +89,8 @@ interface Contexte {
   publication: Publication;
 }
 
+const lireCibleTexte = (t: string | null): unknown => (t === null ? null : t === 'complete' ? t : Number(t));
+
 function lireCible(corps: unknown, cibles: CiblePublication[]): CiblePublication {
   const v = objet(corps).cible;
   const cible = cibles.find(c => c === v);
@@ -99,6 +104,21 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
   // Une consigne de vignette à la fois par vidéo (« dossier|cible »).
   const consignesEnCours = new Set<string>();
   const urlTournage = (dossier: string) => `${c.urlFichiers}/${encodeURIComponent(path.basename(dossier))}`;
+  const mail = creerMail(c.mail);
+
+  // La vidéo visée par une route du mail, avec ses paroles conservées.
+  function videoMail(ctx: Contexte, cible: CiblePublication): VideoMail {
+    return {
+      dossierTournage: ctx.dossier,
+      urlTournage: urlTournage(ctx.dossier),
+      cible,
+      video: videoDe(ctx.publication, cible),
+      disponible: ctx.videos.find(v => v.cible === cible)!,
+      texte: texteConserve(ctx.tournage.analyse.mots, ctx.segments(cible)),
+      chapitres: cible === 'complete' ? ctx.videos.filter(v => v.cible !== 'complete').map(v => v.titre) : [],
+      modele: ctx.tournage.reglages.modeles.claude,
+    };
+  }
 
   const banqueLogos = () => listerImages(c.cheminLogos, EXTENSIONS_LOGO);
   const captures = (dossier: string) => listerImages(path.join(dossier, DOSSIER_CAPTURES), EXTENSIONS_CAPTURE);
@@ -514,7 +534,7 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
 
   return async function traiter(req, res) {
     const chemin = new URL(req.url ?? '/', 'http://local').pathname;
-    const route = /^\/api\/tournages\/([^/]+)\/publication(?:\/(redaction|vignette\/consigne|vignette|captures|valider|relais|site\/retirer|youtube\/(?:preparer|ouvrir|envoi|verifier)))?$/
+    const route = /^\/api\/tournages\/([^/]+)\/publication(?:\/(redaction|vignette\/consigne|vignette|captures|valider|relais|site\/retirer|youtube\/(?:preparer|ouvrir|envoi|verifier)|mail(?:\/(?:copie|images|redaction|construire|brouillon))?))?$/
       .exec(chemin);
     const valeur = /^\/api\/site\/classements\/([^/]+)\/valeurs$/.exec(chemin);
     if (valeur) {
@@ -551,6 +571,24 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
       else if (action === 'youtube/verifier' && req.method === 'POST') repondre(res, 200, await verifierYoutube(req, ctx));
       else if (action === 'relais' && req.method === 'POST') repondre(res, 200, await relayer(req, ctx));
       else if (action === 'site/retirer' && req.method === 'POST') repondre(res, 200, await retirerDuSite(req, ctx));
+      else if (action?.startsWith('mail')) {
+        const parametres = new URL(req.url ?? '/', 'http://local').searchParams;
+        if (req.method === 'GET' && action === 'mail') {
+          repondre(res, 200, await mail.detail(videoMail(ctx, lireCible({ cible: lireCibleTexte(parametres.get('cible')) }, ctx.cibles))));
+        } else if (req.method === 'POST' && action === 'mail/images') {
+          const v = videoMail(ctx, lireCible({ cible: lireCibleTexte(parametres.get('cible')) }, ctx.cibles));
+          repondre(res, 200, await mail.deposerImage(v, parametres.get('fichier') ?? '', await lireOctets(req)));
+        } else {
+          const corps = objet(await lireCorps(req));
+          const v = videoMail(ctx, lireCible(corps, ctx.cibles));
+          if (req.method === 'PUT' && action === 'mail') repondre(res, 200, await mail.enregistrer(v, corps));
+          else if (req.method === 'POST' && action === 'mail/copie') repondre(res, 200, await mail.copier(v));
+          else if (req.method === 'POST' && action === 'mail/redaction') repondre(res, 200, await mail.rediger(v));
+          else if (req.method === 'POST' && action === 'mail/construire') repondre(res, 200, await mail.construire(v));
+          else if (req.method === 'POST' && action === 'mail/brouillon') repondre(res, 200, await mail.brouillon(v));
+          else repondre(res, 404, { erreur: 'Route inconnue.' });
+        }
+      }
       else repondre(res, 404, { erreur: 'Route inconnue.' });
     } catch (e) {
       repondreErreur(res, e);

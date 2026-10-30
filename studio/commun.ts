@@ -1,3 +1,4 @@
+import type { EtatMail } from '../noyau/mail';
 import type { FichierConsignes } from '../noyau/consignes';
 import type { Analyse, Montage, Reglages, StatutEpisode } from '../noyau/types';
 import type { ResultatRendu } from '../remotion/scripts/rendu';
@@ -82,4 +83,15 @@ export interface VerificationYoutube {
   lecture: LectureYoutube;
   alerte: boolean;
   message: string;
+}
+
+export interface DetailMail {
+  etat: EtatMail;
+  texte: string;          // mail.md, '' si absent
+  notes: string;
+  images: string[];       // fichiers de assets/ hors vignette.jpg
+  apercus: string[];      // build/apercu-*.png, triés
+  urlBuild: string;       // URL servie du dossier build/ (preview.html, apercus)
+  aCompleter: boolean;    // mail.md contient [À COMPLÉTER]
+  brouillonPossible: boolean;
 }

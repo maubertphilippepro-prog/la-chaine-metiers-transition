@@ -82,6 +82,19 @@ beforeEach(async () => {
       supprimerVideo: vi.fn(async () => {}),
       creerValeur: vi.fn(async (_c: string, nom: string) => ({ id: 99, nom })),
     },
+    mail: {
+      sharepoint: { dossierLocal: path.join(racine, 'sharepoint'), site: 'https://sp.example/sites/vitrin3', bibliotheque: 'Bib' },
+      copier: vi.fn(async () => true),
+      rediger: vi.fn(async () => '---\nobjet: Essai\n---\n## Titre\n\n[À COMPLÉTER]\n'),
+      construire: vi.fn(async (dossier: string) => {
+        await mkdir(path.join(dossier, 'build'), { recursive: true });
+        await writeFile(path.join(dossier, 'build', 'apercu-bureau.png'), 'png');
+        return 'ok';
+      }),
+      brouillon: vi.fn(async () => 'Brouillon Outlook cree'),
+      lireReference: vi.fn(async (r: string) => `contenu de ${r}`),
+      logosBandeau: vi.fn(async () => ['there']),
+    },
   };
   const api = creerApiPublication(config);
   serveur = http.createServer(async (req, res) => {
