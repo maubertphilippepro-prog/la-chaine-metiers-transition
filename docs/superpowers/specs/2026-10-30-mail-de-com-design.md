@@ -40,7 +40,7 @@ Toute action qui fait attendre affiche le sablier, comme le reste de la publicat
 
 ## Stockage
 
-Par vidéo : `publication/<complete|episode-NN>/mail/` du tournage, contenant `mail.md`, `notes.txt`, `assets/`, `build/`. Dans `publication.json`, pour la vidéo : `mail: { urlSharepoint, copieLe, redigeLe?, construitLe?, brouillonLe? }`.
+Par vidéo : `publication/<complete|episode-NN>/mail/` du tournage, contenant `mail.md`, `notes.txt`, `assets/`, `build/`. L'état (URL SharePoint, dates de copie, rédaction, construction, brouillon) est dans `mail/etat.json` ; `publication.json` n'est pas modifié.
 
 ## Erreurs
 
