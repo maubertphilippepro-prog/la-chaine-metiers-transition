@@ -22,21 +22,29 @@ export const PanneauMail: FC<Props> = ({ nom, cible }) => {
   const [occupe, setOccupe] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [copie, setCopie] = useState(false);
+  const [envoi, setEnvoi] = useState(false);
   // Change à chaque build : force le rechargement des aperçus servis sous le même nom.
   const [version, setVersion] = useState(0);
 
   const recevoir = (n: DetailMail) => { setD(n); setTexte(n.texte); setNotes(n.notes); };
-  useEffect(() => { api.mail(nom, cible).then(recevoir).catch(e => setErreur(String(e))); }, [nom, cible]);
+  useEffect(() => { api.mail(nom, cible).then(recevoir).catch(e => setErreur(e instanceof Error ? e.message : String(e))); }, [nom, cible]);
 
-  const lancer = async (libelle: string | null, action: () => Promise<DetailMail>) => {
+  const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
+  // Enregistrement discret : ne touche ni à `occupe` ni aux textes en cours de saisie.
+  const enregistrer = async (action: () => Promise<DetailMail>) => {
+    setErreur(null);
+    try { setD(await action()); } catch (e) { setErreur(message(e)); }
+  };
+
+  const lancer = async (libelle: string, action: () => Promise<DetailMail>) => {
     setOccupe(libelle);
     setErreur(null);
     try {
       const n = await action();
-      if (libelle) recevoir(n); else setD(n);
+      recevoir(n);
       if (libelle === CONSTRUCTION) setVersion(Date.now());
     } catch (e) {
-      setErreur(e instanceof Error ? e.message : String(e));
+      setErreur(message(e));
     } finally {
       setOccupe(null);
     }
@@ -50,8 +58,21 @@ export const PanneauMail: FC<Props> = ({ nom, cible }) => {
       {occupe === libelle && <Attente libelle={libelle} />}
     </div>
   );
-  const deposer = (fichiers: FileList | null) => {
-    for (const f of Array.from(fichiers ?? [])) void lancer(null, () => api.deposerImageMail(nom, cible, f.name, f));
+  const deposer = async (champ: HTMLInputElement) => {
+    const fichiers = Array.from(champ.files ?? []);
+    champ.value = '';
+    if (!fichiers.length) return;
+    setEnvoi(true);
+    setErreur(null);
+    try {
+      let dernier: DetailMail | null = null;
+      for (const f of fichiers) dernier = await api.deposerImageMail(nom, cible, f.name, f);
+      if (dernier) setD(dernier);
+    } catch (e) {
+      setErreur(message(e));
+    } finally {
+      setEnvoi(false);
+    }
   };
 
   return (
@@ -61,7 +82,7 @@ export const PanneauMail: FC<Props> = ({ nom, cible }) => {
       {e.urlSharepoint && (
         <p className="discret">
           Adresse de la vidéo : <a href={e.urlSharepoint} target="_blank" rel="noreferrer">SharePoint</a>{' '}
-          <button className="lien" onClick={() => void navigator.clipboard.writeText(e.urlSharepoint!).then(() => setCopie(true))}>
+          <button className="lien" onClick={() => void navigator.clipboard.writeText(e.urlSharepoint!).then(() => setCopie(true)).catch(e => setErreur(message(e)))}>
             {copie ? 'Copiée' : 'Copier'}
           </button>
         </p>
@@ -69,11 +90,12 @@ export const PanneauMail: FC<Props> = ({ nom, cible }) => {
       <label>
         Notes pour Claude (ce qu’on attend du lecteur, liens, contexte)
         <textarea rows={3} value={notes} onChange={ev => setNotes(ev.target.value)}
-          onBlur={() => notes !== d.notes && void lancer(null, () => api.enregistrerMail(nom, cible, { notes }))} />
+          onBlur={() => notes !== d.notes && void enregistrer(() => api.enregistrerMail(nom, cible, { notes }))} />
       </label>
       <label>
         Images du mail {d.images.length > 0 && <span className="discret">({d.images.join(', ')})</span>}
-        <input type="file" accept=".png,.jpg,.jpeg,.gif" multiple onChange={ev => deposer(ev.target.files)} />
+        <input type="file" accept=".png,.jpg,.jpeg,.gif" multiple disabled={envoi} onChange={ev => void deposer(ev.target)} />
+        {envoi && <Attente libelle="Envoi des images…" />}
       </label>
       {bouton(REDACTION, 'redaction', d.texte ? 'Réécrire avec Claude' : 'Rédiger avec Claude', !!e.urlSharepoint)}
       {!e.urlSharepoint && <p className="discret">La rédaction attend la copie sur SharePoint.</p>}
@@ -82,7 +104,7 @@ export const PanneauMail: FC<Props> = ({ nom, cible }) => {
           <label>
             mail.md
             <textarea className="mail-md" rows={18} value={texte} onChange={ev => setTexte(ev.target.value)}
-              onBlur={() => texte !== d.texte && void lancer(null, () => api.enregistrerMail(nom, cible, { texte }))} />
+              onBlur={() => texte !== d.texte && void enregistrer(() => api.enregistrerMail(nom, cible, { texte }))} />
           </label>
           {d.aCompleter && <p className="alerte">Le texte contient encore [À COMPLÉTER].</p>}
           {bouton(CONSTRUCTION, 'construire', 'Construire et voir les aperçus', texte === d.texte)}
