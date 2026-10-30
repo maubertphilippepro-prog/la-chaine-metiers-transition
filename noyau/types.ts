@@ -179,6 +179,8 @@ export interface Reglages {
     vignetteOctetsMax: number;
     mentionsInterdites: string[];
   };
+  // Dossier OneDrive synchronisé avec la bibliothèque SharePoint des vidéos internes (mail de com).
+  sharepoint: { dossierLocal: string; site: string; bibliotheque: string };
   modeles: { whisper: string; claude: string; detourage: string };
   definitionMaxCaracteres: number;
 }

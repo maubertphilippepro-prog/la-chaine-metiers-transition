@@ -54,5 +54,10 @@
     "tagsMax": 500,
     "vignetteOctetsMax": 2000000,
     "mentionsInterdites": ["ingérop", "ingerop", "cicad"]
+  },
+  "sharepoint": {
+    "dossierLocal": "C:\\Users\\pmaubert\\INGEROP\\Vitrin3 -Chaîne vidéo interne",
+    "site": "https://ingeropgroup.sharepoint.com/sites/vitrin3",
+    "bibliotheque": "Chane vido interne"
   }
 }
