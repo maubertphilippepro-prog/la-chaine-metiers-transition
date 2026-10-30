@@ -92,6 +92,7 @@ beforeEach(async () => {
         return 'ok';
       }),
       retoucher: vi.fn(async () => ({ remplacements: [], resume: '' })),
+      vignetteLecture: vi.fn(async (_source: string, cible: string) => writeFile(cible, 'jpg-lecture')),
       capturer: vi.fn(async () => 'ok'),
       brouillon: vi.fn(async () => 'Brouillon Outlook cree'),
       lireReference: vi.fn(async (r: string) => `contenu de ${r}`),

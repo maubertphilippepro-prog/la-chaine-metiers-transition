@@ -91,6 +91,7 @@ beforeEach(async () => {
         return 'ok';
       }),
       retoucher: vi.fn(async () => ({ remplacements: [{ avant: 'color:#004D9B', apres: 'color:#16a34a' }], resume: 'Titre passé en vert.' })),
+      vignetteLecture: vi.fn(async (_source: string, cible: string) => writeFile(cible, 'jpg-lecture')),
       capturer: vi.fn(async () => 'captures ok'),
       brouillon: vi.fn(async () => 'Brouillon Outlook cree'),
       lireReference: vi.fn(async (r: string) => `contenu de ${r}`),
@@ -149,8 +150,12 @@ describe('mail de com', () => {
     await mkdir(path.join(racine, 'sharepoint'));
     await mail('a', 'copie', { cible: 'complete' });
     await fetch(`${url}/api/tournages/a/publication/mail`, { method: 'PUT', headers: json, body: JSON.stringify({ cible: 'complete', notes: 'Tester avant le 15' }) });
+    await mkdir(path.join(racine, 'tournages', 'a', 'rendus', 'vignettes'), { recursive: true });
+    await writeFile(path.join(racine, 'tournages', 'a', 'rendus', 'vignettes', 'complete.jpg'), 'jpg');
     const d = await (await mail('a', 'redaction', { cible: 'complete' })).json();
     const demande = vi.mocked(config.mail.rediger).mock.calls[0]![0];
+    expect(demande.vignette).toBe('vignette.jpg');
+    expect(await readFile(path.join(racine, 'tournages', 'a', 'publication', 'complete', 'mail', 'assets', 'vignette.jpg'), 'utf-8')).toBe('jpg-lecture');
     expect(demande.notes).toBe('Tester avant le 15');
     expect(demande.texte.length).toBeGreaterThan(0);
     expect(demande.urlVideo).toBe(d.etat.urlSharepoint);

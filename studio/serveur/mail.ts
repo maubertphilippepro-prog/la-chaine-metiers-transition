@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { appendFile, copyFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import type { IncomingMessage } from 'node:http';
 import path from 'node:path';
 import {
@@ -19,6 +19,8 @@ export interface OutilsMail {
   construire: (dossierMail: string) => Promise<string>;
   retoucher: RetoucherMail;
   capturer: (dossierMail: string) => Promise<string>;
+  // Copie de la vignette rendue avec un bouton de lecture par-dessus.
+  vignetteLecture: (source: string, cible: string) => Promise<unknown>;
   brouillon: (dossierBuild: string) => Promise<string>;
   lireReference: (relatif: string) => Promise<string>;
   logosBandeau: () => Promise<string[]>;
@@ -128,15 +130,21 @@ export function creerMail(o: OutilsMail) {
     return detail(v);
   }
 
+  // Reprend la vignette rendue à chaque rédaction et construction : une vignette refaite entre-temps est prise en compte.
+  async function rafraichirVignette(v: VideoMail): Promise<boolean> {
+    const source = path.join(v.dossierTournage, fichierVignette(v.cible));
+    if (!existsSync(source)) return false;
+    await mkdir(path.join(dossier(v), 'assets'), { recursive: true });
+    await o.vignetteLecture(source, path.join(dossier(v), 'assets', VIGNETTE));
+    return true;
+  }
+
   async function rediger(v: VideoMail): Promise<DetailMail> {
     verifier(v);
     const e = await etat(v);
     if (!e.urlSharepoint) throw new ErreurHttp(409, 'Copiez d’abord la vidéo sur SharePoint : le mail a besoin de son adresse.');
     await exclusif(v, 'Rédaction', async () => {
-      const assets = path.join(dossier(v), 'assets');
-      await mkdir(assets, { recursive: true });
-      const source = path.join(v.dossierTournage, fichierVignette(v.cible));
-      const vignette = existsSync(source) ? (await copyFile(source, path.join(assets, VIGNETTE)), VIGNETTE) : null;
+      const vignette = (await rafraichirVignette(v)) ? VIGNETTE : null;
       const d = await detail(v);
       const texte = await o.rediger({
         titreVideo: v.video.titre || v.disponible.titre,
@@ -164,6 +172,7 @@ export function creerMail(o: OutilsMail) {
     if (!(await lire(path.join(dossier(v), 'mail.md'))).trim()) throw new ErreurHttp(409, 'Rien à construire : mail.md est vide.');
     await exclusif(v, 'Construction', async () => {
       const debut = new Date().toISOString();
+      await rafraichirVignette(v);
       await journaliser(v, await o.construire(dossier(v)));
       await noter(v, { construitLe: debut });
     });
