@@ -6,8 +6,6 @@ export type Gabarit = (typeof GABARITS)[number];
 
 // Logos et captures posés sur une vignette, au plus.
 export const MAX_ELEMENTS = 3;
-// Captures qu'on peut proposer à Claude pour les compositions d'une vignette, au plus.
-export const MAX_CANDIDATES = 5;
 
 export const LIBELLES_GABARIT: Record<Gabarit, string> = {
   vitrine: 'Vitrine', demonstration: 'Démonstration', mosaique: 'Mosaïque', classique: 'Classique',

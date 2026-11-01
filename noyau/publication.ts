@@ -1,5 +1,6 @@
 import type { ChoixClassements } from './classements';
-import { GABARITS, MAX_CANDIDATES, MAX_ELEMENTS, type Gabarit } from './gabarits';
+import { GABARITS, MAX_ELEMENTS, type Gabarit } from './gabarits';
+import { bornerMise, cleMise, raisonMise, type MiseEnPage } from './mise-en-page';
 import { nomFichierEpisode } from './nommage';
 import { diffusion, memeQualification, NATURES, QUALIFICATION_PAR_DEFAUT, qualificationDepuisProfil, type Nature, type Qualification } from './qualification';
 import type { Reglages } from './types';
@@ -20,6 +21,8 @@ export interface Vignette {
   captures: string[];
   // rendus/vignettes/<cible>.jpg une fois rendue ; null tant qu'elle ne l'est pas.
   fichier: string | null;
+  // Réglages fins choisis par Claude ; absents, le gabarit tel quel.
+  mise?: MiseEnPage;
 }
 
 // Composition proposée par Claude en réponse à une consigne : fichiers de donnees/poses/, donnees/logos/ et captures/.
@@ -31,13 +34,32 @@ export interface PropositionVignette {
   accroche: string;
   // Une phrase : ce qui distingue cette composition.
   explication: string;
+  // Réglages fins choisis par Claude ; absents, le gabarit tel quel.
+  mise?: MiseEnPage;
 }
 
+// Éléments imposés par l'auteur pour un tour de génération.
+export interface ElementsVignette {
+  pose: string;
+  accroche: string;
+  // Saisie libre des logos (« Excel, Teams »), et les fichiers qui en ont été déduits.
+  logosTexte: string;
+  logos: string[];
+  captures: string[];
+}
+
+// Un tour : éléments et consignes de l'auteur, variante de départ, réponse de Claude. Les tours d'avant ce
+// formulaire n'ont ni éléments ni base.
 export interface ConsigneVignette {
+  // Consignes de l'auteur.
   texte: string;
+  elements: ElementsVignette | null;
+  base: PropositionVignette | null;
   // Reformulation de Claude (« J’ai compris : … »).
   compris: string;
   pasRealisable: string[];
+  // Noms de logos saisis sans correspondance dans la banque.
+  introuvables: string[];
   propositions: PropositionVignette[];
   // Indice de la proposition appliquée à la vignette, null tant qu'aucune ne l'est.
   choisie: number | null;
@@ -60,8 +82,6 @@ export interface VideoPubliee {
   // Logiciels et services cités dans la vidéo, d'après la rédaction : servent à pré-cocher les logos.
   logiciels: string[];
   vignette: Vignette | null;
-  // Captures de captures/ proposées à Claude pour les consignes de vignette, dans l'ordre de choix ; 5 au plus.
-  capturesCandidates: string[];
   consignesVignette: ConsigneVignette[];
   youtube: { id: string | null; visibilite: 'privee' | 'non-repertoriee' | 'publique' | 'programmee'; programmeeLe: string | null; playlistId: string | null };
   replit: { id: number | null; classements: ChoixClassements; playlistId: number | null };
@@ -99,7 +119,6 @@ export function videoParDefaut(cible: CiblePublication, q: Qualification): Video
     accroches: [],
     logiciels: [],
     vignette: null,
-    capturesCandidates: [],
     consignesVignette: [],
     youtube: { id: null, visibilite: 'privee', programmeeLe: null, playlistId: null },
     replit: { id: null, classements: {}, playlistId: null },
@@ -124,7 +143,8 @@ export function modifierVideo(p: Publication, cible: CiblePublication, changemen
 // Ce qui distingue deux vignettes à l'image : pose, accroche, gabarit, logos et captures (pas le fichier rendu).
 export function cleVignette(v: Vignette | null): string {
   if (!v) return '';
-  return [v.pose.fichier, v.accroche, v.gabarit, v.logos.join(','), v.captures.join(',')].join('|');
+  const mise = cleMise(v.mise);
+  return [v.pose.fichier, v.accroche, v.gabarit, v.logos.join(','), v.captures.join(','), ...(mise ? [mise] : [])].join('|');
 }
 
 // Modifications venues du studio : statut, fichier de vignette, états YouTube et Replit et erreur ne changent
@@ -202,7 +222,12 @@ function completerVideo(v: unknown): unknown {
     const { categorieId, ...reste } = replit;
     replit = { ...reste, classements: typeof categorieId === 'number' ? { outil: [categorieId] } : {} };
   }
-  return { logiciels: [], capturesCandidates: [], consignesVignette: [], ...v, vignette, replit };
+  // Les captures candidates d'avant le formulaire de vignette sont oubliées ; les anciens tours n'ont ni éléments ni base.
+  const { capturesCandidates: _, ...sans } = v;
+  const consignesVignette = Array.isArray(sans.consignesVignette)
+    ? sans.consignesVignette.map(c => (estObjet(c) ? { elements: null, base: null, introuvables: [], ...c } : c))
+    : sans.consignesVignette;
+  return { logiciels: [], ...sans, consignesVignette: consignesVignette ?? [], vignette, replit };
 }
 
 // publication.json tel que lu sur le disque ou reçu du studio, mis à la forme actuelle.
@@ -220,12 +245,18 @@ function raisonConsigneVignette(c: unknown): string | null {
   if (!estObjet(c) || !estTexte(c.texte) || !estTexte(c.compris) || !listeDeTextes(c.pasRealisable)) {
     return 'texte, compris et pasRealisable attendus';
   }
+  if (!listeDeTextes(c.introuvables)) return 'introuvables invalides';
+  const e = c.elements;
+  if (e !== null && !(estObjet(e) && estNomFichier(e.pose) && estTexte(e.accroche) && estTexte(e.logosTexte)
+    && listeDeFichiers(e.logos, MAX_ELEMENTS) && listeDeFichiers(e.captures, MAX_ELEMENTS))) return 'elements invalides';
   const propositions = c.propositions;
   if (!Array.isArray(propositions) || propositions.length < 1 || propositions.length > MAX_PROPOSITIONS_VIGNETTE) {
     return `1 à ${MAX_PROPOSITIONS_VIGNETTE} propositions attendues`;
   }
   const valide = (p: unknown) => estObjet(p) && estNomFichier(p.pose) && listeDeFichiers(p.logos, MAX_ELEMENTS)
-    && listeDeFichiers(p.captures, MAX_ELEMENTS) && GABARITS.includes(p.gabarit as Gabarit) && estTexte(p.accroche) && estTexte(p.explication);
+    && listeDeFichiers(p.captures, MAX_ELEMENTS) && GABARITS.includes(p.gabarit as Gabarit) && estTexte(p.accroche) && estTexte(p.explication)
+    && (p.mise === undefined || raisonMise(p.mise) === null);
+  if (c.base !== null && !valide(c.base)) return 'base invalide';
   if (!propositions.every(valide)) return 'proposition invalide';
   const choisie = c.choisie;
   if (choisie !== null && !(Number.isInteger(choisie) && (choisie as number) >= 0 && (choisie as number) < propositions.length)) return 'choisie invalide';
@@ -244,6 +275,7 @@ function raisonVignette(v: unknown): string | null {
     if (!listeDeFichiers(v[champ], MAX_ELEMENTS)) return `vignette : ${champ} invalides`;
   }
   if (v.fichier !== null && !estTexte(v.fichier)) return 'vignette : fichier invalide';
+  if (v.mise !== undefined && raisonMise(v.mise)) return 'vignette : mise invalide';
   return null;
 }
 
@@ -264,7 +296,6 @@ export function raisonPublication(p: unknown): string | null {
     for (const champ of ['variantesTitre', 'tags', 'accroches', 'logiciels']) if (!listeDeTextes(v[champ])) return `${ou} : ${champ} doit être une liste de textes`;
     const vignette = raisonVignette(v.vignette);
     if (vignette) return `${ou} : ${vignette}`;
-    if (!listeDeFichiers(v.capturesCandidates, MAX_CANDIDATES)) return `${ou} : capturesCandidates invalides (${MAX_CANDIDATES} au plus)`;
     if (!Array.isArray(v.consignesVignette)) return `${ou} : consignesVignette doit être une liste`;
     for (const [j, c] of v.consignesVignette.entries()) {
       const raison = raisonConsigneVignette(c);
@@ -299,15 +330,22 @@ export type ProprietesVignette = {
   logoUrls: string[];
   captureUrls: string[];
   accroche: string;
+  mise: MiseEnPage;
+  // Indice du logo mis en avant dans logoUrls.
+  vedette: number | null;
 };
 
 export function proprietesVignette(v: Vignette, b: BasesImages): ProprietesVignette {
+  const mise = bornerMise(v.mise, v.logos, v.captures.length);
+  const vedette = mise.logoVedette ? v.logos.indexOf(mise.logoVedette) : -1;
   return {
     gabarit: v.gabarit,
     poseUrl: `${b.poses}/${encodeURIComponent(poseDetouree(v.pose.fichier))}`,
     logoUrls: v.logos.map(f => `${b.logos}/${encodeURIComponent(f)}`),
     captureUrls: v.captures.map(f => `${b.tournage}/${DOSSIER_CAPTURES}/${encodeURIComponent(f)}`),
     accroche: v.accroche.trim(),
+    mise,
+    vedette: vedette >= 0 ? vedette : null,
   };
 }
 

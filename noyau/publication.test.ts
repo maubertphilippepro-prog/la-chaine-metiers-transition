@@ -5,9 +5,11 @@ import {
   longueurTags, mentionsTrouvees, migrerPublication, modifierVideo, nomCible, poseDetouree, problemesPreparation, raisonPublication, retraitAFaire,
   proprietesVignette, videoParDefaut, type ConsigneVignette, type Publication, type Vignette,
 } from './publication';
-import type { Qualification } from './qualification';
+import { MISE_PAR_DEFAUT } from './mise-en-page';
+import { QUALIFICATION_PAR_DEFAUT, type Qualification } from './qualification';
 import type { Reglages } from './types';
 
+const PROPOSITION_ANCIENNE = { pose: 'p.jpg', logos: [], captures: [], gabarit: 'classique', accroche: 'A', explication: 'e' };
 const R = (reglagesJson as Reglages).publication;
 const PERSO: Qualification = { nature: 'perso', confidentielle: false };
 const PRO: Qualification = { nature: 'pro', confidentielle: false };
@@ -63,6 +65,8 @@ describe('noms et chemins', () => {
       logoUrls: [],
       captureUrls: [],
       accroche: 'Le presse-papiers caché',
+      mise: MISE_PAR_DEFAUT,
+      vedette: null,
     });
     const riche = proprietesVignette({
       ...VIGNETTE, gabarit: 'mosaique', pose: { source: 'banque', fichier: 'ému.jpg' },
@@ -74,6 +78,8 @@ describe('noms et chemins', () => {
       logoUrls: ['http://l/power%20bi.svg'],
       captureUrls: ['http://f/essai/captures/%C3%A9tape%201.png', 'http://f/essai/captures/b.jpg'],
       accroche: 'Le presse-papiers caché',
+      mise: { ...MISE_PAR_DEFAUT, recadrages: [null, null] },
+      vedette: null,
     });
   });
 });
@@ -244,8 +250,11 @@ describe('requalification', () => {
 
 const CONSIGNE: ConsigneVignette = {
   texte: 'Mets en avant le planning',
+  elements: null,
+  base: null,
   compris: 'Le planning au premier plan.',
   pasRealisable: [],
+  introuvables: [],
   propositions: [{ pose: 'surpris.jpg', logos: ['excel.png'], captures: ['planning.png'], gabarit: 'demonstration', accroche: 'Planning sans effort', explication: 'La capture du planning en grand.' }],
   choisie: 0,
 };
@@ -271,22 +280,17 @@ describe('appliquerModifications et consignes de vignette', () => {
   });
 });
 
-describe('captures candidates et consignes de vignette', () => {
+describe('consignes de vignette', () => {
   const avec = (changement: object) => ({ ...prete(), videos: [{ ...prete().videos[0]!, ...changement }] });
   it('part de listes vides, y compris à la lecture d’un fichier qui ne les a pas', () => {
-    expect(videoParDefaut('complete', PERSO)).toMatchObject({ capturesCandidates: [], consignesVignette: [] });
-    const { capturesCandidates: _, consignesVignette: __, ...ancienne } = prete().videos[0]!;
+    expect(videoParDefaut('complete', PERSO)).toMatchObject({ consignesVignette: [] });
+    const { consignesVignette: _, ...ancienne } = prete().videos[0]!;
     const p = migrerPublication({ ...prete(), videos: [ancienne] }) as Publication;
-    expect(p.videos[0]).toMatchObject({ capturesCandidates: [], consignesVignette: [] });
+    expect(p.videos[0]).toMatchObject({ consignesVignette: [] });
   });
-  it('accepte 5 candidates et une consigne bien formée', () => {
-    expect(raisonPublication(avec({ capturesCandidates: ['a.png', 'b.png', 'c.png', 'd.png', 'e.png'], consignesVignette: [CONSIGNE] }))).toBeNull();
+  it('accepte une consigne bien formée', () => {
+    expect(raisonPublication(avec({ consignesVignette: [CONSIGNE] }))).toBeNull();
     expect(raisonPublication(avec({ consignesVignette: [{ ...CONSIGNE, choisie: null }] }))).toBeNull();
-  });
-  it('refuse plus de 5 candidates ou un nom avec un chemin', () => {
-    expect(raisonPublication(avec({ capturesCandidates: ['a', 'b', 'c', 'd', 'e', 'f'].map(f => `${f}.png`) })))
-      .toBe('videos[0] : capturesCandidates invalides (5 au plus)');
-    expect(raisonPublication(avec({ capturesCandidates: ['../a.png'] }))).toBe('videos[0] : capturesCandidates invalides (5 au plus)');
   });
   it('refuse une consigne mal formée', () => {
     const p = CONSIGNE.propositions[0]!;
@@ -340,5 +344,33 @@ describe('classements du site', () => {
     expect(raisonPublication(avecReplit({ id: null, classements: { outil: [1], theme: 'aucun' }, playlistId: null }))).toBeNull();
     expect(raisonPublication(avecReplit({ id: null, classements: { theme: ['x'] }, playlistId: null })))
       .toBe('videos[0] : classements du site invalides');
+  });
+});
+
+describe('mise en page des vignettes', () => {
+  const vignette = { pose: { source: 'banque' as const, fichier: 'p.jpg' }, accroche: 'A', gabarit: 'demonstration' as const, logos: ['excel.png'], captures: ['c.png'], fichier: null };
+  it('garde la clé d’une vignette sans mise et la change avec une mise', () => {
+    expect(cleVignette(vignette)).toBe('p.jpg|A|demonstration|excel.png|c.png');
+    expect(cleVignette({ ...vignette, mise: { ...MISE_PAR_DEFAUT, cotePose: 'gauche' } })).not.toBe(cleVignette(vignette));
+  });
+  it('transmet une mise bornée et l’indice du logo vedette à Remotion', () => {
+    const props = proprietesVignette({ ...vignette, mise: { ...MISE_PAR_DEFAUT, logoVedette: 'excel.png' } }, { tournage: 't', poses: 'p', logos: 'l' });
+    expect(props.mise).toMatchObject({ cotePose: 'droite', tailleAccroche: 'normale' });
+    expect(props.vedette).toBe(0);
+    expect(proprietesVignette(vignette, { tournage: 't', poses: 'p', logos: 'l' }).vedette).toBeNull();
+  });
+  it('relit un ancien fichier : capturesCandidates oubliées, consignes complétées', () => {
+    const ancien = { version: 2, qualificationParDefaut: QUALIFICATION_PAR_DEFAUT, videos: [{
+      ...videoParDefaut('complete', QUALIFICATION_PAR_DEFAUT), capturesCandidates: ['a.png'],
+      consignesVignette: [{ texte: 'Plus sobre', compris: 'ok', pasRealisable: [], propositions: [PROPOSITION_ANCIENNE], choisie: null }],
+    }] };
+    const migre = migrerPublication(ancien) as Publication;
+    expect(raisonPublication(migre)).toBeNull();
+    expect('capturesCandidates' in migre.videos[0]!).toBe(false);
+    expect(migre.videos[0]!.consignesVignette[0]).toMatchObject({ elements: null, base: null, introuvables: [] });
+  });
+  it('refuse une mise invalide', () => {
+    const p = { version: 2, qualificationParDefaut: QUALIFICATION_PAR_DEFAUT, videos: [{ ...videoParDefaut('complete', QUALIFICATION_PAR_DEFAUT), vignette: { ...vignette, mise: { cotePose: 'haut' } } }] };
+    expect(raisonPublication(p)).toContain('mise invalide');
   });
 });
