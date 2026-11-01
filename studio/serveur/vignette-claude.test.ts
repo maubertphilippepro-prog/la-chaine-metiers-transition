@@ -1,112 +1,83 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { describe, expect, it, vi } from 'vitest';
-import type { ConsigneVignette, PropositionVignette, Vignette } from '../../noyau/publication';
+import type { ElementsVignette, PropositionVignette } from '../../noyau/publication';
 import { ErreurInterpretation } from './consignes';
+import type { ImageClaude } from './images';
 import {
-  construirePromptVignette, nettoyerPropositionsVignette, proposerVignettes, type DemandeVignette, type ElementsDisponibles,
+  construireMessageVignette, nettoyerPropositionsVignette, proposerVignettes, type DemandeVignette,
 } from './vignette-claude';
 
-const DISPONIBLES: ElementsDisponibles = {
-  poses: ['surpris.jpg', 'souriant.jpg'],
-  logos: ['excel.png', 'teams.svg'],
-  captures: ['planning.png', 'tableau.png'],
-  accroches: ['Planning sans effort', 'Excel en 2 clics'],
-};
-const ACTUELLE: Vignette = {
-  pose: { source: 'banque', fichier: 'souriant.jpg' }, accroche: 'Accroche actuelle', gabarit: 'classique', logos: [], captures: [], fichier: null,
-};
+const IMAGE = (nom: string): ImageClaude => ({ nom, media_type: 'image/jpeg', data: 'AAAA' });
+const ELEMENTS: ElementsVignette = { pose: 'surpris.jpg', accroche: 'Planning sans effort', logosTexte: 'Excel, Power', logos: ['excel.png'], captures: ['planning.png', 'tableau.png'] };
 const PROPOSITION: PropositionVignette = {
-  pose: 'surpris.jpg', logos: ['excel.png'], captures: ['planning.png'], gabarit: 'demonstration', accroche: 'Planning en un clin d’œil', explication: 'Le planning en grand.',
-};
-const PRECEDENTE: ConsigneVignette = {
-  texte: 'Plus sobre', compris: 'Moins d’éléments.', pasRealisable: [], propositions: [{ ...PROPOSITION, gabarit: 'classique', logos: [], captures: [] }], choisie: 0,
+  pose: 'surpris.jpg', logos: ['excel.png'], captures: ['planning.png', 'tableau.png'], gabarit: 'mosaique', accroche: 'Planning sans effort', explication: 'Le planning en grand.',
+  mise: { cotePose: 'gauche', tailleAccroche: 'grande', recadrages: [{ x: 10, y: 10, largeur: 50, hauteur: 50 }, null], logoVedette: null },
 };
 const demande: DemandeVignette = {
-  consigne: 'Mets en avant le planning, ton plus léger',
-  titre: 'Le planning Excel', description: 'Un planning partagé.', logiciels: ['Excel'],
-  disponibles: DISPONIBLES, actuelle: ACTUELLE, dejaUtilises: ['vitrine'], precedentes: [PRECEDENTE],
-  qualification: { nature: 'perso', confidentielle: false }, modele: 'claude-opus-5-5',
+  elements: ELEMENTS, ambigus: ['Power'], logosBanque: ['excel.png', 'Power BI.png', 'Power Automate.png'], consignes: 'Zoome sur le bouton Partager',
+  base: null, titre: 'Le planning Excel', description: 'Un planning partagé.',
+  images: { pose: IMAGE('surpris.detoure.png'), logos: [IMAGE('excel.png')], captures: [IMAGE('planning.png'), IMAGE('tableau.png')] },
+  dejaUtilises: ['vitrine'], qualification: { nature: 'perso', confidentielle: false }, modele: 'claude-opus-5-5',
 };
+const texte = (blocs: Anthropic.ContentBlockParam[]) => blocs.filter(b => b.type === 'text').map(b => (b as { text: string }).text).join('\n');
 
 function client(parse: (...args: unknown[]) => Promise<unknown>) {
   const fonction = vi.fn(parse);
   return { client: { messages: { parse: fonction } } as unknown as Anthropic, parse: fonction };
 }
 
-describe('construirePromptVignette', () => {
-  it('donne la consigne, les textes et les noms de fichiers proposables', () => {
-    const prompt = construirePromptVignette(demande);
-    expect(prompt).toContain('<consigne>\nMets en avant le planning, ton plus léger\n</consigne>');
-    expect(prompt).toContain('Titre : Le planning Excel');
-    expect(prompt).toContain('- Planning sans effort');
-    expect(prompt).toContain('- Excel');
-    expect(prompt).toContain('- surpris.jpg');
-    expect(prompt).toContain('- teams.svg');
-    expect(prompt).toContain('- planning.png\n- tableau.png');
-    expect(prompt).toContain('noms de fichiers');
+describe('construireMessageVignette', () => {
+  it('légende chaque image puis l’envoie', () => {
+    const blocs = construireMessageVignette(demande);
+    const i = blocs.findIndex(b => b.type === 'text' && (b as { text: string }).text.includes('Capture planning.png'));
+    expect(blocs[i + 1]).toEqual({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: 'AAAA' } });
+    expect(blocs.filter(b => b.type === 'image')).toHaveLength(4);
   });
-  it('décrit la composition actuelle et les gabarits, en signalant ceux déjà pris', () => {
-    const prompt = construirePromptVignette(demande);
-    expect(prompt).toContain('Composition actuelle : pose souriant.jpg, gabarit classique, accroche « Accroche actuelle »');
-    expect(prompt).toMatch(/- vitrine \(Vitrine\) : .*possible dès un logo — déjà pris par une autre vidéo/);
-    expect(prompt).not.toMatch(/- classique .*déjà pris/);
-    expect(construirePromptVignette({ ...demande, actuelle: null })).toContain('Pas encore de composition.');
+  it('impose les éléments et demande 3 variantes dont une avec l’accroche telle quelle', () => {
+    const t = texte(construireMessageVignette(demande));
+    expect(t).toContain('« Planning sans effort »');
+    expect(t).toContain('exactement 3');
+    expect(t).toContain('<consignes>\nZoome sur le bouton Partager\n</consignes>');
+    expect(t).toMatch(/Power.*Power BI\.png.*Power Automate\.png/s);
+    expect(t).toMatch(/- vitrine .*déjà pris/);
   });
-  it('rappelle les consignes précédentes et la proposition retenue', () => {
-    const prompt = construirePromptVignette(demande);
-    expect(prompt).toContain('- « Plus sobre » (retenue : pose surpris.jpg, gabarit classique');
-    expect(construirePromptVignette({ ...demande, precedentes: [{ ...PRECEDENTE, choisie: null }] })).toContain('aucune proposition retenue');
-    expect(construirePromptVignette({ ...demande, precedentes: [] })).not.toContain('Consignes précédentes');
+  it('demande de rester proche de la base quand il y en a une', () => {
+    expect(texte(construireMessageVignette(demande))).not.toContain('Variante de départ');
+    const t = texte(construireMessageVignette({ ...demande, base: PROPOSITION }));
+    expect(t).toContain('Variante de départ');
+    expect(t).toContain('"cotePose":"gauche"');
   });
-  it('donne les règles et le ton selon la diffusion', () => {
-    const prompt = construirePromptVignette(demande);
-    expect(prompt).toContain('3 logos et 3 captures au plus');
-    expect(prompt).toContain('3 à 5 mots');
-    expect(prompt).toContain('ne mentionne aucun employeur');
-    expect(construirePromptVignette({ ...demande, qualification: { nature: 'pro', confidentielle: true } })).toContain('usage interne');
+  it('donne le ton selon la diffusion', () => {
+    expect(texte(construireMessageVignette(demande))).toContain('ne mentionne aucun employeur');
+    expect(texte(construireMessageVignette({ ...demande, qualification: { nature: 'pro', confidentielle: true } }))).toContain('usage interne');
   });
 });
 
 describe('nettoyerPropositionsVignette', () => {
-  const nettoyer = (p: Partial<PropositionVignette>[], actuelle: Vignette | null = ACTUELLE) =>
-    nettoyerPropositionsVignette(p.map(x => ({ ...PROPOSITION, ...x })), DISPONIBLES, actuelle, ['vitrine']);
-  it('garde une proposition valable telle quelle, sans blancs', () => {
-    expect(nettoyer([{ accroche: ' Planning en un clin d’œil ', explication: ' Le planning en grand. ' }])).toEqual([PROPOSITION]);
+  it('rétablit les éléments imposés et borne la mise', () => {
+    const [p] = nettoyerPropositionsVignette([{ ...PROPOSITION, pose: 'autre.jpg', captures: ['planning.png'], mise: { ...PROPOSITION.mise!, recadrages: [{ x: 99, y: 0, largeur: 5, hauteur: 50 }] } }], ELEMENTS, []);
+    expect(p!.pose).toBe('surpris.jpg');
+    expect(p!.captures).toEqual(['planning.png', 'tableau.png']);
+    expect(p!.mise!.recadrages[0]).toEqual({ x: 90, y: 0, largeur: 10, hauteur: 50 });
   });
-  it('retire fichiers inconnus et doublons, et garde 3 éléments au plus', () => {
-    const [p] = nettoyer([{ logos: ['excel.png', 'inconnu.png', 'excel.png', 'teams.svg'], captures: ['planning.png', 'hors-liste.png'] }]);
-    expect(p).toMatchObject({ logos: ['excel.png', 'teams.svg'], captures: ['planning.png'] });
-    const plusieurs = nettoyerPropositionsVignette(
-      [{ ...PROPOSITION, logos: ['a.png', 'b.png', 'c.png', 'd.png'] }],
-      { ...DISPONIBLES, logos: ['a.png', 'b.png', 'c.png', 'd.png'] }, ACTUELLE, [],
-    );
-    expect(plusieurs[0]!.logos).toEqual(['a.png', 'b.png', 'c.png']);
+  it('accepte les logos ajoutés pour un nom ambigu', () => {
+    const [p] = nettoyerPropositionsVignette([{ ...PROPOSITION, logos: ['excel.png', 'Power BI.png'] }], { ...ELEMENTS, logos: ['excel.png', 'Power BI.png'] }, []);
+    expect(p!.logos).toEqual(['excel.png', 'Power BI.png']);
   });
-  it('corrige un gabarit impossible avec les éléments retenus, en évitant ceux déjà pris', () => {
-    expect(nettoyer([{ gabarit: 'mosaique', captures: ['planning.png'] }])[0]!.gabarit).toBe('demonstration');
-    expect(nettoyer([{ gabarit: 'mosaique', captures: [], logos: ['excel.png'] }])[0]!.gabarit).toBe('classique');
-  });
-  it('remplace une pose inconnue par celle de la composition actuelle, sinon la première de la banque', () => {
-    expect(nettoyer([{ pose: 'inconnue.jpg' }])[0]!.pose).toBe('souriant.jpg');
-    expect(nettoyer([{ pose: 'inconnue.jpg' }], null)[0]!.pose).toBe('surpris.jpg');
-  });
-  it('remplace une accroche vide par l’actuelle, sinon la première rédigée', () => {
-    expect(nettoyer([{ accroche: '  ' }])[0]!.accroche).toBe('Accroche actuelle');
-    expect(nettoyer([{ accroche: '' }], null)[0]!.accroche).toBe('Planning sans effort');
-  });
-  it('fusionne les propositions identiques après nettoyage et en garde 3 au plus', () => {
-    expect(nettoyer([{}, { logos: ['excel.png', 'inconnu.png'], explication: 'Autre' }])).toHaveLength(1);
-    const quatre = nettoyer([{ accroche: 'Un' }, { accroche: 'Deux' }, { accroche: 'Trois' }, { accroche: 'Quatre' }]);
-    expect(quatre.map(p => p.accroche)).toEqual(['Un', 'Deux', 'Trois']);
-  });
-  it('ne garde rien sans pose ni accroche possibles', () => {
-    expect(nettoyerPropositionsVignette([PROPOSITION], { ...DISPONIBLES, poses: [] }, null, [])).toEqual([]);
-    expect(nettoyerPropositionsVignette([{ ...PROPOSITION, accroche: '' }], { ...DISPONIBLES, accroches: [] }, null, [])).toEqual([]);
+  it('remplace un gabarit impossible, reprend l’accroche de l’auteur si vide, fusionne les doublons', () => {
+    const r = nettoyerPropositionsVignette([
+      { ...PROPOSITION, gabarit: 'mosaique', captures: [] , accroche: '' },
+      { ...PROPOSITION, accroche: 'Autre accroche' },
+      { ...PROPOSITION, accroche: 'Autre accroche' },
+    ], { ...ELEMENTS, captures: [] }, []);
+    expect(r[0]!.gabarit).toBe('vitrine');
+    expect(r[0]!.accroche).toBe('Planning sans effort');
+    expect(r).toHaveLength(2);
   });
 });
 
 describe('proposerVignettes', () => {
-  const REPONSE = { compris: 'Le planning en avant.', pasRealisable: [], propositions: [PROPOSITION] };
+  const REPONSE = { compris: 'Le planning en avant.', pasRealisable: [], logosAjoutes: [], propositions: [PROPOSITION] };
   it('appelle Claude en sortie structurée, effort moyen, avec repli serveur', async () => {
     const { client: c, parse } = client(async () => ({ stop_reason: 'end_turn', parsed_output: REPONSE }));
     expect(await proposerVignettes(demande, c)).toEqual(REPONSE);
@@ -114,6 +85,7 @@ describe('proposerVignettes', () => {
       expect.objectContaining({ model: 'claude-opus-5-5', fallbacks: 'default', output_config: expect.objectContaining({ effort: 'medium' }) }),
       { headers: { 'anthropic-beta': 'server-side-fallback-2026-07-01' } },
     );
+    expect(parse.mock.calls[0]![0]).toMatchObject({ messages: [{ role: 'user', content: construireMessageVignette(demande) }] });
   });
   it('signale un refus ou une réponse inexploitable', async () => {
     await expect(proposerVignettes(demande, client(async () => ({ stop_reason: 'refusal', parsed_output: null })).client)).rejects.toThrow(ErreurInterpretation);
