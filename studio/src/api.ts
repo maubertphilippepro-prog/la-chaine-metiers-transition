@@ -5,6 +5,7 @@ import type { CiblePublication, Publication } from '../../noyau/publication';
 import type { Qualification } from '../../noyau/qualification';
 import type { Cible } from '../../remotion/scripts/rendu';
 import type { VisibiliteYoutube } from '../../noyau/youtube';
+import type { Formulaire } from './logique/publication';
 import type { DetailMail, DetailPublication, DetailTournage, DossierYoutube, EtatRendu, Pose, ResumeTournage, VerificationYoutube } from '../commun';
 
 export class ErreurApi extends Error {
@@ -95,8 +96,8 @@ export const api = {
   enregistrerPublication: (nom: string, p: Publication) => appeler<Publication>(`${chemin(nom)}/publication`, enJson('PUT', p)),
   rediger: (nom: string, cible: CiblePublication) => appeler<Publication>(`${chemin(nom)}/publication/redaction`, enJson('POST', { cible })),
   rendreVignette: (nom: string, cible: CiblePublication) => appeler<Publication>(`${chemin(nom)}/publication/vignette`, enJson('POST', { cible })),
-  consigneVignette: (nom: string, cible: CiblePublication, texte: string) =>
-    appeler<Publication>(`${chemin(nom)}/publication/vignette/consigne`, enJson('POST', { cible, texte })),
+  genererVignette: (nom: string, cible: CiblePublication, f: Formulaire) =>
+    appeler<Publication>(`${chemin(nom)}/publication/vignette/generer`, enJson('POST', { cible, ...f })),
   captures: (nom: string) => appeler<string[]>(`${chemin(nom)}/publication/captures`),
   deposerCapture: (nom: string, fichier: string, contenu: Blob) => appeler<{ fichier: string; captures: string[] }>(
     `${chemin(nom)}/publication/captures?fichier=${encodeURIComponent(fichier)}`,

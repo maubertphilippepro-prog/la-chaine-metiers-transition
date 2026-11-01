@@ -1,13 +1,11 @@
 import { Thumbnail } from '@remotion/player';
 import { type FC, useEffect, useState } from 'react';
-import { gabaritRetenu, gabaritsCompatibles, LIBELLES_GABARIT, logosSuggeres, MAX_CANDIDATES, MAX_ELEMENTS, type Gabarit } from '../../../noyau/gabarits';
-import { cleVignette, DOSSIER_CAPTURES, proprietesVignette, type Publication, type Vignette, type VideoPubliee } from '../../../noyau/publication';
+import { cleVignette, proprietesVignette, type Publication, type Vignette, type VideoPubliee } from '../../../noyau/publication';
 import { HAUTEUR_VIGNETTE, LARGEUR_VIGNETTE, Vignette as CompositionVignette } from '../../../remotion/composants/Vignette';
 import type { DetailPublication, Pose } from '../../commun';
 import { api } from '../api';
-import { basculer, basePose } from '../logique/publication';
 import { Attente } from './Attente';
-import { ConsignesVignette } from './ConsignesVignette';
+import { FormulaireVignette } from './FormulaireVignette';
 
 export const RENDU_VIGNETTE = 'Rendu de la vignette…';
 
@@ -18,16 +16,14 @@ interface Props {
   poses: Pose[];
   // Vignette de la vidéo complète : pose de départ des épisodes.
   complete: Vignette | null;
-  // Gabarits des autres vidéos de la publication, proposés en dernier.
-  gabaritsAutres: Gabarit[];
   changer: (c: Partial<VideoPubliee>) => void;
   lancer: (libelle: string, action: () => Promise<Publication>) => Promise<void>;
   // Libellé de l’action en cours sur la carte, null si aucune.
   occupe: string | null;
 }
 
-// Pose de la banque, accroche, logos et captures ; aperçu immédiat, puis rendu en JPEG par le serveur.
-export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complete, gabaritsAutres, changer, lancer, occupe }) => {
+// Captures du tournage, formulaire de génération par Claude, aperçu immédiat, puis rendu en JPEG par le serveur.
+export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complete, changer, lancer, occupe }) => {
   const [erreur, setErreur] = useState<string | null>(null);
   // Repère du dernier rendu : un nouveau rendu de la même vignette (logo ou charte changés) garde le même nom de fichier,
   // le navigateur réafficherait sinon l’ancienne image.
@@ -38,29 +34,6 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
   const [depot, setDepot] = useState(false);
   const vignette = v.vignette;
   const bases = { tournage: detail.urlTournage, poses: detail.urlPoses, logos: detail.urlLogos };
-
-  const composer = (c: Partial<Omit<Vignette, 'fichier'>>) => {
-    const pose = c.pose ?? basePose(vignette, complete, poses[0]?.fichier);
-    if (!pose) {
-      setErreur('Aucune pose : ajoutez des photos dans donnees/poses/.');
-      return;
-    }
-    setErreur(null);
-    // Une vignette neuve reçoit les logos des logiciels cités ; le gabarit suit les éléments choisis.
-    const logos = c.logos ?? vignette?.logos ?? logosSuggeres(v.logiciels, detail.logos.map(l => l.fichier));
-    const choisies = c.captures ?? vignette?.captures ?? [];
-    const compatibles = gabaritsCompatibles({ logos: logos.length, captures: choisies.length }, gabaritsAutres);
-    changer({
-      vignette: {
-        pose,
-        accroche: c.accroche ?? vignette?.accroche ?? v.accroches[0] ?? '',
-        gabarit: gabaritRetenu(c.gabarit ?? vignette?.gabarit ?? null, compatibles),
-        logos,
-        captures: choisies,
-        fichier: vignette?.fichier ?? null,
-      },
-    });
-  };
 
   const deposer = async (fichiers: File[]) => {
     setErreur(null);
@@ -81,77 +54,12 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
     }
   };
 
-  const proposes = vignette
-    ? gabaritsCompatibles({ logos: vignette.logos.length, captures: vignette.captures.length }, gabaritsAutres)
-    : [];
-  const urlCapture = (f: string) => `${detail.urlTournage}/${DOSSIER_CAPTURES}/${encodeURIComponent(f)}`;
-
-  // Candidates encore sur le disque : une capture disparue est ignorée.
-  const candidates = v.capturesCandidates.filter(f => captures.includes(f));
   return (
     <fieldset className="vignette">
       <legend>Vignette</legend>
+      {poses.length === 0 && <p className="alerte">Aucune pose : ajoutez des photos dans donnees/poses/.</p>}
       <div className="actions">
-        <span>Pose :</span>
-        {poses.map(p => (
-          <button
-            key={p.fichier}
-            className={vignette?.pose.source === 'banque' && vignette.pose.fichier === p.fichier ? 'pose choisie' : 'pose'}
-            title={p.fichier}
-            onClick={() => composer({ pose: { source: 'banque', fichier: p.fichier } })}
-          >
-            <img src={p.url} alt={p.fichier} />
-          </button>
-        ))}
-      </div>
-      <label>
-        Accroche (3 à 5 mots)
-        <input value={vignette?.accroche ?? ''} onChange={e => composer({ accroche: e.target.value })} />
-      </label>
-      {v.accroches.length > 0 && (
-        <div className="actions">
-          <span className="discret">Accroches proposées :</span>
-          {v.accroches.map(a => (
-            <button key={a} className={a === vignette?.accroche ? 'choisi' : undefined} onClick={() => composer({ accroche: a })}>{a}</button>
-          ))}
-        </div>
-      )}
-      <div className="actions">
-        <span>Logos ({vignette?.logos.length ?? 0}/{MAX_ELEMENTS}) :</span>
-        {detail.logos.length === 0 && <span className="discret">Banque vide : déposez des PNG ou SVG dans donnees/logos/ (nom du fichier = nom du logiciel).</span>}
-        {detail.logos.map(l => (
-          <button
-            key={l.fichier}
-            className={vignette?.logos.includes(l.fichier) ? 'pose choisie' : 'pose'}
-            title={l.fichier}
-            onClick={() => composer({ logos: basculer(vignette?.logos ?? [], l.fichier) })}
-          >
-            <img src={l.url} alt={l.fichier} />
-          </button>
-        ))}
-      </div>
-      <div className="actions">
-        <span>Captures ({vignette?.captures.length ?? 0}/{MAX_ELEMENTS}) · pour Claude {candidates.length}/{MAX_CANDIDATES} :</span>
-        {captures.map(f => (
-          <div key={f} className="capture-candidate">
-            <button
-              className={vignette?.captures.includes(f) ? 'pose choisie' : 'pose'}
-              title={f}
-              onClick={() => composer({ captures: basculer(vignette?.captures ?? [], f) })}
-            >
-              <img src={urlCapture(f)} alt={f} />
-            </button>
-            <label className="discret">
-              <input
-                type="checkbox"
-                checked={candidates.includes(f)}
-                disabled={!candidates.includes(f) && candidates.length >= MAX_CANDIDATES}
-                onChange={() => changer({ capturesCandidates: basculer(candidates, f, MAX_CANDIDATES) })}
-              />
-              {' '}Pour Claude
-            </label>
-          </div>
-        ))}
+        <span className="discret">{captures.length} capture(s) dans captures/ du tournage.</span>
         <button onClick={() => void actualiser()}>Actualiser</button>
       </div>
       <div
@@ -162,29 +70,7 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
       >
         Glissez ici des captures (PNG, JPEG ou SVG), ou déposez-les dans captures/ du tournage puis « Actualiser ».
       </div>
-      <ConsignesVignette nom={nom} video={v} bases={bases} changer={changer} lancer={lancer} occupe={occupe} />
-      {vignette && (
-        <>
-          <p className="discret">Gabarit : cliquez sur un aperçu.</p>
-          <div className="gabarits">
-            {proposes.map(g => (
-              <button key={g} className={g === vignette.gabarit ? 'gabarit choisi' : 'gabarit'} onClick={() => composer({ gabarit: g })}>
-                <Thumbnail
-                  component={CompositionVignette}
-                  compositionWidth={LARGEUR_VIGNETTE}
-                  compositionHeight={HAUTEUR_VIGNETTE}
-                  frameToDisplay={0}
-                  durationInFrames={1}
-                  fps={30}
-                  inputProps={proprietesVignette({ ...vignette, gabarit: g }, bases)}
-                  style={{ width: '100%' }}
-                />
-                <span>{LIBELLES_GABARIT[g]}</span>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
+      <FormulaireVignette nom={nom} video={v} detail={detail} poses={poses} captures={captures} complete={complete} bases={bases} changer={changer} lancer={lancer} occupe={occupe} />
       {erreur && <p className="alerte">{erreur}</p>}
       {vignette && (
         <div className="apercus-vignette">

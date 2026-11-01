@@ -1,5 +1,4 @@
 import { type FC, useEffect, useState } from 'react';
-import { gabaritsAutres } from '../../../noyau/publication';
 import { diffusion, NATURES, type Nature } from '../../../noyau/qualification';
 import type { Pose } from '../../commun';
 import { api } from '../api';
@@ -69,7 +68,6 @@ export const EcranPublication: FC<{ nom: string }> = ({ nom }) => {
           <CartePublication
             key={String(v.cible)} nom={nom} video={v} disponible={disponible} detail={detail} poses={poses ?? []}
             complete={publication.videos.find(x => x.cible === 'complete')?.vignette ?? null}
-            gabaritsAutres={gabaritsAutres(publication, v.cible)}
             modifier={modifier} executer={executer} synchroniser={synchroniser} ajouterValeur={ajouterValeur}
           />
         );

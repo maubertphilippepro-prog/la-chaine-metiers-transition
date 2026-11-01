@@ -90,7 +90,10 @@ export function basculer(liste: string[], fichier: string, max = MAX_ELEMENTS): 
 
 // Vignette composée d'après une proposition de Claude.
 export function vignetteDepuisProposition(p: PropositionVignette, fichier: string | null): Vignette {
-  return { pose: { source: 'banque', fichier: p.pose }, accroche: p.accroche, gabarit: p.gabarit, logos: p.logos, captures: p.captures, fichier };
+  return {
+    pose: { source: 'banque', fichier: p.pose }, accroche: p.accroche, gabarit: p.gabarit, logos: p.logos, captures: p.captures, fichier,
+    ...(p.mise ? { mise: p.mise } : {}),
+  };
 }
 
 // Applique à la vignette la proposition `indice` de la consigne `consigne` et la marque retenue ; le fichier rendu
@@ -101,5 +104,35 @@ export function appliquerProposition(v: VideoPubliee, consigne: number, indice: 
   return {
     vignette: vignetteDepuisProposition(p, v.vignette?.fichier ?? null),
     consignesVignette: v.consignesVignette.map((c, i) => (i === consigne ? { ...c, choisie: indice } : c)),
+  };
+}
+
+export interface Formulaire {
+  pose: string; accroche: string; logosTexte: string; captures: string[]; consignes: string;
+  base: { consigne: number; proposition: number } | null;
+}
+
+// Logos en texte : la saisie du tour si elle existe, sinon les noms de fichiers sans extension.
+const texteLogos = (logos: string[]) => logos.map(f => f.replace(/\.[^.]+$/, '')).join(', ');
+
+// Repartir d'une variante : ses éléments et son accroche ; les consignes sont à réécrire.
+export function formulaireDepuisBase(v: VideoPubliee, consigne: number, proposition: number): Formulaire {
+  const tour = v.consignesVignette[consigne]!;
+  const p = tour.propositions[proposition]!;
+  return {
+    pose: p.pose, accroche: p.accroche, logosTexte: tour.elements?.logosTexte ?? texteLogos(p.logos),
+    captures: p.captures, consignes: '', base: { consigne, proposition },
+  };
+}
+
+// Formulaire d'une vignette pas encore générée : la vignette actuelle, sinon la pose de la vidéo complète, les logiciels
+// cités et la première accroche rédigée.
+export function formulaireInitial(v: VideoPubliee, premierePose: string | undefined, complete: Vignette | null): Formulaire {
+  const vi = v.vignette;
+  return {
+    pose: basePose(vi, complete, premierePose)?.fichier ?? '',
+    accroche: vi?.accroche ?? v.accroches[0] ?? '',
+    logosTexte: vi ? texteLogos(vi.logos) : v.logiciels.join(', '),
+    captures: vi?.captures ?? [], consignes: '', base: null,
   };
 }

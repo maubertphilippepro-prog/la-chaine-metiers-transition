@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { accorderPublication, modifierVideo, videoParDefaut } from '../../../noyau/publication';
-import { diffusion, type Qualification } from '../../../noyau/qualification';
+import { MISE_PAR_DEFAUT } from '../../../noyau/mise-en-page';
+import { accorderPublication, modifierVideo, videoParDefaut, type ConsigneVignette } from '../../../noyau/publication';
+import { diffusion, QUALIFICATION_PAR_DEFAUT, type Qualification } from '../../../noyau/qualification';
 import {
-  appliquerProposition, basculer, basePose, changerQualificationParDefaut, EXPLICATIONS_RELAIS, isoDepuisLocal, libelleCible, LIBELLES_VISIBILITE, localDepuisIso,
+  appliquerProposition, basculer, basePose, changerQualificationParDefaut, EXPLICATIONS_RELAIS, formulaireDepuisBase, formulaireInitial, isoDepuisLocal, libelleCible, LIBELLES_VISIBILITE, localDepuisIso,
   requalificationRetire, resumeDiffusion, tagsDepuisTexte, texteDepuisTags, vignetteDepuisProposition,
 } from './publication';
 
@@ -106,7 +107,7 @@ describe('basculer', () => {
 
 describe('appliquerProposition', () => {
   const proposition = { pose: 'b.jpg', logos: ['excel.png'], captures: ['a.png'], gabarit: 'demonstration' as const, accroche: 'Planning facile', explication: 'En grand.' };
-  const consigne = { texte: 'Le planning', compris: 'Planning.', pasRealisable: [], propositions: [proposition, { ...proposition, gabarit: 'classique' as const }], choisie: null };
+  const consigne = { texte: 'Le planning', elements: null, base: null, compris: 'Planning.', pasRealisable: [], introuvables: [], propositions: [proposition, { ...proposition, gabarit: 'classique' as const }], choisie: null };
   const video = {
     ...videoParDefaut('complete', PERSO),
     vignette: { pose: { source: 'banque' as const, fichier: 'a.jpg' }, accroche: 'Ancienne', gabarit: 'classique' as const, logos: [], captures: [], fichier: 'rendus/vignettes/complete.jpg' },
@@ -126,5 +127,27 @@ describe('appliquerProposition', () => {
   });
   it('compose une vignette sans fichier rendu pour l’aperçu', () => {
     expect(vignetteDepuisProposition(proposition, null)).toMatchObject({ pose: { source: 'banque', fichier: 'b.jpg' }, fichier: null });
+  });
+});
+
+describe('formulaire de vignette', () => {
+  const tour: ConsigneVignette = {
+    texte: 'Zoome', elements: { pose: 'p.jpg', accroche: 'A', logosTexte: 'Excel, Power', logos: ['excel.png', 'Power BI.png'], captures: ['c.png'] },
+    base: null, compris: '', pasRealisable: [], introuvables: [], choisie: null,
+    propositions: [{ pose: 'p.jpg', logos: ['excel.png', 'Power BI.png'], captures: ['c.png'], gabarit: 'demonstration', accroche: 'B', explication: '', mise: MISE_PAR_DEFAUT }],
+  };
+  const v = { ...videoParDefaut('complete', QUALIFICATION_PAR_DEFAUT), accroches: ['Rédigée'], consignesVignette: [tour] };
+  it('repart d’une variante : ses éléments, son accroche, consignes vides', () => {
+    expect(formulaireDepuisBase(v, 0, 0)).toEqual({
+      pose: 'p.jpg', accroche: 'B', logosTexte: 'Excel, Power', captures: ['c.png'], consignes: '', base: { consigne: 0, proposition: 0 },
+    });
+  });
+  it('part de la vignette actuelle, sinon de la complète, sinon des valeurs rédigées', () => {
+    expect(formulaireInitial({ ...v, consignesVignette: [] }, 'premiere.jpg', null)).toEqual({
+      pose: 'premiere.jpg', accroche: 'Rédigée', logosTexte: '', captures: [], consignes: '', base: null,
+    });
+  });
+  it('garde la mise en appliquant une variante', () => {
+    expect(vignetteDepuisProposition(tour.propositions[0]!, null).mise).toEqual(MISE_PAR_DEFAUT);
   });
 });
