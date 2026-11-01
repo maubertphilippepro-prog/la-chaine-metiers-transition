@@ -48,3 +48,22 @@ export function logosSuggeres(logiciels: string[], banque: string[]): string[] {
   }
   return resultat.slice(0, MAX_ELEMENTS);
 }
+
+// Logos saisis en texte libre (« Excel, Teams ») retrouvés dans la banque. Un nom qui désigne plusieurs fichiers est
+// laissé à Claude, qui voit les logos.
+export function resoudreLogos(texte: string, banque: string[]): { logos: string[]; introuvables: string[]; ambigus: string[] } {
+  const logos: string[] = [];
+  const introuvables: string[] = [];
+  const ambigus: string[] = [];
+  const cles = banque.map(f => ({ f, k: cle(f.replace(/\.[^.]+$/, '')) }));
+  for (const nom of texte.split(/[,;\n]/).map(n => n.trim()).filter(n => n !== '')) {
+    const k = cle(nom);
+    const exact = cles.find(c => c.k === k);
+    const partiels = cles.filter(c => c.k.includes(k));
+    const trouve = exact?.f ?? (partiels.length === 1 ? partiels[0]!.f : undefined);
+    if (trouve) { if (!logos.includes(trouve)) logos.push(trouve); }
+    else if (partiels.length > 1) ambigus.push(nom);
+    else introuvables.push(nom);
+  }
+  return { logos: logos.slice(0, MAX_ELEMENTS), introuvables, ambigus };
+}
