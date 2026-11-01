@@ -82,6 +82,7 @@ beforeEach(async () => {
     mail: {
       sharepoint: { dossierLocal: path.join(racine, 'sharepoint'), site: 'https://sp.example/sites/vitrin3', bibliotheque: 'Bib' },
       copier: vi.fn(async () => true),
+      incorporerPochette: vi.fn(async () => ''),
       rediger: vi.fn(async () => '---\nobjet: Essai\n---\n## Titre\n\n[À COMPLÉTER]\n'),
       construire: vi.fn(async (dossier: string) => {
         await mkdir(path.join(dossier, 'build'), { recursive: true });
@@ -125,15 +126,15 @@ describe('mail de com', () => {
     expect(r.status).toBe(409);
     expect((await r.json()).erreur).toContain('Pro');
   });
-  it('copie la vidéo sous le nom du tournage et enregistre l’URL', async () => {
+  it('copie la vidéo sous son titre et enregistre l’URL', async () => {
     await tournage('a');
     await qualifier('a', 'pro');
     await mkdir(path.join(racine, 'sharepoint'));
     const d = await (await mail('a', 'copie', { cible: 'complete' })).json();
     expect(config.mail.copier).toHaveBeenCalledWith(
-      path.join(racine, 'tournages', 'a', 'rendus', 'video-complete.mp4'), path.join(racine, 'sharepoint', 'a-video-complete.mp4'),
+      path.join(racine, 'tournages', 'a', 'rendus', 'video-complete.mp4'), path.join(racine, 'sharepoint', 'Essai.mp4'),
     );
-    expect(d.etat.urlSharepoint).toContain('/_layouts/15/stream.aspx?id=%2Fsites%2Fvitrin3%2FBib%2Fa%2Dvideo%2Dcomplete%2Emp4');
+    expect(d.etat.urlSharepoint).toContain('/_layouts/15/stream.aspx?id=%2Fsites%2Fvitrin3%2FBib%2FEssai%2Emp4');
     expect(d.etat.copieLe).not.toBeNull();
   });
   it('signale un dossier OneDrive absent', async () => {

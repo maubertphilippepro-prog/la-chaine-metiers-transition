@@ -8,9 +8,10 @@ describe('mail de com', () => {
     expect(dossierMail('complete')).toBe('publication/complete/mail');
     expect(dossierMail(2)).toBe('publication/episode-02/mail');
   });
-  it('préfixe le fichier copié par le nom du tournage', () => {
-    expect(fichierSharepoint('2026-10-27-analyztech-en-mode-projet', 'video-complete.mp4'))
-      .toBe('2026-10-27-analyztech-en-mode-projet-video-complete.mp4');
+  it('nomme le fichier copié d’après le titre de la vidéo', () => {
+    expect(fichierSharepoint('AnalyzTech : le mode projet expliqué')).toBe('AnalyzTech le mode projet expliqué.mp4');
+    expect(fichierSharepoint('Quoi de neuf ? / Épisode 2.')).toBe('Quoi de neuf Épisode 2.mp4');
+    expect(fichierSharepoint(' ?? ')).toBe('Vidéo.mp4');
   });
   it('calcule l’URL Stream comme celle copiée dans SharePoint', () => {
     expect(urlSharepoint(SP, '2026-10-27-analyztech-en-mode-projet-video-complete.mp4')).toBe(

@@ -17,7 +17,11 @@ export const A_COMPLETER = '[À COMPLÉTER]';
 
 export const dossierMail = (c: CiblePublication) => `publication/${nomCible(c)}/mail`;
 
-export const fichierSharepoint = (nomTournage: string, fichierRendu: string) => `${nomTournage}-${fichierRendu}`;
+// SharePoint affiche le nom du fichier au-dessus de la vignette : on reprend le titre, sans les caractères interdits.
+export function fichierSharepoint(titre: string): string {
+  const nom = titre.replace(/[\/:*?"<>|#%~&{}]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '').slice(0, 120).trim();
+  return `${nom || 'Vidéo'}.mp4`;
+}
 
 // Adresse de lecture Stream, de la forme copiée dans la barre d'adresse : chemin entièrement encodé, « - » et « . » compris.
 export function urlSharepoint(s: Reglages['sharepoint'], fichier: string): string {

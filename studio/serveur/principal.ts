@@ -11,7 +11,7 @@ import type { Reglages } from '../../noyau/types';
 import { creerApi } from './api';
 import { interpreterConsigne } from './interpretation';
 import { redigerMail, retoucherMail } from './mail-claude';
-import { vignetteLecture, capturerMail, construireMail, copierSiDifferent, creerBrouillon, DOSSIER_MAILING } from './mail-outils';
+import { vignetteLecture, capturerMail, construireMail, copierSiDifferent, creerBrouillon, incorporerPochette, DOSSIER_MAILING } from './mail-outils';
 import { requeteAutorisee } from './origine';
 import { analyserTournage, detourerImage } from './pipeline';
 import { creerApiPublication } from './publication';
@@ -75,6 +75,7 @@ async function main(): Promise<void> {
     mail: {
       sharepoint: reglages.sharepoint,
       copier: copierSiDifferent,
+      incorporerPochette,
       rediger: d => redigerMail(d),
       construire: construireMail,
       retoucher: d => retoucherMail(d),

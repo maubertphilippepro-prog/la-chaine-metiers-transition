@@ -39,7 +39,13 @@ const script = (nom: string) => path.join(DOSSIER_MAILING, 'scripts', nom);
 
 export const vignetteLecture = (source: string, cible: string) => executer(python, [script('vignette_lecture.py'), source, cible]);
 
-export const capturerMail = (dossierMail: string) => executer(python, [script('screenshot.py'), dossierMail]);
+// Remuxe la vidéo sans réencodage, la vignette jointe en pochette MP4 (aperçu possible côté SharePoint).
+export const incorporerPochette = (video: string, vignette: string, sortie: string) => executer('ffmpeg', [
+  '-y', '-loglevel', 'error', '-i', video, '-i', vignette,
+  '-map', '0', '-map', '1', '-c', 'copy', '-disposition:v:1', 'attached_pic', '-movflags', '+faststart', sortie,
+]);
+
+export const capturerMail =(dossierMail: string) => executer(python, [script('screenshot.py'), dossierMail]);
 
 export async function construireMail(dossierMail: string): Promise<string> {
   const build = await executer(python, [script('build_mail.py'), 'build', dossierMail]);

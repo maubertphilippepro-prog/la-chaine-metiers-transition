@@ -15,6 +15,7 @@ import type { RedigerMail, RetoucherMail } from './mail-claude';
 export interface OutilsMail {
   sharepoint: Reglages['sharepoint'];
   copier: (source: string, cible: string) => Promise<boolean>;
+  incorporerPochette: (video: string, vignette: string, sortie: string) => Promise<unknown>;
   rediger: RedigerMail;
   construire: (dossierMail: string) => Promise<string>;
   retoucher: RetoucherMail;
@@ -105,9 +106,17 @@ export function creerMail(o: OutilsMail) {
     if (!existsSync(o.sharepoint.dossierLocal)) {
       throw new ErreurHttp(409, `Dossier OneDrive introuvable : ${o.sharepoint.dossierLocal}. Vérifiez la synchronisation de Vitrin3.`);
     }
-    const fichier = fichierSharepoint(path.basename(v.dossierTournage), v.disponible.fichier);
+    const fichier = fichierSharepoint(v.video.titre || v.disponible.titre);
     await exclusif(v, 'Copie sur SharePoint', async () => {
-      await o.copier(path.join(v.dossierTournage, 'rendus', v.disponible.fichier), path.join(o.sharepoint.dossierLocal, fichier));
+      let source = path.join(v.dossierTournage, 'rendus', v.disponible.fichier);
+      const vignette = path.join(v.dossierTournage, fichierVignette(v.cible));
+      if (existsSync(vignette)) {
+        await mkdir(dossier(v), { recursive: true });
+        const avecPochette = path.join(dossier(v), 'video-sharepoint.mp4');
+        await o.incorporerPochette(source, vignette, avecPochette);
+        source = avecPochette;
+      }
+      await o.copier(source, path.join(o.sharepoint.dossierLocal, fichier));
       await noter(v, { urlSharepoint: urlSharepoint(o.sharepoint, fichier), copieLe: new Date().toISOString() });
     });
     return detail(v);

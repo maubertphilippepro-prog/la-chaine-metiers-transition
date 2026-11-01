@@ -85,6 +85,7 @@ beforeEach(async () => {
     mail: {
       sharepoint: { dossierLocal: path.join(racine, 'sharepoint'), site: 'https://sp.example/sites/vitrin3', bibliotheque: 'Bib' },
       copier: vi.fn(async () => true),
+      incorporerPochette: vi.fn(async () => ''),
       rediger: vi.fn(async () => '---\nobjet: Essai\n---\n## Titre\n\n[À COMPLÉTER]\n'),
       construire: vi.fn(async (dossier: string) => {
         await mkdir(path.join(dossier, 'build'), { recursive: true });
