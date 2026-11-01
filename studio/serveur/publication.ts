@@ -2,11 +2,11 @@ import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import path from 'node:path';
-import { logosSuggeres } from '../../noyau/gabarits';
+import { logosSuggeres, MAX_ELEMENTS, resoudreLogos } from '../../noyau/gabarits';
 import { decisionsEpisodes, decisionsVideoComplete, dureeEpisode, dureeVideoComplete } from '../../noyau/decisions';
 import {
   accorderPublication, appliquerModifications, cleVignette, DOSSIER_CAPTURES, fichierRendu, fichierVignette, gabaritsAutres, modifierVideo,
-  migrerPublication, poseDetouree, problemesPreparation, raisonPublication, proprietesVignette, type CiblePublication, type ConsigneVignette, type ProprietesVignette, type Publication, type VideoPubliee, type Vignette,
+  MAX_PROPOSITIONS_VIGNETTE, migrerPublication, poseDetouree, problemesPreparation, raisonPublication, proprietesVignette, type CiblePublication, type ConsigneVignette, type ProprietesVignette, type Publication, type VideoPubliee, type Vignette,
 } from '../../noyau/publication';
 import { chapitresYoutube, descriptionYoutube, segmentsSecondes, texteConserve } from '../../noyau/publication-textes';
 import { diffusion, NATURES, type Nature } from '../../noyau/qualification';
@@ -24,6 +24,7 @@ import { ErreurInterpretation } from './consignes';
 import { dossierTournage, ecrireJson, ErreurHttp, lireCorps, lireOctets, message, repondre, repondreErreur } from './http';
 import type { Rediger } from './redaction';
 import type { ClientSite, ReferencesSite } from './site-replit';
+import type { ImageClaude, ReduireImage } from './images';
 import { nettoyerPropositionsVignette, type ProposerVignettes, type ReponseVignette } from './vignette-claude';
 import { ecrireDossierYoutube } from './youtube';
 import { creerMail, type OutilsMail, type VideoMail } from './mail';
@@ -40,6 +41,8 @@ export interface ConfigPublication {
   lireSite: (urlSite: string | undefined) => Promise<ReferencesSite | null>;
   rediger: Rediger;
   proposerVignettes: ProposerVignettes;
+  // Images réduites envoyées à Claude avec la demande de vignette.
+  reduireImage: ReduireImage;
   detourer: (entree: string, sortie: string) => Promise<void>;
   rendreVignette: (props: ProprietesVignette, sortie: string, octetsMax: number) => Promise<ResultatVignette>;
   // Visibilité vue par l’adresse publique oEmbed, et ouverture d’un dossier dans l’Explorateur.
@@ -101,7 +104,7 @@ function lireCible(corps: unknown, cibles: CiblePublication[]): CiblePublication
 export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage, res: ServerResponse) => Promise<boolean> {
   let vignetteEnCours = false;
   let relaisEnCours = false;
-  // Une consigne de vignette à la fois par vidéo (« dossier|cible »).
+  // Une génération de vignette à la fois par vidéo (« dossier|cible »).
   const consignesEnCours = new Set<string>();
   const urlTournage = (dossier: string) => `${c.urlFichiers}/${encodeURIComponent(path.basename(dossier))}`;
   const mail = creerMail(c.mail);
@@ -223,54 +226,71 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
     return p;
   }
 
-  // Consigne libre pour la vignette : Claude propose des compositions, nettoyées puis ajoutées à l'historique de la vidéo.
-  // La vignette elle-même ne change pas : l'auteur applique une proposition depuis le studio.
-  async function consigneVignette(req: IncomingMessage, ctx: Contexte): Promise<Publication> {
-    const corps = await lireCorps(req);
-    const cible = lireCible(corps, ctx.cibles);
-    const brut = objet(corps).texte;
-    const texte = typeof brut === 'string' ? brut.trim() : '';
-    if (!texte) throw new ErreurHttp(400, 'Consigne vide.');
+  // Formulaire de vignette : éléments imposés par l'auteur, consignes, variante de départ. Claude propose 3 mises en page,
+  // ajoutées en un nouveau tour ; la vignette ne change que quand l'auteur en retient une.
+  async function genererVignette(req: IncomingMessage, ctx: Contexte): Promise<Publication> {
+    const brut = await lireCorps(req);
+    const cible = lireCible(brut, ctx.cibles);
+    const corps = objet(brut);
+    const texte = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+    const pose = texte(corps.pose);
+    const accroche = texte(corps.accroche);
+    const logosTexte = texte(corps.logosTexte);
+    const consignes = texte(corps.consignes);
+    const choisies = Array.isArray(corps.captures) ? corps.captures.filter((f): f is string => typeof f === 'string') : [];
+    if (!(await photosBanque()).includes(pose)) throw new ErreurHttp(400, 'Pose inconnue.');
+    if (!accroche) throw new ErreurHttp(400, 'Accroche vide.');
+    const toutes = await captures(ctx.dossier);
+    if (choisies.length > MAX_ELEMENTS || choisies.some(f => !toutes.includes(f))) throw new ErreurHttp(400, `Captures invalides (${MAX_ELEMENTS} au plus, prises dans captures/).`);
     const enCours = `${ctx.dossier}|${cible}`;
-    if (consignesEnCours.has(enCours)) throw new ErreurHttp(409, 'Une consigne est déjà en cours pour cette vignette.');
+    if (consignesEnCours.has(enCours)) throw new ErreurHttp(409, 'Une génération est déjà en cours pour cette vignette.');
     consignesEnCours.add(enCours);
     try {
       const video = videoDe(ctx.publication, cible);
-      const toutes = await captures(ctx.dossier);
-      const candidates = video.capturesCandidates.filter(f => toutes.includes(f));
-      const disponibles = {
-        poses: await photosBanque(), logos: await banqueLogos(), captures: candidates.length > 0 ? candidates : toutes, accroches: video.accroches,
+      const refBase = objet(corps.base);
+      const base = corps.base ? video.consignesVignette[refBase.consigne as number]?.propositions[refBase.proposition as number] ?? null : null;
+      const banque = await banqueLogos();
+      const resolus = resoudreLogos(logosTexte, banque);
+      const lire = async (dossier: string, fichiers: string[]) =>
+        (await Promise.all(fichiers.map(f => c.reduireImage(path.join(dossier, f))))).filter((i): i is ImageClaude => i !== null);
+      const images = {
+        pose: await c.reduireImage(path.join(c.cheminPoses, poseDetouree(pose))),
+        logos: await lire(c.cheminLogos, resolus.logos),
+        captures: await lire(path.join(ctx.dossier, DOSSIER_CAPTURES), choisies),
       };
       const dejaUtilises = gabaritsAutres(ctx.publication, cible);
       let reponse: ReponseVignette;
       try {
         reponse = await c.proposerVignettes({
-          consigne: texte,
-          titre: video.titre || ctx.videos.find(v => v.cible === cible)!.titre,
-          description: video.description,
-          logiciels: video.logiciels,
-          disponibles,
-          actuelle: video.vignette,
-          dejaUtilises,
-          precedentes: video.consignesVignette,
+          elements: { pose, accroche, logosTexte, logos: resolus.logos, captures: choisies },
+          ambigus: resolus.ambigus, logosBanque: banque, consignes, base,
+          titre: video.titre || ctx.videos.find(v => v.cible === cible)!.titre, description: video.description,
+          images, dejaUtilises,
           qualification: { nature: video.nature, confidentielle: video.confidentielle },
           modele: ctx.tournage.reglages.modeles.claude,
         });
       } catch (e) {
         if (e instanceof ErreurInterpretation) throw new ErreurHttp(e.statut, e.message);
-        throw new ErreurHttp(500, `Proposition de vignette impossible : ${message(e)}`);
+        throw new ErreurHttp(500, `Génération de vignette impossible : ${message(e)}`);
       }
-      const propositions = nettoyerPropositionsVignette(reponse.propositions, disponibles, video.vignette, dejaUtilises);
-      if (propositions.length === 0) throw new ErreurHttp(422, 'Claude n’a proposé aucune composition utilisable.');
-      const nouvelle: ConsigneVignette = {
-        texte,
+      // Logos tranchés par Claude pour les noms ambigus, s'ils sont bien dans la banque.
+      const ajoutes = reponse.logosAjoutes.filter(f => banque.includes(f) && !resolus.logos.includes(f));
+      const elements = { pose, accroche, logosTexte, logos: [...resolus.logos, ...ajoutes].slice(0, MAX_ELEMENTS), captures: choisies };
+      const propositions = nettoyerPropositionsVignette(reponse.propositions, elements, dejaUtilises);
+      if (propositions.length === 0) throw new ErreurHttp(422, 'Claude n’a proposé aucune vignette utilisable.');
+      const nonTranches = resolus.ambigus.filter(n => !ajoutes.some(f => f.toLowerCase().includes(n.toLowerCase())));
+      const tour: ConsigneVignette = {
+        texte: consignes, elements, base,
         compris: reponse.compris.trim(),
-        pasRealisable: reponse.pasRealisable.map(t => t.trim()).filter(t => t !== ''),
-        propositions,
-        choisie: null,
+        pasRealisable: [
+          ...reponse.pasRealisable.map(t => t.trim()).filter(t => t !== ''),
+          ...(propositions.length < MAX_PROPOSITIONS_VIGNETTE ? [`${propositions.length} variante(s) seulement après vérification`] : []),
+        ],
+        introuvables: [...resolus.introuvables, ...nonTranches],
+        propositions, choisie: null,
       };
       const actuelle = await relire(ctx);
-      const p = modifierVideo(actuelle, cible, { consignesVignette: [...videoDe(actuelle, cible).consignesVignette, nouvelle] });
+      const p = modifierVideo(actuelle, cible, { consignesVignette: [...videoDe(actuelle, cible).consignesVignette, tour] });
       await ecrirePublication(ctx.dossier, p);
       return p;
     } finally {
@@ -534,7 +554,7 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
 
   return async function traiter(req, res) {
     const chemin = new URL(req.url ?? '/', 'http://local').pathname;
-    const route = /^\/api\/tournages\/([^/]+)\/publication(?:\/(redaction|vignette\/consigne|vignette|captures|valider|relais|site\/retirer|youtube\/(?:preparer|ouvrir|envoi|verifier)|mail(?:\/(?:copie|images|redaction|construire|retouche|brouillon))?))?$/
+    const route = /^\/api\/tournages\/([^/]+)\/publication(?:\/(redaction|vignette\/generer|vignette|captures|valider|relais|site\/retirer|youtube\/(?:preparer|ouvrir|envoi|verifier)|mail(?:\/(?:copie|images|redaction|construire|retouche|brouillon))?))?$/
       .exec(chemin);
     const valeur = /^\/api\/site\/classements\/([^/]+)\/valeurs$/.exec(chemin);
     if (valeur) {
@@ -560,7 +580,7 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
       if (!action && req.method === 'GET') repondre(res, 200, await detail(ctx));
       else if (!action && req.method === 'PUT') repondre(res, 200, await enregistrer(req, ctx));
       else if (action === 'redaction' && req.method === 'POST') repondre(res, 200, await rediger(req, ctx));
-      else if (action === 'vignette/consigne' && req.method === 'POST') repondre(res, 200, await consigneVignette(req, ctx));
+      else if (action === 'vignette/generer' && req.method === 'POST') repondre(res, 200, await genererVignette(req, ctx));
       else if (action === 'vignette' && req.method === 'POST') repondre(res, 200, await vignette(req, ctx));
       else if (action === 'captures' && req.method === 'GET') repondre(res, 200, await captures(ctx.dossier));
       else if (action === 'captures' && req.method === 'POST') repondre(res, 200, await deposerCapture(req, ctx));

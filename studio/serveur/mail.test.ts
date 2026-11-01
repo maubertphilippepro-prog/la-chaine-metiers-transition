@@ -19,7 +19,7 @@ const PROPOSITION = { titre: 'Le SSO expliqué', variantesTitre: ['A', 'B'], des
 const PROPOSITION_VIGNETTE = {
   pose: 'surpris.jpg', logos: ['excel.png', 'inconnu.png'], captures: ['a.png', 'b.png'], gabarit: 'mosaique' as const, accroche: 'Planning facile', explication: 'Les captures en éventail.',
 };
-const REPONSE_VIGNETTE = { compris: 'Le planning en avant.', pasRealisable: [' Un fond vert — le fond est celui de la charte ', ''], propositions: [PROPOSITION_VIGNETTE] };
+const REPONSE_VIGNETTE = { compris: 'Le planning en avant.', pasRealisable: [' Un fond vert — le fond est celui de la charte ', ''], logosAjoutes: [], propositions: [PROPOSITION_VIGNETTE] };
 const SITE = {
   categories: [{ id: 1, nom: 'IA' }], playlists: [],
   classements: [
@@ -65,6 +65,7 @@ beforeEach(async () => {
     lireSite: vi.fn(async () => SITE),
     rediger: vi.fn(async () => PROPOSITION),
     proposerVignettes: vi.fn(async () => REPONSE_VIGNETTE),
+    reduireImage: vi.fn(async () => null),
     detourer: vi.fn(async (_entree: string, sortie: string) => { await writeFile(sortie, 'png'); }),
     rendreVignette: vi.fn(async (_props, sortie: string) => {
       await mkdir(path.dirname(sortie), { recursive: true });

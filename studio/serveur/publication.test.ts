@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import exemple from '../../fixtures/analyse-exemple.json';
+import { MISE_PAR_DEFAUT } from '../../noyau/mise-en-page';
 import { videoParDefaut, type Publication } from '../../noyau/publication';
 import type { Qualification } from '../../noyau/qualification';
 import { ErreurInterpretation } from './consignes';
@@ -21,8 +22,11 @@ const RENDU = { version: 1, titre: 'Essai', statut: 'rendu', message: null };
 const PROPOSITION = { titre: 'Le SSO expliqué', variantesTitre: ['A', 'B'], description: 'Desc', tags: ['sso'], accroches: ['Un seul mot de passe'], logiciels: ['Excel'] };
 const PROPOSITION_VIGNETTE = {
   pose: 'surpris.jpg', logos: ['excel.png', 'inconnu.png'], captures: ['a.png', 'b.png'], gabarit: 'mosaique' as const, accroche: 'Planning facile', explication: 'Les captures en éventail.',
+  mise: { cotePose: 'gauche' as const, tailleAccroche: 'grande' as const, recadrages: [{ x: 10, y: 10, largeur: 50, hauteur: 50 }], logoVedette: null },
 };
-const REPONSE_VIGNETTE = { compris: 'Le planning en avant.', pasRealisable: [' Un fond vert — le fond est celui de la charte ', ''], propositions: [PROPOSITION_VIGNETTE] };
+const REPONSE_VIGNETTE = {
+  compris: 'Le planning en avant.', pasRealisable: [' Un fond vert — le fond est celui de la charte ', ''], logosAjoutes: [], propositions: [PROPOSITION_VIGNETTE],
+};
 const SITE = {
   categories: [{ id: 1, nom: 'IA' }], playlists: [],
   classements: [
@@ -68,6 +72,7 @@ beforeEach(async () => {
     lireSite: vi.fn(async () => SITE),
     rediger: vi.fn(async () => PROPOSITION),
     proposerVignettes: vi.fn(async () => REPONSE_VIGNETTE),
+    reduireImage: vi.fn(async (chemin: string) => ({ nom: path.basename(chemin), media_type: 'image/jpeg' as const, data: 'AAAA' })),
     detourer: vi.fn(async (_entree: string, sortie: string) => { await writeFile(sortie, 'png'); }),
     rendreVignette: vi.fn(async (_props, sortie: string) => {
       await mkdir(path.dirname(sortie), { recursive: true });
@@ -264,7 +269,10 @@ describe('vignette et validation', () => {
     const r = await action('a', 'vignette', { cible: 'complete' });
     expect(r.status).toBe(200);
     expect(config.rendreVignette).toHaveBeenCalledWith(
-      { gabarit: 'classique', poseUrl: 'http://127.0.0.1:9998/surpris.detoure.png', logoUrls: [], captureUrls: [], accroche: 'Un seul mot de passe' },
+      {
+        gabarit: 'classique', poseUrl: 'http://127.0.0.1:9998/surpris.detoure.png', logoUrls: [], captureUrls: [], accroche: 'Un seul mot de passe',
+        mise: MISE_PAR_DEFAUT, vedette: null,
+      },
       path.join(dossier, 'rendus', 'vignettes', 'complete.jpg'),
       2_000_000,
     );
@@ -624,7 +632,7 @@ describe('retrait du site', () => {
   });
 });
 
-describe('consigne pour la vignette', () => {
+describe('génération de vignette', () => {
   async function preparer() {
     const dossier = await tournage('a');
     await writeFile(path.join(racine, 'poses', 'surpris.jpg'), 'jpg');
@@ -635,89 +643,71 @@ describe('consigne pour la vignette', () => {
     await writeFile(path.join(dossier, 'captures', 'b.png'), 'png');
     return dossier;
   }
-  const consigne = (corps: unknown) => action('a', 'vignette/consigne', corps);
+  const generer = (corps: unknown) => action('a', 'vignette/generer', corps);
+  const CORPS = { cible: 'complete', pose: 'surpris.jpg', accroche: 'Planning sans effort', logosTexte: 'excel, word', captures: ['b.png'], consignes: ' Zoome ', base: null };
 
-  it('envoie à Claude les captures candidates, nettoie et ajoute la consigne', async () => {
+  it('génère 3 variantes à partir des éléments du formulaire', async () => {
     const dossier = await preparer();
-    const p = await lirePublication('a');
-    await envoyer('a', { ...p, videos: p.videos.map(v => (v.cible === 'complete' ? { ...v, titre: 'Planning', capturesCandidates: ['b.png', 'disparue.png'] } : v)) });
-    const r = await consigne({ cible: 'complete', texte: ' Mets en avant le planning ' });
+    const r = await generer(CORPS);
     expect(r.status).toBe(200);
     expect(config.proposerVignettes).toHaveBeenCalledWith(expect.objectContaining({
-      consigne: 'Mets en avant le planning',
-      titre: 'Planning',
-      disponibles: { poses: ['surpris.jpg'], logos: ['excel.png'], captures: ['b.png'], accroches: [] },
-      actuelle: null,
-      dejaUtilises: [],
-      precedentes: [],
-      qualification: { nature: 'perso', confidentielle: false },
+      elements: { pose: 'surpris.jpg', accroche: 'Planning sans effort', logosTexte: 'excel, word', logos: ['excel.png'], captures: ['b.png'] },
+      consignes: 'Zoome', base: null, ambigus: [],
     }));
-    const attendue = {
-      texte: 'Mets en avant le planning',
-      compris: 'Le planning en avant.',
-      pasRealisable: ['Un fond vert — le fond est celui de la charte'],
-      // 1 logo, 1 capture proposable : la mosaïque est impossible, la vitrine vient en premier (aucun gabarit pris).
-      propositions: [{ ...PROPOSITION_VIGNETTE, logos: ['excel.png'], captures: ['b.png'], gabarit: 'vitrine' }],
-      choisie: null,
-    };
-    expect(((await r.json()) as Publication).videos[0]!.consignesVignette).toEqual([attendue]);
+    expect(config.reduireImage).toHaveBeenCalledWith(expect.stringMatching(/surpris\.detoure\.png$/));
+    const tour = ((await r.json()) as Publication).videos[0]!.consignesVignette.at(-1)!;
+    expect(tour).toMatchObject({ texte: 'Zoome', introuvables: ['word'], base: null, choisie: null });
+    expect(tour.elements!.logos).toEqual(['excel.png']);
+    // Éléments de l'auteur rétablis, mise bornée sur l'unique capture.
+    expect(tour.propositions[0]).toMatchObject({ pose: 'surpris.jpg', logos: ['excel.png'], captures: ['b.png'], gabarit: 'vitrine' });
+    expect(tour.propositions[0]!.mise!.recadrages).toHaveLength(1);
+    expect(tour.pasRealisable).toContain('Un fond vert — le fond est celui de la charte');
     const enregistree = JSON.parse(await readFile(path.join(dossier, 'publication.json'), 'utf-8')) as Publication;
-    expect(enregistree.videos[0]!.consignesVignette).toEqual([attendue]);
+    expect(enregistree.videos[0]!.consignesVignette).toHaveLength(1);
   });
-  it('propose toutes les captures du dossier quand aucune candidate n’est cochée', async () => {
+  it('passe la variante de départ', async () => {
     await preparer();
-    await consigne({ cible: 'complete', texte: 'Plus de captures' });
-    expect(vi.mocked(config.proposerVignettes).mock.calls[0]![0].disponibles.captures).toEqual(['a.png', 'b.png']);
+    await generer(CORPS);
+    await generer({ ...CORPS, base: { consigne: 0, proposition: 0 } });
+    expect(config.proposerVignettes).toHaveBeenLastCalledWith(expect.objectContaining({ base: expect.objectContaining({ gabarit: expect.any(String) }) }));
   });
-  it('ajoute la consigne suivante après les précédentes, qu’il transmet à Claude', async () => {
+  it('refuse une pose ou une capture inconnue et une accroche vide', async () => {
     await preparer();
-    await consigne({ cible: 'complete', texte: 'Première' });
-    const r = await consigne({ cible: 'complete', texte: 'Seconde' });
-    expect(vi.mocked(config.proposerVignettes).mock.calls[1]![0].precedentes.map(c => c.texte)).toEqual(['Première']);
-    expect(((await r.json()) as Publication).videos[0]!.consignesVignette.map(c => c.texte)).toEqual(['Première', 'Seconde']);
+    expect((await generer({ ...CORPS, pose: 'x.jpg' })).status).toBe(400);
+    expect((await generer({ ...CORPS, captures: ['absente.png'] })).status).toBe(400);
+    expect((await generer({ ...CORPS, accroche: ' ' })).status).toBe(400);
+    expect(config.proposerVignettes).not.toHaveBeenCalled();
   });
-  it('garde les consignes du disque quand le studio enregistre une publication qui n’en a pas', async () => {
+  it('garde les tours du disque quand le studio enregistre une publication qui n’en a pas', async () => {
     const dossier = await preparer();
-    await consigne({ cible: 'complete', texte: 'Première' });
+    await generer(CORPS);
     const p = await lirePublication('a');
     const perimee = { ...p, videos: p.videos.map(v => ({ ...v, consignesVignette: [] })) };
     expect((await envoyer('a', perimee)).status).toBe(200);
     const enregistree = JSON.parse(await readFile(path.join(dossier, 'publication.json'), 'utf-8')) as Publication;
-    expect(enregistree.videos[0]!.consignesVignette.map(c => c.texte)).toEqual(['Première']);
+    expect(enregistree.videos[0]!.consignesVignette.map(c => c.texte)).toEqual(['Zoome']);
   });
-  it('refuse une seconde consigne pendant qu’une première est en cours, puis réaccepte', async () => {
+  it('refuse une seconde génération pendant qu’une première est en cours, puis réaccepte', async () => {
     await preparer();
     let echouer!: (e: Error) => void;
     vi.mocked(config.proposerVignettes).mockImplementationOnce(() => new Promise((_, rejeter) => { echouer = rejeter; }));
-    const a = consigne({ cible: 'complete', texte: 'Première' });
+    const a = generer(CORPS);
     await vi.waitFor(() => expect(config.proposerVignettes).toHaveBeenCalledTimes(1));
-    const b = await consigne({ cible: 'complete', texte: 'Seconde' });
+    const b = await generer(CORPS);
     expect(b.status).toBe(409);
-    expect((await b.json()).erreur).toBe('Une consigne est déjà en cours pour cette vignette.');
+    expect((await b.json()).erreur).toBe('Une génération est déjà en cours pour cette vignette.');
     echouer(new Error('boum'));
     expect((await a).status).toBe(500);
-    expect((await consigne({ cible: 'complete', texte: 'Troisième' })).status).toBe(200);
+    expect((await generer(CORPS)).status).toBe(200);
   });
-  it('refuse une consigne vide sans appeler Claude', async () => {
-    await preparer();
-    expect((await consigne({ cible: 'complete', texte: '  ' })).status).toBe(400);
-    expect((await consigne({ cible: 'complete' })).status).toBe(400);
-    expect(config.proposerVignettes).not.toHaveBeenCalled();
-  });
-  it('n’enregistre rien quand Claude échoue', async () => {
+  it('n’enregistre rien quand Claude échoue ou ne propose rien', async () => {
     const dossier = await preparer();
     vi.mocked(config.proposerVignettes).mockRejectedValueOnce(new ErreurInterpretation(503, 'Connexion à l’API Claude impossible : hors ligne'));
-    const r = await consigne({ cible: 'complete', texte: 'Mets en avant le planning' });
+    const r = await generer(CORPS);
     expect(r.status).toBe(503);
     expect((await r.json()).erreur).toContain('Connexion à l’API Claude impossible');
-    expect(existsSync(path.join(dossier, 'publication.json'))).toBe(false);
-  });
-  it('n’enregistre rien quand aucune proposition n’est utilisable', async () => {
-    const dossier = await preparer();
-    await rm(path.join(racine, 'poses', 'surpris.jpg'));
-    const r = await consigne({ cible: 'complete', texte: 'Mets en avant le planning' });
-    expect(r.status).toBe(422);
-    expect((await r.json()).erreur).toBe('Claude n’a proposé aucune composition utilisable.');
+    vi.mocked(config.proposerVignettes).mockResolvedValueOnce({ ...REPONSE_VIGNETTE, propositions: [] });
+    expect((await generer(CORPS)).status).toBe(422);
     expect(existsSync(path.join(dossier, 'publication.json'))).toBe(false);
   });
 });

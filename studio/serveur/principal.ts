@@ -14,6 +14,7 @@ import { redigerMail, retoucherMail } from './mail-claude';
 import { vignetteLecture, capturerMail, construireMail, copierSiDifferent, creerBrouillon, incorporerPochette, DOSSIER_MAILING } from './mail-outils';
 import { requeteAutorisee } from './origine';
 import { analyserTournage, detourerImage } from './pipeline';
+import { reduireImage } from './images';
 import { creerApiPublication } from './publication';
 import { redigerPublication } from './redaction';
 import { proposerVignettes } from './vignette-claude';
@@ -66,6 +67,7 @@ async function main(): Promise<void> {
     lireSite: url => lireReferencesSite(url),
     rediger: d => redigerPublication(d),
     proposerVignettes: d => proposerVignettes(d),
+    reduireImage,
     detourer: detourerImage,
     rendreVignette: (props, sortie, octetsMax) => rendreVignette(props, sortie, octetsMax),
     lireVisibiliteYoutube: id => lireVisibiliteYoutube(id),
