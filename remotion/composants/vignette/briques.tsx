@@ -2,6 +2,7 @@ import type { CSSProperties, FC } from 'react';
 import { AbsoluteFill, Img } from 'remotion';
 import { tailleAccroche } from '../../calculs';
 import { charte } from '../../charte';
+import type { MiseEnPage, Recadrage } from '../../../noyau/mise-en-page';
 
 // Fond de la charte : formes sur blanc.
 export const Fond: FC = () => (
@@ -30,10 +31,10 @@ export const Pose: FC<{ url: string | null; style: CSSProperties }> = ({ url, st
   : null);
 
 // Accroche en capitales, bleue avec un halo blanc (elle reste lisible là où la pose passe dessous).
-export const Accroche: FC<{ texte: string; largeur: number; tailleMax?: number }> = ({ texte, largeur, tailleMax = Infinity }) => (
+export const Accroche: FC<{ texte: string; largeur: number; tailleMax?: number; facteur?: number }> = ({ texte, largeur, tailleMax = Infinity, facteur = 1 }) => (
   <div
     style={{
-      fontSize: Math.min(tailleMax, tailleAccroche(texte, largeur)), fontWeight: 800, lineHeight: 1.05, textTransform: 'uppercase',
+      fontSize: Math.min(tailleMax, tailleAccroche(texte, largeur)) * facteur, fontWeight: 800, lineHeight: 1.05, textTransform: 'uppercase',
       color: charte.bleu,
       textShadow: '0 0 4px rgba(255, 255, 255, 1), 0 0 10px rgba(255, 255, 255, 1), 0 0 22px rgba(255, 255, 255, 0.9)',
     }}
@@ -43,11 +44,11 @@ export const Accroche: FC<{ texte: string; largeur: number; tailleMax?: number }
 );
 
 // Accroche en bandeau rouge, texte blanc : lisible sur n'importe quel fond.
-export const Bandeau: FC<{ texte: string; largeur: number; tailleMax: number }> = ({ texte, largeur, tailleMax }) => (
+export const Bandeau: FC<{ texte: string; largeur: number; tailleMax: number; facteur?: number }> = ({ texte, largeur, tailleMax, facteur = 1 }) => (
   <div
     style={{
       display: 'inline-block', maxWidth: largeur, padding: '10px 26px', backgroundColor: charte.rouge, color: charte.blanc,
-      fontSize: Math.min(tailleMax, tailleAccroche(texte, largeur - 52)), fontWeight: 800, lineHeight: 1.05, textTransform: 'uppercase',
+      fontSize: Math.min(tailleMax, tailleAccroche(texte, largeur - 52)) * facteur, fontWeight: 800, lineHeight: 1.05, textTransform: 'uppercase',
       boxShadow: '0 10px 30px rgba(0, 0, 0, 0.35)',
     }}
   >
@@ -68,9 +69,10 @@ export const TuileLogo: FC<{ url: string; taille: number; angle: number; style: 
   </div>
 );
 
-// Capture nette en carte : cadre blanc, coins arrondis, ombre, légère inclinaison ; `style` la place.
-export const CarteCapture: FC<{ url: string; largeur: number; hauteur: number; angle: number; style: CSSProperties }> = ({
-  url, largeur, hauteur, angle, style,
+// Capture nette en carte : cadre blanc, coins arrondis, ombre, légère inclinaison ; `style` la place, `recadrage`
+// n'en garde qu'une zone.
+export const CarteCapture: FC<{ url: string; largeur: number; hauteur: number; angle: number; style: CSSProperties; recadrage?: Recadrage | null }> = ({
+  url, largeur, hauteur, angle, style, recadrage,
 }) => (
   <div
     style={{
@@ -78,6 +80,36 @@ export const CarteCapture: FC<{ url: string; largeur: number; hauteur: number; a
       borderRadius: 14, boxShadow: '0 18px 40px rgba(0, 0, 0, 0.4)', transform: `rotate(${angle}deg)`, ...style,
     }}
   >
-    <Img src={url} style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain', borderRadius: 8 }} />
+    <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', borderRadius: 8 }}>
+      <Img src={url} style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain', ...styleRecadrage(recadrage ?? null) }} />
+    </div>
   </div>
 );
+
+export const FACTEURS_ACCROCHE: Record<MiseEnPage['tailleAccroche'], number> = { petite: 0.8, normale: 1, grande: 1.2 };
+
+// Zone de l'image gardée : l'image est agrandie puis décalée dans son cadre (overflow caché).
+export function styleRecadrage(r: Recadrage | null): CSSProperties {
+  if (!r) return {};
+  return {
+    width: `${10000 / r.largeur}%`, height: `${10000 / r.hauteur}%`, maxWidth: 'none',
+    left: `${-(r.x * 100) / r.largeur}%`, top: `${-(r.y * 100) / r.hauteur}%`, position: 'absolute', objectFit: 'cover',
+  };
+}
+
+// Pose à gauche : la place prévue à droite passe à gauche.
+export function miroir(style: CSSProperties, cote: MiseEnPage['cotePose']): CSSProperties {
+  if (cote === 'droite') return style;
+  const { left, right, objectPosition, ...reste } = style;
+  return {
+    ...reste,
+    ...(right !== undefined ? { left: right } : {}),
+    ...(left !== undefined ? { right: left } : {}),
+    ...(typeof objectPosition === 'string' ? { objectPosition: objectPosition.replace('right', 'left') } : {}),
+  };
+}
+
+export function ordreVedette<T>(liste: T[], vedette: number | null): T[] {
+  if (vedette === null || !liste[vedette]) return liste;
+  return [liste[vedette]!, ...liste.filter((_, i) => i !== vedette)];
+}

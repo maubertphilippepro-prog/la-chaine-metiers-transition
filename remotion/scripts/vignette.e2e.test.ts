@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { GABARITS } from '../../noyau/gabarits';
+import { MISE_PAR_DEFAUT } from '../../noyau/mise-en-page';
 import { demarrerServeur } from './serveur-fichiers';
 import { rendreVignette } from './vignette';
 
@@ -38,6 +39,7 @@ it.each(GABARITS)('rend le gabarit %s en JPEG 1280×720 de moins de 2 Mo, avec t
   const resultat = await rendreVignette({
     gabarit, poseUrl: `${serveur.url}/pose.png`,
     logoUrls: gabarit === 'vitrine' ? [`${serveur.url}/logo.svg`, ...trois('logo.png').slice(1)] : trois('logo.png'), captureUrls: trois('capture.png'), accroche: 'Le presse-papiers caché',
+    mise: MISE_PAR_DEFAUT, vedette: null,
   }, sortie, 2_000_000);
   expect(resultat.octets).toBeLessThanOrEqual(2_000_000);
   expect((await stat(sortie)).size).toBe(resultat.octets);
@@ -49,7 +51,7 @@ it.each(GABARITS)('rend le gabarit %s en JPEG 1280×720 de moins de 2 Mo, avec t
 it('rend le classique sans logo ni capture', async () => {
   const sortie = path.join(dossier, 'vignettes', 'nu.jpg');
   const resultat = await rendreVignette({
-    gabarit: 'classique', poseUrl: `${serveur.url}/pose.png`, logoUrls: [], captureUrls: [], accroche: 'Essai',
+    gabarit: 'classique', poseUrl: `${serveur.url}/pose.png`, logoUrls: [], captureUrls: [], accroche: 'Essai', mise: MISE_PAR_DEFAUT, vedette: null,
   }, sortie, 2_000_000);
   expect(resultat.octets).toBeGreaterThan(0);
   await copier(sortie, 'nu');
