@@ -14,14 +14,18 @@ L'icône `outils/metiers-transition.ico` se régénère par `.venv\Scripts\pytho
 
 L'audio est décodé à ses horodatages : un trou de la piste audio (fréquent dans un enregistrement `.webm`) reste du silence. Dans un tournage analysé avant cette correction, les coupes glissent peu à peu vers la fin. La commande `..\.venv\Scripts\python -m mtpipeline.cli recaler ..\donnees\tournages\<dossier>`, lancée depuis `pipeline` avec le tournage fermé dans le studio, recale tous ses temps sans nouvelle transcription. Le montage et les consignes sont gardés, et les fichiers d'avant sont copiés dans `historique/`.
 
+La même insertion se lance à la main, depuis `pipeline` : `..\.venv\Scripts\python -m mtpipeline.cli inserer ..\donnees\tournages\<dossier> <rush.mp4> --a <secondes> --titre "<titre du chapitre>"`.
+
 ## Écran de montage
 
 - **Texte** (à gauche) : les passages coupés sont barrés, avec une couleur par type (silence, hésitation, répétition, prise ratée, longueur, coupe manuelle). Les termes à définir sont surlignés en jaune, les longueurs proposées sur fond rose.
   - Chaque clic cale l’aperçu sur le début du mot, du passage ou de la coupe choisis (pour une coupe, sur ce qui suit), sans le lancer ni l’arrêter.
   - Cliquer un passage coupé : le rétablir (ou le recouper), l'écouter seul, le retrouver dans l'aperçu.
   - Cliquer un mot ou sélectionner un passage à la souris : le couper, l'écouter, le lire dans l'aperçu, y commencer un nouveau chapitre, y donner une consigne, y poser un élément à l’écran.
+  - « Insérer un rush avant » ou « après » le passage choisi : une vidéo tournée à part (chapitre oublié, intro ou outro à refaire) est insérée à cet endroit, avec son propre chapitre. Le rush est analysé seul (transcription, coupes, suggestions), `source.mp4` est reconstruite et tout ce qui suit est décalé : coupes, chapitres, termes, éléments et consignes sont gardés. Comptez quelques minutes, pendant lesquelles le montage ne peut pas être modifié. Pour refaire une intro, insérez la nouvelle avant le premier mot, puis coupez l’ancienne. Un tournage validé ou rendu repasse « en validation » ; une vidéo déjà prête ou envoyée devra être republiée. L’état d’avant est copié dans `historique/<date>-rush-<N>/` ; il n’y a pas d’annulation dans le studio.
   - Chaque chapitre a son titre modifiable, « Commencer ici » (déplace son début sur le passage choisi) et « Fusionner avec le précédent ».
-- **Aperçu** (à droite) : la vidéo complète ou chaque épisode, avec habillage, recalculés à chaque modification.
+- **Aperçu** (à droite) : la vidéo complète ou chaque épisode, avec habillage, recalculés à chaque modification. Espace lance ou arrête la lecture (sauf pendant une saisie) ; « Détacher » en fait une fenêtre flottante qu’on déplace par sa barre, pour garder l’aperçu sous les yeux en bas de liste.
+- **Habillage** (en-tête) : décocher Générique, Intertitres ou Carton de fin les retire de l’aperçu et des rendus (sans générique, pas de jingle).
 - **Colonne de droite**, de haut en bas : aperçu, éléments à l'écran, longueurs proposées, termes, consignes, rendu.
 - **Longueurs proposées** : rien n'est coupé tant que la suggestion n'est pas acceptée (« Couper ») ou refusée (« Garder »).
 - **Termes** : valider, écarter, corriger la définition (160 caractères au plus), placer l'encart en haut.
