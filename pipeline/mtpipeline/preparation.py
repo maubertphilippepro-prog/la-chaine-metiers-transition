@@ -76,7 +76,8 @@ def _echapper(chemin: Path) -> str:
     return chemin.resolve().as_posix().replace("'", "'\\''")
 
 
-def preparer(bruts: list[Path], sortie: Path) -> dict:
+def preparer(bruts: list[Path], sortie: Path, fps: float | None = None) -> dict:
+    """Prépare source.mp4 en 1920×1080. `fps` impose la cadence (rush inséré : celle de la source du tournage)."""
     if not bruts:
         raise ErreurEntree("Aucun fichier vidéo dans bruts/.")
     infos = [sonder(b) for b in bruts]
@@ -84,7 +85,8 @@ def preparer(bruts: list[Path], sortie: Path) -> dict:
         verifier(info, b.name)
 
     pleine_hd = (infos[0]["largeur"], infos[0]["hauteur"]) == (1920, 1080)
-    if len(bruts) == 1 and pleine_hd and not est_cadence_variable(infos[0]):
+    meme_cadence = fps is None or abs(infos[0]["fps"] - fps) < 0.01
+    if len(bruts) == 1 and pleine_hd and not est_cadence_variable(infos[0]) and meme_cadence:
         if bruts[0].suffix.lower() == ".mp4":
             try:
                 shutil.copyfile(bruts[0], sortie)
@@ -94,14 +96,14 @@ def preparer(bruts: list[Path], sortie: Path) -> dict:
             _ffmpeg(["-i", str(bruts[0]), "-c", "copy", "-movflags", "+faststart", str(sortie)])
         return sonder(sortie)
 
-    fps = cadence_cible(infos[0])
+    cadence = cadence_cible(infos[0]) if fps is None else f"{fps:g}"
     with tempfile.TemporaryDirectory() as dossier:
         liste = Path(dossier) / "liste.txt"
         liste.write_text(
             "".join(f"file '{_echapper(b)}'\n" for b in bruts), encoding="utf-8"
         )
         _ffmpeg(["-f", "concat", "-safe", "0", "-i", str(liste),
-                 "-vf", f"scale=1920:1080:flags=lanczos,fps={fps}", "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+                 "-vf", f"scale=1920:1080:flags=lanczos,fps={cadence}", "-c:v", "libx264", "-preset", "fast", "-crf", "18",
                  "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", str(sortie)])
     return sonder(sortie)
 

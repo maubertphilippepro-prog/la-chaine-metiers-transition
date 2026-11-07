@@ -1,7 +1,18 @@
+import json
+import os
+import shutil
+
+import pytest
+
 from mtpipeline.insertion import (
-    chapitres_apres_insertion, decalage_insertion, fusionner_analyse, integrer_rush, placer_rush, renumeroter,
-    renumeroter_consignes,
+    chapitres_apres_insertion, construire_source, decalage_insertion, fusionner_analyse, integrer_rush, placer_rush,
+    remplacer, renumeroter, renumeroter_consignes,
 )
+from mtpipeline.cli import analyser, ecrire, inserer, main
+from mtpipeline.erreurs import ErreurEntree, ErreurSuggestions
+from mtpipeline.preparation import sonder
+from mtpipeline.reglages import charger_reglages
+from mtpipeline.suggestions import ReponseIA
 
 T, D = 10.0, 5.0
 
@@ -187,3 +198,138 @@ def test_terme_nouveau_du_rush():
     m = integrer_rush(montage, placer_rush(ANALYSE_RUSH, 1, T), [])
     assert m["termes"] == [{"terme": "SSO", "definition": "D", "occurrences": [10.5], "statut": "a-valider", "position": "bas"}]
     assert len(m["elements"]) == 2
+
+
+@pytest.mark.parametrize("t", [0.0, 1.0, 2.0])
+def test_construire_source(video_test, tmp_path, t):
+    source = video_test("source.mp4", duree=2)
+    rush = video_test("rush.mp4", duree=1)
+    sortie = tmp_path / "nouvelle.mp4"
+    construire_source(source, rush, t, 2.0, 1.0, 30.0, sortie)
+    info = sonder(sortie)
+    assert info["duree"] == pytest.approx(3.0, abs=0.1)
+    assert (info["largeur"], info["hauteur"], info["fps"], info["audio"]) == (1920, 1080, 30.0, True)
+
+
+def test_remplacer_reessaie_quand_le_fichier_est_tenu(tmp_path, monkeypatch):
+    nouveau, cible = tmp_path / "nouveau", tmp_path / "cible"
+    nouveau.write_text("nouveau")
+    cible.write_text("ancien")
+    vrai = os.replace
+    essais = []
+
+    def replace(a, b):
+        essais.append(a)
+        if len(essais) < 3:
+            raise PermissionError("tenu par le lecteur")
+        vrai(a, b)
+    monkeypatch.setattr("mtpipeline.insertion.os.replace", replace)
+    remplacer(nouveau, cible, attente=0)
+    assert cible.read_text() == "nouveau"
+    assert len(essais) == 3
+
+
+REGLAGES = charger_reglages()
+MOTS_SOURCE = [{"id": 0, "texte": "Bonjour", "debut": 0.2, "fin": 0.6}, {"id": 1, "texte": "tous", "debut": 1.5, "fin": 1.9}]
+MOTS_RUSH = [{"id": 0, "texte": "oubli", "debut": 0.1, "fin": 0.5}, {"id": 1, "texte": "réparé", "debut": 0.6, "fin": 0.9}]
+
+
+def lire(chemin):
+    return json.loads(chemin.read_text(encoding="utf-8"))
+
+
+def faux_transcrire(chemin, modele):
+    return MOTS_RUSH if "rushs" in str(chemin) else MOTS_SOURCE
+
+
+def sans_suggestions(mots, glossaire, modele, **kwargs):
+    return ReponseIA(chapitres=[], termes=[], longueurs=[], elements=[])
+
+
+@pytest.fixture(autouse=True)
+def sans_whisper(monkeypatch):
+    monkeypatch.setattr("mtpipeline.cli.transcrire_extraits", lambda audio, intervalles, modele: [""] * len(intervalles))
+
+
+@pytest.fixture
+def tournage_analyse(tmp_path, video_test):
+    dossier = tmp_path / "2026-10-27-test"
+    (dossier / "bruts").mkdir(parents=True)
+    shutil.move(video_test("prise1.mp4"), dossier / "bruts" / "prise1.mp4")
+    analyser(dossier, "Test", REGLAGES, faux_transcrire, sans_suggestions, tmp_path / "glossaire.json")
+    ecrire(dossier / "montage.json", {"version": 1, "titre": "Test", "coupes": [],
+                                      "chapitres": [{"titre": "Intro", "debut": 0}], "termes": [], "elements": []})
+    ecrire(dossier / "consignes.json", {"version": 1, "consignes": [{
+        "id": "c1", "date": "2026-10-27T10:00:00Z", "texte": "x", "ancrage": {"premierMot": 1, "dernierMot": 1},
+        "reformulation": "", "nonRealisable": [], "propositions": []}]})
+    (dossier / "rushs").mkdir()
+    return dossier
+
+
+@pytest.fixture
+def rush(video_test, tournage_analyse):
+    chemin = tournage_analyse / "rushs" / "oubli.mp4"
+    shutil.move(video_test("oubli.mp4", duree=1), chemin)
+    return chemin
+
+
+def contenu(dossier):
+    return {f.name: f.read_bytes() for f in dossier.iterdir() if f.is_file()}
+
+
+def test_inserer_un_rush(tournage_analyse, rush, tmp_path):
+    compte_rendu = inserer(tournage_analyse, rush, 1.0, "Oubli", REGLAGES, faux_transcrire, sans_suggestions,
+                           tmp_path / "glossaire.json")
+    assert "inséré" in compte_rendu
+    d = sonder(tournage_analyse / "rushs" / "1" / "source.mp4")["duree"]
+    assert sonder(tournage_analyse / "source.mp4")["duree"] == pytest.approx(2.0 + d, abs=0.1)
+    analyse = lire(tournage_analyse / "analyse.json")
+    assert [(m["id"], m["texte"]) for m in analyse["mots"]] == [(0, "Bonjour"), (1, "oubli"), (2, "réparé"), (3, "tous")]
+    assert analyse["mots"][1]["debut"] == pytest.approx(1.1)
+    assert analyse["mots"][3]["debut"] == pytest.approx(1.5 + d, abs=0.001)
+    assert lire(tournage_analyse / "transcription.json") == analyse["mots"]
+    assert [c["titre"] for c in lire(tournage_analyse / "montage.json")["chapitres"]] == ["Intro", "Oubli", "Intro"]
+    assert lire(tournage_analyse / "consignes.json")["consignes"][0]["ancrage"] == {"premierMot": 3, "dernierMot": 3}
+    preparation = lire(tournage_analyse / "preparation.json")
+    assert preparation["duree"] == analyse["duree"]
+    assert preparation["rushs"][0] | {"duree": None} == {"numero": 1, "fichier": "oubli.mp4", "a": 1.0, "duree": None,
+                                                        "titre": "Oubli", "erreurSuggestions": None}
+    assert (tournage_analyse / "rushs" / "1" / "oubli.mp4").exists()
+    sauvegarde, = (tournage_analyse / "historique").iterdir()
+    assert sauvegarde.name.endswith("-rush-1")
+    assert {"source.mp4", "montage.json", "consignes.json", "analyse.json"} <= {f.name for f in sauvegarde.iterdir()}
+
+
+def test_rush_sans_audio_laisse_le_tournage_intact(tournage_analyse, video_test, tmp_path):
+    muet = tournage_analyse / "rushs" / "muet.mp4"
+    shutil.move(video_test("muet.mp4", audio=False), muet)
+    avant = contenu(tournage_analyse)
+    with pytest.raises(ErreurEntree, match="aucune piste audio"):
+        inserer(tournage_analyse, muet, 1.0, "Oubli", REGLAGES, faux_transcrire, sans_suggestions, tmp_path / "glossaire.json")
+    assert contenu(tournage_analyse) == avant
+    assert not (tournage_analyse / "historique").exists()
+
+
+def test_echec_des_suggestions_non_bloquant(tournage_analyse, rush, tmp_path):
+    def en_erreur(mots, glossaire, modele, **kwargs):
+        raise ErreurSuggestions("API indisponible")
+    assert "API indisponible" in inserer(tournage_analyse, rush, 1.0, "Oubli", REGLAGES, faux_transcrire, en_erreur,
+                                         tmp_path / "glossaire.json")
+    assert lire(tournage_analyse / "preparation.json")["rushs"][0]["erreurSuggestions"] == "API indisponible"
+
+
+def test_refuse_un_instant_hors_de_la_video(tournage_analyse, rush, tmp_path):
+    with pytest.raises(ErreurEntree, match="hors de la vidéo"):
+        inserer(tournage_analyse, rush, 99.0, "X", REGLAGES, faux_transcrire, sans_suggestions, tmp_path / "glossaire.json")
+
+
+def test_refuse_un_tournage_non_analyse(tmp_path, video_test):
+    with pytest.raises(ErreurEntree, match="pas encore analysé"):
+        inserer(tmp_path, video_test("r.mp4"), 0, "X", REGLAGES)
+
+
+def test_commande_inserer(tournage_analyse, rush, monkeypatch, capsys):
+    monkeypatch.setattr("mtpipeline.cli.transcrire", faux_transcrire)
+    monkeypatch.setattr("mtpipeline.cli.demander", sans_suggestions)
+    assert main(["inserer", str(tournage_analyse), str(rush), "--a", "1.0", "--titre", "Oubli"]) == 0
+    assert "inséré" in capsys.readouterr().out

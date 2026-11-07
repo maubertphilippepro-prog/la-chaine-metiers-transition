@@ -153,3 +153,8 @@ def test_cadence_cible():
     assert cadence_cible({"fps": 60.0, "fpsMoyen": 30.3}) == 30
     assert cadence_cible({"fps": 30.0, "fpsMoyen": 30.0}) == 30
     assert cadence_cible({"fps": 30.0, "fpsMoyen": 0.0}) == 30
+
+
+def test_preparer_a_la_cadence_imposee(video_test, tmp_path):
+    info = preparer([video_test("rush.mp4")], tmp_path / "sortie.mp4", fps=25.0)
+    assert info["fps"] == 25.0

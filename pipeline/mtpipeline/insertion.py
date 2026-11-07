@@ -1,6 +1,12 @@
 """Insertion d'un rush dans un tournage analysé : la source est reconstruite avec le rush à l'instant T, tout ce qui
 suit est décalé de la durée d du rush, puis l'analyse du rush, analysé seul, est fusionnée dans celle du tournage."""
 import math
+import os
+import time
+from pathlib import Path
+
+from .audio import SUIVRE_HORODATAGES
+from .preparation import _ffmpeg
 
 from .recalage import Decalage, decalage_ponctuel
 
@@ -179,3 +185,38 @@ def integrer_rush(montage: dict, rush: dict, chapitres: list[dict]) -> dict:
         "termes": _fusionner_termes(montage["termes"], s["termes"], terme),
         "elements": montage.get("elements", []) + [element(e) for e in s["elements"]],
     }
+
+
+def construire_source(source: Path, rush: Path, t: float, duree_source: float, duree_rush: float, fps: float,
+                      sortie: Path) -> None:
+    """source[0, T] + rush + source[T, fin] en un seul passage ffmpeg, réencodée comme dans la préparation. La source
+    est ouverte deux fois (une entrée par morceau) ; l'audio suit ses horodatages, comme pour l'analyse, et chaque
+    morceau dure exactement sa part (silence ajouté ou fin coupée)."""
+    morceaux = [m for m in [(0, 0.0, t), (1, 0.0, duree_rush), (2, t, duree_source)] if m[2] - m[1] > 0]
+    filtres = []
+    for k, (entree, debut, fin) in enumerate(morceaux):
+        longueur = fin - debut
+        filtres.append(f"[{entree}:v]trim=start={debut}:end={fin},setpts=PTS-STARTPTS,"
+                       f"scale=1920:1080:flags=lanczos,setsar=1,format=yuv420p[v{k}]")
+        filtres.append(f"[{entree}:a]{SUIVRE_HORODATAGES},atrim=start={debut}:end={fin},asetpts=PTS-STARTPTS,"
+                       f"aformat=sample_rates=48000:channel_layouts=stereo,apad=whole_dur={longueur},"
+                       f"atrim=end={longueur}[a{k}]")
+    entrees = "".join(f"[v{k}][a{k}]" for k in range(len(morceaux)))
+    filtres.append(f"{entrees}concat=n={len(morceaux)}:v=1:a=1[cv][a]")
+    # fps comble les trous d'images entre morceaux en répétant la dernière.
+    filtres.append(f"[cv]fps={fps:g}[v]")
+    _ffmpeg(["-i", str(source), "-i", str(rush), "-i", str(source), "-filter_complex", ";".join(filtres),
+             "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
+             "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart", str(sortie)])
+
+
+def remplacer(temporaire: Path, cible: Path, essais: int = 10, attente: float = 0.5) -> None:
+    """os.replace, réessayé un moment : sous Windows, le lecteur du studio peut tenir la vidéo ouverte un instant."""
+    for i in range(essais):
+        try:
+            os.replace(temporaire, cible)
+            return
+        except PermissionError:
+            if i == essais - 1:
+                raise
+            time.sleep(attente)
