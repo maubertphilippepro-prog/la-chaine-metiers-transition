@@ -7,6 +7,7 @@ encodage ; les identifiants ne changent pas, si bien que le montage et les consi
 import json
 import shutil
 import subprocess
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
@@ -69,55 +70,84 @@ def ecart_final(contigu: np.ndarray, reel: np.ndarray) -> float:
     return float(reel[-1] - contigu[-1])
 
 
-def _intervalles(liste: list[dict], f) -> None:
-    for x in liste:
-        x["debut"] = f(x["debut"])
-        x["fin"] = f(x["fin"])
+@dataclass(frozen=True)
+class Decalage:
+    """Comment changent les temps d'un tournage : instants (débuts de chapitre, occurrences de termes), listes
+    d'intervalles (coupes, détections, longueurs, éléments) et mots."""
+    point: Callable[[float], float]
+    intervalles: Callable[[list[dict]], list[dict]]
+    mots: Callable[[list[dict]], list[dict]]
 
 
-def _suggestions(s: dict | None, f) -> None:
+def decalage_ponctuel(f: Callable[[float], float]) -> Decalage:
+    """f appliquée à chaque instant et à chaque borne d'intervalle."""
+    def intervalles(liste: list[dict]) -> list[dict]:
+        return [{**x, "debut": f(x["debut"]), "fin": f(x["fin"])} for x in liste]
+    return Decalage(f, intervalles, intervalles)
+
+
+def _termes(termes: list[dict], dec: Decalage) -> list[dict]:
+    return [{**t, "occurrences": [dec.point(o) for o in t["occurrences"]]} for t in termes]
+
+
+def _chapitres(chapitres: list[dict], dec: Decalage) -> list[dict]:
+    return [{**c, "debut": dec.point(c["debut"])} for c in chapitres]
+
+
+def _suggestions(s: dict | None, dec: Decalage) -> dict | None:
     if not s:
-        return
-    for c in s.get("chapitres", []):
-        c["debut"] = f(c["debut"])
-    for t in s.get("termes", []):
-        t["occurrences"] = [f(o) for o in t["occurrences"]]
-    _intervalles(s.get("longueurs", []), f)
-    _intervalles(s.get("elements", []), f)
+        return s
+    return {
+        **s,
+        "chapitres": _chapitres(s.get("chapitres", []), dec),
+        "termes": _termes(s.get("termes", []), dec),
+        "longueurs": dec.intervalles(s.get("longueurs", [])),
+        # Absent dans une analyse faite avant les éléments à l'écran.
+        **({"elements": dec.intervalles(s["elements"])} if "elements" in s else {}),
+    }
 
 
-def _montage(m: dict, f) -> None:
-    _intervalles(m["coupes"], f)
-    for c in m["chapitres"]:
-        c["debut"] = f(c["debut"])
-    for t in m["termes"]:
-        t["occurrences"] = [f(o) for o in t["occurrences"]]
-    _intervalles(m.get("elements", []), f)
+def _montage(m: dict, dec: Decalage) -> dict:
+    return {
+        **m,
+        "coupes": dec.intervalles(m["coupes"]),
+        "chapitres": _chapitres(m["chapitres"], dec),
+        "termes": _termes(m["termes"], dec),
+        **({"elements": dec.intervalles(m["elements"])} if "elements" in m else {}),
+    }
+
+
+# Fichiers dont les temps suivent la source.
+FICHIERS_DECALES = ("transcription.json", "detections.json", "suggestions.json", "montage.json", "analyse.json")
+
+
+def decaler_donnees(donnees: dict, dec: Decalage) -> dict:
+    """Copie de donnees (nom de fichier → contenu) où tous les temps sont passés par dec ; les autres fichiers
+    sont rendus tels quels."""
+    transformations = {
+        "transcription.json": dec.mots,
+        "detections.json": dec.intervalles,
+        "suggestions.json": lambda s: _suggestions(s, dec),
+        "montage.json": lambda m: _montage(m, dec),
+        "analyse.json": lambda a: {
+            **a,
+            "mots": dec.mots(a["mots"]),
+            "detections": dec.intervalles(a["detections"]),
+            "suggestions": _suggestions(a["suggestions"], dec),
+        },
+    }
+    return {nom: transformations[nom](contenu) if nom in transformations else contenu for nom, contenu in donnees.items()}
 
 
 def _lire(chemin: Path):
     return json.loads(chemin.read_text(encoding="utf-8"))
 
 
-def decaler_tournage(dossier: Path, f: Callable[[float], float], ecrire) -> None:
-    """Applique f à tous les temps des fichiers d'analyse et du montage (s'ils existent), puis à analyse.json."""
-    def transformer(nom: str, action) -> None:
-        chemin = dossier / nom
-        if chemin.exists():
-            donnees = _lire(chemin)
-            action(donnees)
-            ecrire(chemin, donnees)
-
-    transformer("transcription.json", lambda mots: _intervalles(mots, f))
-    transformer("detections.json", lambda d: _intervalles(d, f))
-    transformer("suggestions.json", lambda s: _suggestions(s, f))
-    transformer("montage.json", lambda m: _montage(m, f))
-
-    def analyse(a: dict) -> None:
-        _intervalles(a["mots"], f)
-        _intervalles(a["detections"], f)
-        _suggestions(a["suggestions"], f)
-    transformer("analyse.json", analyse)
+def decaler_tournage(dossier: Path, dec: Decalage, ecrire) -> None:
+    """Applique dec à tous les temps des fichiers d'analyse et du montage qui existent."""
+    lus = {nom: _lire(dossier / nom) for nom in FICHIERS_DECALES if (dossier / nom).exists()}
+    for nom, contenu in decaler_donnees(lus, dec).items():
+        ecrire(dossier / nom, contenu)
 
 
 def recaler(dossier: Path, ecrire) -> str:
@@ -140,6 +170,6 @@ def recaler(dossier: Path, ecrire) -> str:
         if (dossier / nom).exists():
             shutil.copy2(dossier / nom, sauvegarde / nom)
 
-    decaler_tournage(dossier, fonction_recalage(contigu, reel, preparation["duree"]), ecrire)
+    decaler_tournage(dossier, decalage_ponctuel(fonction_recalage(contigu, reel, preparation["duree"])), ecrire)
     ecrire(preparation_chemin, {**preparation, MARQUE: True})
     return f"Temps recalés (jusqu'à {ecart:+.3f} s en fin de vidéo). Sauvegarde : {sauvegarde}"
