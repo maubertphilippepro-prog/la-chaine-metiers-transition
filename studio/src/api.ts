@@ -8,7 +8,7 @@ import type { VisibiliteYoutube } from '../../noyau/youtube';
 import type { Formulaire } from './logique/publication';
 import type { BriefLinkedin, ProfilLinkedin } from '../../noyau/linkedin';
 import type { Presentation } from '../../noyau/presentation';
-import type { DetailLinkedin, DetailMail, DetailPresentation, DetailPublication, DetailTournage, DossierYoutube, EtatRendu, Pose, ResumeTournage, VerificationYoutube } from '../commun';
+import type { DetailLinkedin, DetailMail, DetailPresentation, DetailPublication, DetailTournage, DossierYoutube, EtatInsertion, EtatRendu, Pose, ResumeTournage, VerificationYoutube } from '../commun';
 
 export class ErreurApi extends Error {
   constructor(readonly statut: number, message: string, readonly problemes: string[]) {
@@ -33,6 +33,27 @@ const enJson = (methode: string, corps: unknown): RequestInit => ({
 });
 
 const chemin = (nom: string) => `/api/tournages/${encodeURIComponent(nom)}`;
+
+// XMLHttpRequest plutôt que fetch : lui seul donne la progression de l'envoi.
+function envoyerFichier<T>(url: string, fichier: File, onProgression: (part: number) => void): Promise<T> {
+  return new Promise<T>((resoudre, rejeter) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', url);
+    xhr.upload.onprogress = e => { if (e.lengthComputable) onProgression(e.loaded / e.total); };
+    xhr.onload = () => {
+      let corps: unknown = {};
+      try {
+        corps = JSON.parse(xhr.responseText);
+      } catch {
+        // corps non JSON : le statut suffit
+      }
+      if (xhr.status >= 200 && xhr.status < 300) resoudre(corps as T);
+      else rejeter(new ErreurApi(xhr.status, (corps as { erreur?: string }).erreur ?? `Erreur ${xhr.status}`, []));
+    };
+    xhr.onerror = () => rejeter(new ErreurApi(0, 'Envoi de la vidéo interrompu : studio fermé, disque plein ou fichier refusé.', []));
+    xhr.send(fichier);
+  });
+}
 
 export const api = {
   tournages: () => appeler<ResumeTournage[]>('/api/tournages'),
@@ -62,26 +83,15 @@ export const api = {
     appeler<ValeurClassement>(`/api/site/classements/${encodeURIComponent(cle)}/valeurs`, enJson('POST', { nom })),
   creerTournage: (titre: string, date: string) => appeler<{ nom: string }>('/api/tournages', enJson('POST', { titre, date })),
   // XMLHttpRequest plutôt que fetch : lui seul donne la progression de l'envoi.
-  deposerVideo: (nom: string, fichier: File, onProgression: (part: number) => void) => new Promise<void>((resoudre, rejeter) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('PUT', `${chemin(nom)}/video?fichier=${encodeURIComponent(fichier.name)}`);
-    xhr.upload.onprogress = e => { if (e.lengthComputable) onProgression(e.loaded / e.total); };
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resoudre();
-        return;
-      }
-      let erreur = `Erreur ${xhr.status}`;
-      try {
-        erreur = (JSON.parse(xhr.responseText) as { erreur?: string }).erreur ?? erreur;
-      } catch {
-        // corps non JSON : le statut suffit
-      }
-      rejeter(new ErreurApi(xhr.status, erreur, []));
-    };
-    xhr.onerror = () => rejeter(new ErreurApi(0, 'Envoi de la vidéo interrompu : studio fermé, disque plein ou fichier refusé.', []));
-    xhr.send(fichier);
-  }),
+  deposerVideo: async (nom: string, fichier: File, onProgression: (part: number) => void) => {
+    await envoyerFichier(`${chemin(nom)}/video?fichier=${encodeURIComponent(fichier.name)}`, fichier, onProgression);
+  },
+  deposerRush: (nom: string, fichier: File, onProgression: (part: number) => void) =>
+    envoyerFichier<{ fichier: string }>(`${chemin(nom)}/rush?fichier=${encodeURIComponent(fichier.name)}`, fichier, onProgression),
+  insererRush: async (nom: string, fichier: string, t: number, titre: string) => {
+    await appeler<{ ok: true }>(`${chemin(nom)}/rush`, enJson('POST', { fichier, t, titre }));
+  },
+  etatInsertion: (nom: string) => appeler<EtatInsertion>(`${chemin(nom)}/rush`),
   analyser: async (nom: string, titre: string) => {
     await appeler<{ ok: true }>(`${chemin(nom)}/analyse`, enJson('POST', { titre }));
   },
