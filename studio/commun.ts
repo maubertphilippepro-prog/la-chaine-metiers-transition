@@ -17,6 +17,17 @@ export const EXTENSIONS_VIDEO = ['.mp4', '.mkv', '.mov', '.webm'];
 // Étape de l'analyse en cours, déduite des fichiers déjà écrits par le pipeline.
 export type EtapeAnalyse = 'preparation' | 'transcription' | 'detections' | 'suggestions';
 
+// Étape de l'insertion d'un rush : celles de l'analyse du rush seul, puis la reconstruction de la vidéo.
+export type EtapeInsertion = EtapeAnalyse | 'reconstruction';
+
+export interface EtatInsertion {
+  enCours: boolean;
+  etape: EtapeInsertion | null;
+  erreur: string | null;
+  // Rush inséré sans suggestions de Claude : la raison.
+  avertissement: string | null;
+}
+
 export interface ResumeTournage {
   nom: string;
   titre: string;
@@ -26,6 +37,7 @@ export interface ResumeTournage {
   // Une vidéo du montage dans bruts/ (l'enregistrement « -camera » ne compte pas).
   videoPresente: boolean;
   analyseEnCours: boolean;
+  insertionEnCours: boolean;
   etapeAnalyse: EtapeAnalyse;
 }
 
@@ -34,6 +46,8 @@ export interface DetailTournage extends ResumeTournage {
   // montage.json, ou le montage par défaut tant qu'il n'a jamais été enregistré.
   montage: Montage;
   montageEnregistre: boolean;
+  // Une vidéo est déjà prête ou envoyée : une insertion obligera à refaire sa publication.
+  publicationEngagee: boolean;
   // consignes.json, ou aucune consigne tant qu'il n'existe pas.
   consignes: FichierConsignes;
   reglages: Reglages;

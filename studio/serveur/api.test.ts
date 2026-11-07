@@ -90,6 +90,27 @@ function analyseBloquee(): () => void {
   return () => finir();
 }
 
+const deposerRush = (nom: string, fichier: string, contenu: string) =>
+  fetch(`${url}/api/tournages/${nom}/rush?fichier=${encodeURIComponent(fichier)}`, { method: 'PUT', body: contenu });
+const demanderInsertion = (nom: string, corps: unknown) =>
+  fetch(`${url}/api/tournages/${nom}/rush`, { method: 'POST', headers: json, body: JSON.stringify(corps) });
+const etatInsertion = async (nom: string) => (await fetch(`${url}/api/tournages/${nom}/rush`)).json();
+const INSERTION = { fichier: 'oubli.mp4', t: 1, titre: 'R' };
+
+async function avecRush(nom: string, fichiers: Record<string, unknown> = {}): Promise<string> {
+  const dossier = await tournage(nom, { 'analyse.json': exemple, 'montage.json': MONTAGE_PRET, ...fichiers });
+  await mkdir(path.join(dossier, 'rushs'));
+  await writeFile(path.join(dossier, 'rushs', 'oubli.mp4'), 'x');
+  return dossier;
+}
+
+// Insertion simulée qui ne se termine qu'à l'appel de la fonction renvoyée.
+function insertionBloquee(): () => void {
+  let finir = () => {};
+  vi.mocked(config.inserer).mockImplementation(() => new Promise<void>(r => { finir = r; }));
+  return () => finir();
+}
+
 beforeEach(async () => {
   racine = await mkdtemp(path.join(os.tmpdir(), 'pmt-studio-'));
   await mkdir(path.join(racine, 'tournages'));
@@ -106,6 +127,7 @@ beforeEach(async () => {
     interpreterConsigne: vi.fn<ConfigApi['interpreterConsigne']>(async () => REPONSE),
     suiviAnalyse: new SuiviAnalyse(),
     analyser: vi.fn<ConfigApi['analyser']>(async () => undefined),
+    inserer: vi.fn<ConfigApi['inserer']>(async () => undefined),
   };
   const api = creerApi(config);
   serveur = http.createServer(async (req, res) => {
@@ -126,8 +148,8 @@ describe('liste des tournages', () => {
     await tournage('2026-10-01-a', { 'analyse.json': exemple, 'episode.json': { version: 1, titre: 'A', statut: 'analyse', message: null } });
     await tournage('2026-10-02-b', {});
     expect(await (await fetch(`${url}/api/tournages`)).json()).toEqual([
-      { nom: '2026-10-02-b', titre: '2026-10-02-b', statut: null, message: null, analyseFaite: false, videoPresente: false, analyseEnCours: false, etapeAnalyse: 'preparation' },
-      { nom: '2026-10-01-a', titre: 'A', statut: 'analyse', message: null, analyseFaite: true, videoPresente: false, analyseEnCours: false, etapeAnalyse: 'preparation' },
+      { nom: '2026-10-02-b', titre: '2026-10-02-b', statut: null, message: null, analyseFaite: false, videoPresente: false, analyseEnCours: false, insertionEnCours: false, etapeAnalyse: 'preparation' },
+      { nom: '2026-10-01-a', titre: 'A', statut: 'analyse', message: null, analyseFaite: true, videoPresente: false, analyseEnCours: false, insertionEnCours: false, etapeAnalyse: 'preparation' },
     ]);
   });
   it('laisse passer les requêtes hors API', async () => {
@@ -630,5 +652,95 @@ describe('retrait de la vidéo', () => {
     expect(r.status).toBe(409);
     expect((await r.json()).erreur).toBe('Analyse en cours sur ce tournage : attendez sa fin.');
     finir();
+  });
+});
+
+describe('insertion d’un rush', () => {
+  it('dépose le rush dans rushs/ et ajoute -2 quand le nom est pris', async () => {
+    const dossier = await tournage('a', { 'analyse.json': exemple });
+    expect(await (await deposerRush('a', 'oubli.mp4', 'x')).json()).toEqual({ fichier: 'oubli.mp4' });
+    expect(await (await deposerRush('a', 'oubli.mp4', 'y')).json()).toEqual({ fichier: 'oubli-2.mp4' });
+    expect(await readFile(path.join(dossier, 'rushs', 'oubli-2.mp4'), 'utf-8')).toBe('y');
+    expect(existsSync(path.join(dossier, 'bruts'))).toBe(false);
+  });
+
+  it('refuse un rush non vidéo ou l’enregistrement de la webcam', async () => {
+    await tournage('a', { 'analyse.json': exemple });
+    expect((await deposerRush('a', 'notes.txt', 'x')).status).toBe(400);
+    expect((await deposerRush('a', 'oubli-camera.mp4', 'x')).status).toBe(400);
+  });
+
+  it('lance l’insertion, la montre en cours, bloque le montage, puis repasse un tournage rendu en validation', async () => {
+    const dossier = await avecRush('a', { 'episode.json': { version: 1, titre: 'A', statut: 'rendu', message: null } });
+    const finir = insertionBloquee();
+    expect((await demanderInsertion('a', { fichier: 'oubli.mp4', t: 2.5, titre: ' Intro bis ' })).status).toBe(202);
+    expect(config.inserer).toHaveBeenCalledWith(dossier, path.join(dossier, 'rushs', 'oubli.mp4'), 2.5, 'Intro bis');
+    expect(await etatInsertion('a')).toEqual({ enCours: true, etape: 'preparation', erreur: null, avertissement: null });
+    const [resume] = await (await fetch(`${url}/api/tournages`)).json();
+    expect(resume).toMatchObject({ analyseEnCours: true, insertionEnCours: true });
+    expect((await envoyerMontage('a', MONTAGE_PRET)).status).toBe(409);
+    finir();
+    await config.suiviAnalyse.attendre();
+    expect(await etatInsertion('a')).toEqual({ enCours: false, etape: null, erreur: null, avertissement: null });
+    expect((await lire(path.join(dossier, 'episode.json'))).statut).toBe('en-validation');
+  });
+
+  it('remonte l’avertissement des suggestions du rush, titre par défaut', async () => {
+    const dossier = await avecRush('a');
+    vi.mocked(config.inserer).mockImplementation(async () => {
+      await writeFile(path.join(dossier, 'preparation.json'), JSON.stringify({
+        duree: 40, fps: 30, rushs: [{ numero: 1, erreurSuggestions: 'API indisponible' }],
+      }));
+    });
+    await demanderInsertion('a', { fichier: 'oubli.mp4', t: 0, titre: '' });
+    await config.suiviAnalyse.attendre();
+    expect(await etatInsertion('a')).toMatchObject({ enCours: false, avertissement: 'API indisponible' });
+    expect(config.inserer).toHaveBeenCalledWith(dossier, expect.any(String), 0, 'Nouveau chapitre');
+  });
+
+  it('écrit le montage par défaut s’il n’a jamais été enregistré', async () => {
+    const dossier = await tournage('a', { 'analyse.json': exemple });
+    await mkdir(path.join(dossier, 'rushs'));
+    await writeFile(path.join(dossier, 'rushs', 'oubli.mp4'), 'x');
+    expect((await demanderInsertion('a', INSERTION)).status).toBe(202);
+    expect((await lire(path.join(dossier, 'montage.json'))).chapitres.length).toBeGreaterThan(0);
+  });
+
+  it('reporte l’échec de l’insertion sans changer le statut', async () => {
+    const dossier = await avecRush('a', { 'episode.json': EN_VALIDATION });
+    vi.mocked(config.inserer).mockRejectedValue(new Error('muet.mp4 : aucune piste audio.'));
+    await demanderInsertion('a', INSERTION);
+    await config.suiviAnalyse.attendre();
+    expect(await etatInsertion('a')).toMatchObject({ enCours: false, erreur: 'muet.mp4 : aucune piste audio.' });
+    expect(await lire(path.join(dossier, 'episode.json'))).toEqual(EN_VALIDATION);
+  });
+
+  it('refuse un tournage non analysé, un instant hors de la vidéo ou pendant une analyse', async () => {
+    await avecRush('a');
+    await tournage('b', {});
+    expect((await demanderInsertion('b', INSERTION)).status).toBe(409);
+    expect((await demanderInsertion('a', { ...INSERTION, t: 31 })).status).toBe(409);
+    expect((await demanderInsertion('a', { ...INSERTION, t: -1 })).status).toBe(409);
+    await avecVideo('c');
+    const finir = analyseBloquee();
+    await demanderAnalyse('c', 'C');
+    expect((await demanderInsertion('a', INSERTION)).status).toBe(409);
+    finir();
+  });
+
+  it('refuse pendant un rendu de ce tournage', async () => {
+    await avecRush('a');
+    let finir = () => {};
+    vi.mocked(config.rendre).mockImplementation(() => new Promise(r => { finir = () => r([]); }));
+    expect((await demanderRendu('a', 'complete')).status).toBe(202);
+    expect((await demanderInsertion('a', INSERTION)).status).toBe(409);
+    finir();
+  });
+
+  it('signale dans le détail une publication déjà engagée', async () => {
+    await tournage('a', { 'analyse.json': exemple, 'publication.json': { version: 2, videos: [{ statut: 'prete' }] } });
+    await tournage('b', { 'analyse.json': exemple });
+    expect((await (await fetch(`${url}/api/tournages/a`)).json()).publicationEngagee).toBe(true);
+    expect((await (await fetch(`${url}/api/tournages/b`)).json()).publicationEngagee).toBe(false);
   });
 });

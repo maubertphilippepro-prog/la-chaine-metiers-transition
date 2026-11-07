@@ -8,10 +8,11 @@ import { majGlossaire, type Glossaire } from '../../noyau/glossaire';
 import { verifierAvantRendu } from '../../noyau/verifications';
 import type { Cible, ResultatRendu, Video } from '../../remotion/scripts/rendu';
 import { chargerTournage, lireEpisode, majStatutEpisode, raisonMontage, urlSource, type Tournage } from '../../remotion/scripts/tournage';
-import type { DetailTournage, EtatRendu, ResumeTournage } from '../commun';
+import type { DetailTournage, EtatInsertion, EtatRendu, ResumeTournage } from '../commun';
 import { ErreurInterpretation, lireConsignes, type InterpreterConsigne } from './consignes';
 import { dossierTournage, ecrireJson, ErreurHttp, lireCorps, message, repondre, repondreErreur } from './http';
 import { creerTournage, deposerVideo, envoiEnCours, etapeAnalyse, retirerVideo, videosBrutes } from './nouveau-tournage';
+import { avertissementInsertion, deposerRush, DOSSIER_RUSHS, etapeInsertion, lireDemandeRush, publicationEngagee } from './rush';
 import { deplacerVersSupprimes } from './suppression';
 import type { SuiviAnalyse } from './suivi-analyse';
 import type { SuiviRendu } from './suivi-rendu';
@@ -29,6 +30,8 @@ export interface ConfigApi {
   suiviAnalyse: SuiviAnalyse;
   // « mtpipeline analyser », injecté pour les tests.
   analyser: (dossier: string, titre: string) => Promise<void>;
+  // « mtpipeline inserer », injecté pour les tests.
+  inserer: (dossier: string, rush: string, t: number, titre: string) => Promise<void>;
   // Appel à Claude, injecté pour les tests.
   interpreterConsigne: InterpreterConsigne;
 }
@@ -82,6 +85,7 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
       analyseFaite: existsSync(path.join(dossier, 'analyse.json')),
       videoPresente: (await videosBrutes(dossier)).length > 0,
       analyseEnCours: analyse.enCours && analyse.nom === nom,
+      insertionEnCours: analyse.enCours && analyse.nom === nom && analyse.nature === 'rush',
       etapeAnalyse: etapeAnalyse(dossier),
     };
   }
@@ -109,6 +113,7 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
       analyse: t.analyse,
       montage: t.montage,
       montageEnregistre: existsSync(path.join(dossier, 'montage.json')),
+      publicationEngagee: publicationEngagee(dossier),
       consignes: await consignesDe(dossier),
       reglages: t.reglages,
       sourceUrl: urlSource(c.urlFichiers, t.nom),
@@ -118,7 +123,15 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
   // Tournage dont le rendu est en préparation (entre la demande et suivi.lancer).
   let enPreparation: string | null = null;
 
+  function verifierSansInsertion(dossier: string): void {
+    const e = c.suiviAnalyse.etat();
+    if (e.enCours && e.nature === 'rush' && e.nom === path.basename(dossier)) {
+      throw new ErreurHttp(409, 'Insertion d’un rush en cours : le montage ne peut pas être modifié.');
+    }
+  }
+
   function verifierMontageModifiable(dossier: string): void {
+    verifierSansInsertion(dossier);
     const nom = path.basename(dossier);
     const etat = c.suivi.etat();
     if ((etat.enCours && etat.nom === nom) || enPreparation === nom) {
@@ -189,6 +202,7 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
 
   async function lancerRendu(req: IncomingMessage, dossier: string): Promise<EtatRendu> {
     const cible = lireCible(await lireCorps(req));
+    verifierSansInsertion(dossier);
     if (c.suivi.etat().enCours || enPreparation) throw new ErreurHttp(409, 'Un rendu est déjà en cours.');
     enPreparation = path.basename(dossier);
     try {
@@ -240,11 +254,44 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
     if (!lancee) throw new ErreurHttp(409, `Une analyse est déjà en cours : ${c.suiviAnalyse.etat().titre}`);
   }
 
+  async function lancerInsertion(req: IncomingMessage, dossier: string): Promise<void> {
+    const nom = path.basename(dossier);
+    const corps = await lireCorps(req);
+    const analyse = c.suiviAnalyse.etat();
+    if (analyse.enCours) throw new ErreurHttp(409, `Une analyse est déjà en cours : ${analyse.titre}`);
+    const rendu = c.suivi.etat();
+    if ((rendu.enCours && rendu.nom === nom) || enPreparation === nom) {
+      throw new ErreurHttp(409, 'Rendu en cours sur ce tournage : attendez sa fin avant d’insérer un rush.');
+    }
+    if (envoiEnCours(dossier)) throw new ErreurHttp(409, 'Vidéo en cours d’envoi sur ce tournage : attendez sa fin.');
+    if (!existsSync(path.join(dossier, 'analyse.json'))) throw new ErreurHttp(409, 'Ce tournage n’est pas encore analysé.');
+    const t = await charger(dossier, true);
+    const demande = lireDemandeRush(corps, t.analyse.duree);
+    const rush = path.join(dossier, DOSSIER_RUSHS, demande.fichier);
+    if (!existsSync(rush)) throw new ErreurHttp(400, `Rush introuvable dans rushs/ : ${demande.fichier}`);
+    // Le pipeline décale le montage enregistré : celui par défaut est écrit s'il ne l'a jamais été.
+    if (!existsSync(path.join(dossier, 'montage.json'))) await ecrireJson(path.join(dossier, 'montage.json'), t.montage);
+    const lancee = c.suiviAnalyse.lancer(nom, t.titre, async () => {
+      await c.inserer(dossier, rush, demande.t, demande.titre);
+      // Les rendus ne correspondent plus au montage.
+      const { statut } = await lireEpisode(dossier);
+      if (statut === 'valide' || statut === 'rendu') await majStatutEpisode(dossier, 'en-validation', null);
+      return avertissementInsertion(dossier);
+    }, 'rush');
+    if (!lancee) throw new ErreurHttp(409, `Une analyse est déjà en cours : ${c.suiviAnalyse.etat().titre}`);
+  }
+
+  function etatInsertion(dossier: string): EtatInsertion {
+    const e = c.suiviAnalyse.etat();
+    if (e.nature !== 'rush' || e.nom !== path.basename(dossier)) return { enCours: false, etape: null, erreur: null, avertissement: null };
+    return { enCours: e.enCours, etape: e.enCours ? etapeInsertion(dossier) : null, erreur: e.erreur, avertissement: e.avertissement };
+  }
+
   return async function traiter(req, res) {
     const chemin = new URL(req.url ?? '/', 'http://local').pathname;
     if (!chemin.startsWith('/api/')) return false;
     try {
-      const route = /^\/api\/tournages\/([^/]+)(?:\/(montage|rendu|suggestions|consignes|video|analyse))?$/.exec(chemin);
+      const route = /^\/api\/tournages\/([^/]+)(?:\/(montage|rendu|suggestions|consignes|video|analyse|rush))?$/.exec(chemin);
       const nom = route?.[1];
       const action = route?.[2];
       if (chemin === '/api/tournages' && req.method === 'GET') {
@@ -289,6 +336,15 @@ export function creerApi(c: ConfigApi): (req: IncomingMessage, res: ServerRespon
       } else if (nom && action === 'analyse' && req.method === 'POST') {
         await lancerAnalyse(req, dossierDe(nom));
         repondre(res, 202, { ok: true });
+      } else if (nom && action === 'rush' && req.method === 'PUT') {
+        const dossier = dossierDe(nom);
+        if (!existsSync(path.join(dossier, 'analyse.json'))) throw new ErreurHttp(409, 'Ce tournage n’est pas encore analysé.');
+        repondre(res, 200, { fichier: await deposerRush(req, dossier) });
+      } else if (nom && action === 'rush' && req.method === 'POST') {
+        await lancerInsertion(req, dossierDe(nom));
+        repondre(res, 202, { ok: true });
+      } else if (nom && action === 'rush' && req.method === 'GET') {
+        repondre(res, 200, etatInsertion(dossierDe(nom)));
       } else {
         repondre(res, 404, { erreur: 'Route inconnue.' });
       }

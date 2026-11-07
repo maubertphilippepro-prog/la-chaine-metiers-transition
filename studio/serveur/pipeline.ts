@@ -19,3 +19,5 @@ export function lancerPipeline(args: string[]): Promise<void> {
 
 export const detourerImage = (entree: string, sortie: string) => lancerPipeline(['detourer', entree, sortie]);
 export const analyserTournage = (dossier: string, titre: string) => lancerPipeline(['analyser', dossier, '--titre', titre]);
+export const insererRush = (dossier: string, rush: string, t: number, titre: string) =>
+  lancerPipeline(['inserer', dossier, rush, '--a', String(t), '--titre', titre]);

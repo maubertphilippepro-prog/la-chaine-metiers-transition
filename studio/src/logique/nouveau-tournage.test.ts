@@ -10,6 +10,7 @@ const TOURNAGE: ResumeTournage = {
   analyseFaite: false,
   videoPresente: false,
   analyseEnCours: false,
+  insertionEnCours: false,
   etapeAnalyse: 'preparation',
 };
 

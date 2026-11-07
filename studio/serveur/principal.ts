@@ -15,7 +15,7 @@ import { redigerPresentation } from './presentation-claude';
 import { redigerMail, retoucherMail } from './mail-claude';
 import { vignetteLecture, capturerMail, construireMail, copierSiDifferent, creerBrouillon, incorporerPochette, DOSSIER_MAILING } from './mail-outils';
 import { requeteAutorisee } from './origine';
-import { analyserTournage, detourerImage } from './pipeline';
+import { analyserTournage, detourerImage, insererRush } from './pipeline';
 import { reduireImage } from './images';
 import { creerApiPublication } from './publication';
 import { redigerPublication } from './redaction';
@@ -44,6 +44,7 @@ async function main(): Promise<void> {
     relancerSuggestions,
     suiviAnalyse: new SuiviAnalyse(),
     analyser: analyserTournage,
+    inserer: insererRush,
     interpreterConsigne: d => interpreterConsigne(d),
   });
 
