@@ -142,6 +142,8 @@ export interface ReglagesCoupe {
   margeMots: number;
   dureeMinCoupe: number;
   dureeMinSegment: number;
+  // Écart max (s) entre deux coupes brutes traitées comme une seule (0,1 s par défaut).
+  ecartFusion?: number;
   fonduAudio: number;
 }
 
