@@ -1,3 +1,4 @@
+import type { BriefLinkedin, ProfilLinkedin } from '../noyau/linkedin';
 import type { EtatMail } from '../noyau/mail';
 import type { FichierConsignes } from '../noyau/consignes';
 import type { Analyse, Montage, Reglages, StatutEpisode } from '../noyau/types';
@@ -94,4 +95,10 @@ export interface DetailMail {
   urlBuild: string;       // URL servie du dossier build/ (preview.html, apercus)
   aCompleter: boolean;    // mail.md contient [À COMPLÉTER]
   brouillonPossible: boolean;
+}
+
+export interface DetailLinkedin {
+  brief: BriefLinkedin;
+  posts: Partial<Record<ProfilLinkedin, string>>;         // post-<profil>.txt, absent si jamais rédigé
+  inspirations: Partial<Record<ProfilLinkedin, string[]>>; // exemples de la bibliothèque retenus par Claude
 }

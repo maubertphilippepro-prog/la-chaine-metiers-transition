@@ -12,6 +12,7 @@ import {
 } from '../logique/publication';
 import { Attente } from './Attente';
 import { ChoixVignette } from './ChoixVignette';
+import { PanneauLinkedin } from './PanneauLinkedin';
 import { PanneauMail } from './PanneauMail';
 import { PanneauSite } from './PanneauSite';
 import { PanneauYoutube } from './PanneauYoutube';
@@ -148,7 +149,12 @@ export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail,
               changer={changer} synchroniser={synchroniser} executer={executer} ajouterValeur={ajouterValeur}
             />
           )}
-          {raisonMail(v.nature, disponible.rendue) === null && <PanneauMail key={`mail-${v.cible}`} nom={nom} cible={v.cible} />}
+          {raisonMail(v.nature, disponible.rendue) === null && (
+            <>
+              <PanneauMail key={`mail-${v.cible}`} nom={nom} cible={v.cible} />
+              <PanneauLinkedin key={`linkedin-${v.cible}`} nom={nom} cible={v.cible} />
+            </>
+          )}
         </>
       )}
       {erreur && <p className="alerte">{erreur}</p>}

@@ -99,6 +99,11 @@ beforeEach(async () => {
       lireReference: vi.fn(async (r: string) => `contenu de ${r}`),
       logosBandeau: vi.fn(async () => ['there']),
     },
+    linkedin: {
+      rediger: vi.fn(async d => ({ post: `Post ${d.profil} [Nom]
+`, inspirations: [`${d.profil}/exemple.md`] })),
+      lireBibliotheque: vi.fn(async profil => ({ guide: 'GUIDE', index: 'INDEX', exemples: [{ fichier: `${profil}/exemple.md`, texte: 'EXEMPLE' }] })),
+    },
   };
   const api = creerApiPublication(config);
   serveur = http.createServer(async (req, res) => {
@@ -229,5 +234,44 @@ describe('mail de com', () => {
     expect(r.status).toBe(500);
     expect((await r.json()).erreur).toContain('PIL absent');
     expect(await readFile(path.join(racine, 'tournages', 'a', 'publication', 'complete', 'mail', 'journal.txt'), 'utf-8')).toContain('PIL absent');
+  });
+});
+
+describe('post LinkedIn', () => {
+  const linkedin = (nom: string, methode: string, quoi: string, corps: unknown) =>
+    fetch(`${url}/api/tournages/${nom}/publication/${quoi}`, { method: methode, headers: json, body: JSON.stringify(corps) });
+
+  it('est réservé aux vidéos Pro', async () => {
+    await tournage('a');
+    await qualifier('a', 'perso');
+    expect((await linkedin('a', 'POST', 'linkedin/redaction', { cible: 'complete', profils: ['cicad'] })).status).toBe(409);
+  });
+
+  it('refuse de deviner le profil', async () => {
+    await tournage('a');
+    await qualifier('a', 'pro');
+    expect((await linkedin('a', 'POST', 'linkedin/redaction', { cible: 'complete', profils: [] })).status).toBe(400);
+  });
+
+  it('rédige un post par profil demandé à partir du brief et de la bibliothèque du profil', async () => {
+    await tournage('a');
+    await qualifier('a', 'pro');
+    await linkedin('a', 'PUT', 'linkedin', { cible: 'complete', brief: { objectif: 'Annonce', cta: '', elements: 'Merci Jimmy', visuel: '' } });
+    const d = await (await linkedin('a', 'POST', 'linkedin/redaction', { cible: 'complete', profils: ['cicad', 'personnel'] })).json();
+    expect(d.posts).toEqual({ personnel: 'Post personnel [Nom]\n', cicad: 'Post cicad [Nom]\n' });
+    expect(d.inspirations.cicad).toEqual(['cicad/exemple.md']);
+    const demandes = vi.mocked(config.linkedin.rediger).mock.calls.map(c => c[0]);
+    expect(demandes.map(x => x.profil)).toEqual(['personnel', 'cicad']);
+    expect(demandes[0]!.brief.elements).toBe('Merci Jimmy');
+    expect(demandes[1]!.bibliotheque.exemples[0]!.fichier).toBe('cicad/exemple.md');
+    expect(await readFile(path.join(racine, 'tournages', 'a', 'publication', 'complete', 'linkedin', 'post-cicad.txt'), 'utf-8')).toBe('Post cicad [Nom]\n');
+  });
+
+  it('enregistre la relecture d’un post sans toucher à l’autre', async () => {
+    await tournage('a');
+    await qualifier('a', 'pro');
+    await linkedin('a', 'POST', 'linkedin/redaction', { cible: 'complete', profils: ['cicad', 'personnel'] });
+    const d = await (await linkedin('a', 'PUT', 'linkedin', { cible: 'complete', posts: { cicad: 'Relu' } })).json();
+    expect(d.posts).toEqual({ personnel: 'Post personnel [Nom]\n', cicad: 'Relu' });
   });
 });

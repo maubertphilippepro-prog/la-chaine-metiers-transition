@@ -27,6 +27,7 @@ import type { ClientSite, ReferencesSite } from './site-replit';
 import type { ImageClaude, ReduireImage } from './images';
 import { nettoyerPropositionsVignette, type ProposerVignettes, type ReponseVignette } from './vignette-claude';
 import { ecrireDossierYoutube } from './youtube';
+import { creerLinkedin, type OutilsLinkedin } from './linkedin';
 import { creerMail, type OutilsMail, type VideoMail } from './mail';
 
 export interface ConfigPublication {
@@ -52,6 +53,8 @@ export interface ConfigPublication {
   site: ClientSite | null;
   // Mail de com : copie SharePoint, rédaction, scripts du skill de mailing.
   mail: OutilsMail;
+  // Post LinkedIn : rédaction par Claude d'après la bibliothèque du skill post-linkedin.
+  linkedin: OutilsLinkedin;
 }
 
 const EXTENSIONS_PHOTO = new Set(['.jpg', '.jpeg', '.png']);
@@ -108,6 +111,7 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
   const consignesEnCours = new Set<string>();
   const urlTournage = (dossier: string) => `${c.urlFichiers}/${encodeURIComponent(path.basename(dossier))}`;
   const mail = creerMail(c.mail);
+  const linkedin = creerLinkedin(c.linkedin);
 
   // La vidéo visée par une route du mail, avec ses paroles conservées.
   function videoMail(ctx: Contexte, cible: CiblePublication): VideoMail {
@@ -554,7 +558,7 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
 
   return async function traiter(req, res) {
     const chemin = new URL(req.url ?? '/', 'http://local').pathname;
-    const route = /^\/api\/tournages\/([^/]+)\/publication(?:\/(redaction|vignette\/generer|vignette|captures|valider|relais|site\/retirer|youtube\/(?:preparer|ouvrir|envoi|verifier)|mail(?:\/(?:copie|images|redaction|construire|retouche|brouillon))?))?$/
+    const route = /^\/api\/tournages\/([^/]+)\/publication(?:\/(redaction|vignette\/generer|vignette|captures|valider|relais|site\/retirer|youtube\/(?:preparer|ouvrir|envoi|verifier)|mail(?:\/(?:copie|images|redaction|construire|retouche|brouillon))?|linkedin(?:\/redaction)?))?$/
       .exec(chemin);
     const valeur = /^\/api\/site\/classements\/([^/]+)\/valeurs$/.exec(chemin);
     if (valeur) {
@@ -609,6 +613,16 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
           else if (req.method === 'POST' && action === 'mail/brouillon') repondre(res, 200, await mail.brouillon(v));
           else repondre(res, 404, { erreur: 'Route inconnue.' });
         }
+      }
+      else if (action === 'linkedin' && req.method === 'GET') {
+        const cible = lireCibleTexte(new URL(req.url ?? '/', 'http://local').searchParams.get('cible'));
+        repondre(res, 200, await linkedin.detail(videoMail(ctx, lireCible({ cible }, ctx.cibles))));
+      } else if (action?.startsWith('linkedin')) {
+        const corps = objet(await lireCorps(req));
+        const v = videoMail(ctx, lireCible(corps, ctx.cibles));
+        if (req.method === 'PUT' && action === 'linkedin') repondre(res, 200, await linkedin.enregistrer(v, corps));
+        else if (req.method === 'POST' && action === 'linkedin/redaction') repondre(res, 200, await linkedin.rediger(v, corps));
+        else repondre(res, 404, { erreur: 'Route inconnue.' });
       }
       else repondre(res, 404, { erreur: 'Route inconnue.' });
     } catch (e) {

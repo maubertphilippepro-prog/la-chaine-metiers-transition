@@ -123,6 +123,8 @@ button.lien { background: none; border: none; padding: 0; text-align: left; curs
 .champs input { font: inherit; }
 
 .panneau-mail .mail-md { font-family: Consolas, monospace; font-size: 0.85rem; }
+.panneau-linkedin .profils { display: flex; gap: 1rem; }
+.panneau-linkedin .profils label { display: inline-flex; gap: 0.3rem; align-items: center; }
 .apercus-mail { display: flex; gap: 0.5rem; overflow-x: auto; }
 .apercus-mail img { max-height: 420px; border: 1px solid #e5e7eb; }
 

@@ -6,7 +6,8 @@ import type { Qualification } from '../../noyau/qualification';
 import type { Cible } from '../../remotion/scripts/rendu';
 import type { VisibiliteYoutube } from '../../noyau/youtube';
 import type { Formulaire } from './logique/publication';
-import type { DetailMail, DetailPublication, DetailTournage, DossierYoutube, EtatRendu, Pose, ResumeTournage, VerificationYoutube } from '../commun';
+import type { BriefLinkedin, ProfilLinkedin } from '../../noyau/linkedin';
+import type { DetailLinkedin, DetailMail, DetailPublication, DetailTournage, DossierYoutube, EtatRendu, Pose, ResumeTournage, VerificationYoutube } from '../commun';
 
 export class ErreurApi extends Error {
   constructor(readonly statut: number, message: string, readonly problemes: string[]) {
@@ -39,6 +40,11 @@ export const api = {
     appeler<DetailMail>(`${chemin(nom)}/publication/mail`, enJson('PUT', { cible, ...champs })),
   actionMail: (nom: string, cible: CiblePublication, quoi: 'copie' | 'redaction' | 'construire' | 'brouillon') =>
     appeler<DetailMail>(`${chemin(nom)}/publication/mail/${quoi}`, enJson('POST', { cible })),
+  linkedin: (nom: string, cible: CiblePublication) => appeler<DetailLinkedin>(`${chemin(nom)}/publication/linkedin?cible=${cible}`),
+  enregistrerLinkedin: (nom: string, cible: CiblePublication, champs: { brief?: BriefLinkedin; posts?: Partial<Record<ProfilLinkedin, string>> }) =>
+    appeler<DetailLinkedin>(`${chemin(nom)}/publication/linkedin`, enJson('PUT', { cible, ...champs })),
+  redigerLinkedin: (nom: string, cible: CiblePublication, profils: ProfilLinkedin[]) =>
+    appeler<DetailLinkedin>(`${chemin(nom)}/publication/linkedin/redaction`, enJson('POST', { cible, profils })),
   retoucherMail: (nom: string, cible: CiblePublication, consigne: string) =>
     appeler<DetailMail & { resumeRetouche: string }>(`${chemin(nom)}/publication/mail/retouche`, enJson('POST', { cible, consigne })),
   deposerImageMail: (nom: string, cible: CiblePublication, fichier: string, contenu: Blob) => appeler<DetailMail>(

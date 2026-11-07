@@ -10,6 +10,7 @@ import { RACINE } from '../../remotion/scripts/tournage';
 import type { Reglages } from '../../noyau/types';
 import { creerApi } from './api';
 import { interpreterConsigne } from './interpretation';
+import { redigerPost } from './linkedin-claude';
 import { redigerMail, retoucherMail } from './mail-claude';
 import { vignetteLecture, capturerMail, construireMail, copierSiDifferent, creerBrouillon, incorporerPochette, DOSSIER_MAILING } from './mail-outils';
 import { requeteAutorisee } from './origine';
@@ -86,6 +87,19 @@ async function main(): Promise<void> {
       brouillon: creerBrouillon,
       lireReference: r => readFile(path.join(DOSSIER_MAILING, r), 'utf-8'),
       logosBandeau: async () => (await readdir(path.join(DOSSIER_MAILING, 'assets', 'logos'))).filter(f => f.endsWith('.png')).map(f => f.slice(0, -4)),
+    },
+    // Bibliothèque du skill post-linkedin, recopiée dans outils/linkedin.
+    linkedin: {
+      rediger: d => redigerPost(d),
+      lireBibliotheque: async profil => {
+        const assets = path.join(RACINE, 'outils', 'linkedin', 'assets');
+        const fichiers = (await readdir(path.join(assets, profil))).filter(f => f.endsWith('.md')).sort();
+        return {
+          guide: await readFile(path.join(assets, 'guide-style.md'), 'utf-8'),
+          index: await readFile(path.join(assets, 'index.md'), 'utf-8'),
+          exemples: await Promise.all(fichiers.map(async f => ({ fichier: `${profil}/${f}`, texte: await readFile(path.join(assets, profil, f), 'utf-8') }))),
+        };
+      },
     },
   });
 

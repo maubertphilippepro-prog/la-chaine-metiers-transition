@@ -104,6 +104,11 @@ beforeEach(async () => {
       lireReference: vi.fn(async (r: string) => `contenu de ${r}`),
       logosBandeau: vi.fn(async () => ['there']),
     },
+    linkedin: {
+      rediger: vi.fn(async d => ({ post: `Post ${d.profil} [Nom]
+`, inspirations: [`${d.profil}/exemple.md`] })),
+      lireBibliotheque: vi.fn(async profil => ({ guide: 'GUIDE', index: 'INDEX', exemples: [{ fichier: `${profil}/exemple.md`, texte: 'EXEMPLE' }] })),
+    },
   };
   const api = creerApiPublication(config);
   serveur = http.createServer(async (req, res) => {
