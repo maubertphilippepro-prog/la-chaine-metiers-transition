@@ -5,6 +5,7 @@ import { LIBELLES_NATURE, problemesElements, type ReglagesElements } from '../..
 import type { Analyse, ElementEcran, Montage, StatutElement } from '../../../noyau/types';
 import { elementsAffiches } from '../logique/elements';
 import { horodatage } from '../logique/format';
+import { BoutonsDecision } from './BoutonsDecision';
 import { ChoixPosition } from './ChoixPosition';
 
 interface Props {
@@ -74,7 +75,7 @@ export const PanneauElements: FC<Props> = props => {
       {affiches.length === 0 && (
         <p className="discret">Aucun élément. Sélectionnez un passage dans le texte pour zoomer, mettre en avant, incruster un texte ou passer la caméra en grand.</p>
       )}
-      {affiches.map(e => {
+      {affiches.map((e, index) => {
         const mots = motsRecouverts(analyse, e);
         const raison = raisons.get(e.id);
         const aZone = e.nature === 'zoom' || e.nature === 'miseEnAvant';
@@ -90,6 +91,7 @@ export const PanneauElements: FC<Props> = props => {
         return (
           <div key={e.id} className={ecarte ? 'fiche ecarte' : 'fiche'}>
             <div>
+              <span className="numero">#{index + 1}</span>
               <strong>{LIBELLES_NATURE[e.nature]}</strong>
               {' · '}
               <span className={e.statut === 'a-valider' ? 'trop-long' : 'discret'}>{LIBELLES_STATUT[e.statut]}</span>
@@ -103,15 +105,11 @@ export const PanneauElements: FC<Props> = props => {
             {e.nature === 'texte' && !ecarte && <EditionTexte element={e} max={reglages.elements.texteMaxCaracteres} changer={changer} />}
             {refus?.id === e.id && <div className="alerte">{refus.probleme}</div>}
             <div className="actions">
-              {e.statut === 'a-valider' && (
-                <>
-                  <button disabled={sansZone} title={sansZone ? 'Tracez d’abord la zone' : undefined} onClick={() => changer({ statut: 'valide' })}>
-                    Accepter
-                  </button>
-                  <button onClick={() => changer({ statut: 'ecarte' })}>Écarter</button>
-                </>
-              )}
-              {ecarte && <button title="Le remet à valider" onClick={() => changer({ statut: 'a-valider' })}>Reprendre</button>}
+              <BoutonsDecision
+                choix={e.statut === 'valide' ? 'oui' : ecarte ? 'non' : null}
+                oui={{ libelle: 'Accepter', disabled: sansZone, title: sansZone ? 'Tracez d’abord la zone' : undefined, onClick: () => changer({ statut: 'valide' }) }}
+                non={{ libelle: 'Écarter', onClick: () => changer({ statut: 'ecarte' }) }}
+              />
               {aZone && !ecarte && <button onClick={() => props.tracer(e)}>{sansZone ? 'Tracer' : 'Retracer'}</button>}
               <button onClick={() => props.ecouter(e.debut, e.fin)}>Écouter</button>
               <button onClick={() => props.lireDansApercu(e.debut)}>Voir dans l’aperçu</button>
