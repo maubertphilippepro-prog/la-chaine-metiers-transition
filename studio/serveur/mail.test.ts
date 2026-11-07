@@ -99,6 +99,9 @@ beforeEach(async () => {
       lireReference: vi.fn(async (r: string) => `contenu de ${r}`),
       logosBandeau: vi.fn(async () => ['there']),
     },
+    presentation: {
+      rediger: vi.fn(async () => ({ titre: 'Accroche', tags: ['Outil'], description: 'Cette vidéo présente…' })),
+    },
     linkedin: {
       rediger: vi.fn(async d => ({ post: `Post ${d.profil} [Nom]
 `, inspirations: [`${d.profil}/exemple.md`] })),
@@ -273,5 +276,23 @@ describe('post LinkedIn', () => {
     await linkedin('a', 'POST', 'linkedin/redaction', { cible: 'complete', profils: ['cicad', 'personnel'] });
     const d = await (await linkedin('a', 'PUT', 'linkedin', { cible: 'complete', posts: { cicad: 'Relu' } })).json();
     expect(d.posts).toEqual({ personnel: 'Post personnel [Nom]\n', cicad: 'Relu' });
+  });
+});
+
+describe('présentation SharePoint', () => {
+  const appel = (methode: string, quoi: string, corps?: unknown) =>
+    fetch(`${url}/api/tournages/a/publication/${quoi}`, corps === undefined ? {} : { method: methode, headers: json, body: JSON.stringify(corps) });
+
+  it('rédige titre, tags et description, les garde sur le disque et accepte la relecture', async () => {
+    await tournage('a');
+    await qualifier('a', 'pro');
+    expect((await (await appel('GET', 'presentation?cible=complete')).json()).redigee).toBe(false);
+    const d = await (await appel('POST', 'presentation/redaction', { cible: 'complete' })).json();
+    expect(d.presentation).toEqual({ titre: 'Accroche', tags: ['Outil'], description: 'Cette vidéo présente…' });
+    expect(d.redigee).toBe(true);
+    expect(vi.mocked(config.presentation.rediger).mock.calls[0]![0].texte.length).toBeGreaterThan(0);
+    const relue = await (await appel('PUT', 'presentation', { cible: 'complete', presentation: { titre: 'Autre', tags: ['A', 'B'], description: 'D' } })).json();
+    expect(relue.presentation).toEqual({ titre: 'Autre', tags: ['A', 'B'], description: 'D' });
+    expect(JSON.parse(await readFile(path.join(racine, 'tournages', 'a', 'publication', 'complete', 'sharepoint', 'presentation.json'), 'utf-8')).titre).toBe('Autre');
   });
 });

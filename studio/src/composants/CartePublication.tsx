@@ -13,6 +13,7 @@ import {
 import { Attente } from './Attente';
 import { ChoixVignette } from './ChoixVignette';
 import { PanneauLinkedin } from './PanneauLinkedin';
+import { PanneauPresentation } from './PanneauPresentation';
 import { PanneauMail } from './PanneauMail';
 import { PanneauSite } from './PanneauSite';
 import { PanneauYoutube } from './PanneauYoutube';
@@ -152,6 +153,7 @@ export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail,
           {raisonMail(v.nature, disponible.rendue) === null && (
             <>
               <PanneauMail key={`mail-${v.cible}`} nom={nom} cible={v.cible} />
+              <PanneauPresentation key={`presentation-${v.cible}`} nom={nom} cible={v.cible} />
               <PanneauLinkedin key={`linkedin-${v.cible}`} nom={nom} cible={v.cible} />
             </>
           )}

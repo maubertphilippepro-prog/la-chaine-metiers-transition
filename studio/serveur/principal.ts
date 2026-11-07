@@ -11,6 +11,7 @@ import type { Reglages } from '../../noyau/types';
 import { creerApi } from './api';
 import { interpreterConsigne } from './interpretation';
 import { redigerPost } from './linkedin-claude';
+import { redigerPresentation } from './presentation-claude';
 import { redigerMail, retoucherMail } from './mail-claude';
 import { vignetteLecture, capturerMail, construireMail, copierSiDifferent, creerBrouillon, incorporerPochette, DOSSIER_MAILING } from './mail-outils';
 import { requeteAutorisee } from './origine';
@@ -88,6 +89,7 @@ async function main(): Promise<void> {
       lireReference: r => readFile(path.join(DOSSIER_MAILING, r), 'utf-8'),
       logosBandeau: async () => (await readdir(path.join(DOSSIER_MAILING, 'assets', 'logos'))).filter(f => f.endsWith('.png')).map(f => f.slice(0, -4)),
     },
+    presentation: { rediger: d => redigerPresentation(d) },
     // Bibliothèque du skill post-linkedin, recopiée dans outils/linkedin.
     linkedin: {
       rediger: d => redigerPost(d),

@@ -1,4 +1,5 @@
 import type { BriefLinkedin, ProfilLinkedin } from '../noyau/linkedin';
+import type { Presentation } from '../noyau/presentation';
 import type { EtatMail } from '../noyau/mail';
 import type { FichierConsignes } from '../noyau/consignes';
 import type { Analyse, Montage, Reglages, StatutEpisode } from '../noyau/types';
@@ -101,4 +102,11 @@ export interface DetailLinkedin {
   brief: BriefLinkedin;
   posts: Partial<Record<ProfilLinkedin, string>>;         // post-<profil>.txt, absent si jamais rédigé
   inspirations: Partial<Record<ProfilLinkedin, string[]>>; // exemples de la bibliothèque retenus par Claude
+}
+
+// Texte de présentation pour la page SharePoint « Chaîne M&T ».
+export interface DetailPresentation {
+  presentation: Presentation;
+  dureeSecondes: number;   // pour la ligne de tags (« 10 minutes »)
+  redigee: boolean;        // presentation.json existe
 }

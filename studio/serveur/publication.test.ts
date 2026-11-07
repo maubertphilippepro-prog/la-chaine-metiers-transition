@@ -104,6 +104,9 @@ beforeEach(async () => {
       lireReference: vi.fn(async (r: string) => `contenu de ${r}`),
       logosBandeau: vi.fn(async () => ['there']),
     },
+    presentation: {
+      rediger: vi.fn(async () => ({ titre: 'Accroche', tags: ['Outil'], description: 'Cette vidéo présente…' })),
+    },
     linkedin: {
       rediger: vi.fn(async d => ({ post: `Post ${d.profil} [Nom]
 `, inspirations: [`${d.profil}/exemple.md`] })),

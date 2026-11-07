@@ -7,7 +7,8 @@ import type { Cible } from '../../remotion/scripts/rendu';
 import type { VisibiliteYoutube } from '../../noyau/youtube';
 import type { Formulaire } from './logique/publication';
 import type { BriefLinkedin, ProfilLinkedin } from '../../noyau/linkedin';
-import type { DetailLinkedin, DetailMail, DetailPublication, DetailTournage, DossierYoutube, EtatRendu, Pose, ResumeTournage, VerificationYoutube } from '../commun';
+import type { Presentation } from '../../noyau/presentation';
+import type { DetailLinkedin, DetailMail, DetailPresentation, DetailPublication, DetailTournage, DossierYoutube, EtatRendu, Pose, ResumeTournage, VerificationYoutube } from '../commun';
 
 export class ErreurApi extends Error {
   constructor(readonly statut: number, message: string, readonly problemes: string[]) {
@@ -40,6 +41,11 @@ export const api = {
     appeler<DetailMail>(`${chemin(nom)}/publication/mail`, enJson('PUT', { cible, ...champs })),
   actionMail: (nom: string, cible: CiblePublication, quoi: 'copie' | 'redaction' | 'construire' | 'brouillon') =>
     appeler<DetailMail>(`${chemin(nom)}/publication/mail/${quoi}`, enJson('POST', { cible })),
+  presentation: (nom: string, cible: CiblePublication) => appeler<DetailPresentation>(`${chemin(nom)}/publication/presentation?cible=${cible}`),
+  enregistrerPresentation: (nom: string, cible: CiblePublication, presentation: Presentation) =>
+    appeler<DetailPresentation>(`${chemin(nom)}/publication/presentation`, enJson('PUT', { cible, presentation })),
+  redigerPresentation: (nom: string, cible: CiblePublication) =>
+    appeler<DetailPresentation>(`${chemin(nom)}/publication/presentation/redaction`, enJson('POST', { cible })),
   linkedin: (nom: string, cible: CiblePublication) => appeler<DetailLinkedin>(`${chemin(nom)}/publication/linkedin?cible=${cible}`),
   enregistrerLinkedin: (nom: string, cible: CiblePublication, champs: { brief?: BriefLinkedin; posts?: Partial<Record<ProfilLinkedin, string>> }) =>
     appeler<DetailLinkedin>(`${chemin(nom)}/publication/linkedin`, enJson('PUT', { cible, ...champs })),
