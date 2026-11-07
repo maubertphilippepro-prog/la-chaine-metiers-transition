@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ValeurClassement } from '../../noyau/classements';
 import { appliquerModifications, type Publication } from '../../noyau/publication';
 import type { DetailPublication } from '../commun';
 import { api } from './api';
@@ -91,5 +92,16 @@ export function usePublication(nom: string) {
     setEnregistrement('a-jour');
   }, [synchroniser, recevoir, nom]);
 
-  return { detail, publication, erreur, enregistrement, modifier, executer, synchroniser };
+  // Une valeur de classement créée sur le site rejoint les choix proposés, sans recharger le détail.
+  const ajouterValeur = useCallback((cle: string, valeur: ValeurClassement) => {
+    setDetail(d => (d && d.site ? {
+      ...d,
+      site: {
+        ...d.site,
+        classements: d.site.classements.map(t => (t.cle === cle && !t.valeurs.some(x => x.id === valeur.id) ? { ...t, valeurs: [...t.valeurs, valeur] } : t)),
+      },
+    } : d));
+  }, []);
+
+  return { detail, publication, erreur, enregistrement, modifier, executer, synchroniser, ajouterValeur };
 }

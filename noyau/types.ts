@@ -121,7 +121,17 @@ export interface Montage {
   chapitres: Chapitre[];
   termes: Terme[];
   elements: ElementEcran[];
+  // Motion design : absent = tout est affiché (montages enregistrés avant l'option).
+  habillage?: Habillage;
 }
+
+export interface Habillage {
+  generique: boolean;
+  intertitres: boolean;
+  cartonFin: boolean;
+}
+
+export const HABILLAGE_COMPLET: Habillage = { generique: true, intertitres: true, cartonFin: true };
 
 export type StatutEpisode = 'analyse' | 'en-validation' | 'valide' | 'rendu' | 'erreur';
 
@@ -142,6 +152,8 @@ export interface ReglagesCoupe {
   margeMots: number;
   dureeMinCoupe: number;
   dureeMinSegment: number;
+  // Écart max (s) entre deux coupes brutes traitées comme une seule (0,1 s par défaut).
+  ecartFusion?: number;
   fonduAudio: number;
 }
 
@@ -179,6 +191,9 @@ export interface Reglages {
     vignetteOctetsMax: number;
     mentionsInterdites: string[];
   };
+  // Dossier OneDrive synchronisé avec la bibliothèque SharePoint des vidéos internes (mail de com).
+  // dossierTemp : dossier OneDrive perso où la vidéo transite pour qu'on y change la miniature dans Office.
+  sharepoint: { dossierLocal: string; site: string; bibliotheque: string; dossierTemp?: string };
   modeles: { whisper: string; claude: string; detourage: string };
   definitionMaxCaracteres: number;
 }

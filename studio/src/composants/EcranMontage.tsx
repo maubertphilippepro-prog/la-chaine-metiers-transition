@@ -1,15 +1,18 @@
-import { type FC, useMemo, useState } from 'react';
+import { type FC, useCallback, useEffect, useMemo, useState } from 'react';
 import { decisionsEpisodes, decisionsVideoComplete } from '../../../noyau/decisions';
 import { passageEnTemps, tracerZoneProposition, type Ancrage, type Operation } from '../../../noyau/consignes';
 import { ajouterElement, modifierElement, prochainIdElement, type NouvelElement } from '../../../noyau/edition';
 import { problemeDe } from '../../../noyau/elements';
 import type { ElementEcran, Montage, NatureElement, Zone } from '../../../noyau/types';
+import type { EtatInsertion } from '../../commun';
 import { api } from '../api';
 import { useEcoute } from '../ecoute';
 import { imageEpisode, imageVideoComplete, motA, positionDansParties } from '../logique/apercu';
+import { messageFinInsertion } from '../logique/rush';
 import { creerSuivi } from '../logique/suivi';
 import { useConsignes } from '../useConsignes';
 import { type EtatEnregistrement, useMontage } from '../useMontage';
+import { ChoixHabillage } from './ChoixHabillage';
 import { Apercu, type DemandeLecture, type ModeLecture, type Vue } from './Apercu';
 import { BandeauSuggestions } from './BandeauSuggestions';
 import { PanneauConsignes } from './PanneauConsignes';
@@ -20,6 +23,7 @@ import { PanneauTermes } from './PanneauTermes';
 import { Texte, type SaisieTexte } from './Texte';
 import type { Dessin } from './TraceurZone';
 import { Attente } from './Attente';
+import { AttenteInsertion } from './AttenteInsertion';
 
 const LIBELLES_ENREGISTREMENT: Record<EtatEnregistrement, string> = {
   'a-jour': 'Enregistré',
@@ -27,8 +31,14 @@ const LIBELLES_ENREGISTREMENT: Record<EtatEnregistrement, string> = {
   erreur: 'Échec de l’enregistrement : la prochaine modification réessaiera',
 };
 
-export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
-  const { detail, montage, erreur, enregistrement, modifier, remplacerDetail } = useMontage(nom);
+// Retour d'une insertion : instant où caler l'aperçu (null après un échec) et message à montrer.
+interface RetourInsertion {
+  t: number | null;
+  message: string | null;
+}
+
+const EditionMontage: FC<{ nom: string; retour: RetourInsertion | null; onInsertion: (t: number | null) => void }> = ({ nom, retour, onInsertion }) => {
+  const { detail, montage, erreur, enregistrement, modifier, remplacerDetail, enregistrerMaintenant } = useMontage(nom);
   const { ecouter, audio } = useEcoute(detail?.sourceUrl ?? null);
   const [vue, setVue] = useState<Vue>('complete');
   const [demande, setDemande] = useState<DemandeLecture | null>(null);
@@ -55,6 +65,20 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
       : null),
     [detail, montageApercu],
   );
+
+  // Studio rouvert pendant une insertion : l'écran d'attente reprend.
+  useEffect(() => {
+    if (detail?.insertionEnCours) onInsertion(null);
+  }, [detail, onInsertion]);
+
+  // Après une insertion réussie, l'aperçu se cale sur le début du rush.
+  const [aCaler, setACaler] = useState<number | null>(retour?.t ?? null);
+  useEffect(() => {
+    if (aCaler === null || !decisions || !detail) return;
+    const p = positionDansParties(decisions.complete.parties, aCaler, detail.analyse.fps);
+    if (p) setDemande({ image: imageVideoComplete(decisions.complete, p), jeton: Date.now(), mode: 'caler' });
+    setACaler(null);
+  }, [aCaler, decisions, detail]);
 
   if (erreur) {
     return (
@@ -156,6 +180,17 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
     }
   };
 
+  const insererRush = async (t: number, fichier: File, titre: string, onProgression: (part: number) => void) => {
+    try {
+      await enregistrerMaintenant();
+    } catch {
+      throw new Error('Le montage n’a pas pu être enregistré : insertion non lancée.');
+    }
+    const { fichier: depose } = await api.deposerRush(nom, fichier, onProgression);
+    await api.insererRush(nom, depose, t, titre);
+    onInsertion(t);
+  };
+
   return (
     <div className="montage">
       <header className="entete">
@@ -165,9 +200,11 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
           aria-label="Titre de la vidéo complète"
           onChange={e => { const titre = e.target.value; modifier(m => ({ ...m, titre })); }}
         />
+        <ChoixHabillage montage={montage} modifier={modifier} />
         {enregistrement === 'en-attente'
           ? <Attente libelle={LIBELLES_ENREGISTREMENT[enregistrement]} />
           : <span className="discret">{LIBELLES_ENREGISTREMENT[enregistrement]}</span>}
+        {retour?.message && <span className="alerte">{retour.message}</span>}
         {detail.statut === 'rendu' && <a href={`#/${encodeURIComponent(nom)}/publication`}>Publication →</a>}
       </header>
       <main className="texte">
@@ -176,6 +213,8 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
           surSelection={setSelection}
           creerElement={creerElement}
           motLu={motLu}
+          insererRush={insererRush}
+          publicationEngagee={detail.publicationEngagee}
         />
       </main>
       <aside className="cote">
@@ -244,4 +283,26 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
       {audio}
     </div>
   );
+};
+
+// Écran de montage ; pendant l'insertion d'un rush, l'écran d'attente, puis le montage rechargé.
+export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
+  const [insertion, setInsertion] = useState<{ t: number | null } | null>(null);
+  const [retour, setRetour] = useState<RetourInsertion | null>(null);
+  const [generation, setGeneration] = useState(0);
+  const onInsertion = useCallback((t: number | null) => setInsertion({ t }), []);
+
+  if (insertion) {
+    return (
+      <AttenteInsertion
+        nom={nom}
+        onFin={(e: EtatInsertion) => {
+          setRetour({ t: e.erreur ? null : insertion.t, message: messageFinInsertion(e) });
+          setInsertion(null);
+          setGeneration(g => g + 1);
+        }}
+      />
+    );
+  }
+  return <EditionMontage key={generation} nom={nom} retour={retour} onInsertion={onInsertion} />;
 };

@@ -1,8 +1,9 @@
 import { type FC, useEffect, useState } from 'react';
+import type { ValeurClassement } from '../../../noyau/classements';
 import { longueurTags, modifierVideo, retraitAFaire, type Publication, type VideoPubliee, type Vignette } from '../../../noyau/publication';
-import type { Gabarit } from '../../../noyau/gabarits';
 import { diffusion, NATURES, type Nature, type Qualification } from '../../../noyau/qualification';
 import { descriptionYoutube, formatHorodatage } from '../../../noyau/publication-textes';
+import { raisonMail } from '../../../noyau/mail';
 import { pretePourYoutube, validee } from '../../../noyau/youtube';
 import type { DetailPublication, Pose, VideoDisponible } from '../../commun';
 import { api, ErreurApi } from '../api';
@@ -11,6 +12,9 @@ import {
 } from '../logique/publication';
 import { Attente } from './Attente';
 import { ChoixVignette } from './ChoixVignette';
+import { PanneauLinkedin } from './PanneauLinkedin';
+import { PanneauPresentation } from './PanneauPresentation';
+import { PanneauMail } from './PanneauMail';
 import { PanneauSite } from './PanneauSite';
 import { PanneauYoutube } from './PanneauYoutube';
 
@@ -21,11 +25,10 @@ interface Props {
   detail: DetailPublication;
   poses: Pose[];
   complete: Vignette | null;
-  gabaritsAutres: Gabarit[];
-  instant: () => number;
   modifier: (f: (p: Publication) => Publication) => void;
   executer: (action: () => Promise<Publication>) => Promise<void>;
   synchroniser: () => Promise<void>;
+  ajouterValeur: (cle: string, v: ValeurClassement) => void;
 }
 
 const REDACTION = 'Rédaction par Claude…';
@@ -33,7 +36,7 @@ const VERIFICATION = 'Vérification…';
 const RETRAIT = 'Retrait du site…';
 
 
-export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail, poses, complete, gabaritsAutres, instant, modifier, executer, synchroniser }) => {
+export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail, poses, complete, modifier, executer, synchroniser, ajouterValeur }) => {
   const [occupe, setOccupe] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [problemes, setProblemes] = useState<string[]>([]);
@@ -128,7 +131,7 @@ export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail,
             Tags, séparés par des virgules ({longueurTags(tagsDepuisTexte(tags))}/{r.tagsMax})
             <input value={tags} onChange={e => setTags(e.target.value)} onBlur={() => changer({ tags: tagsDepuisTexte(tags) })} />
           </label>
-          <ChoixVignette nom={nom} video={v} detail={detail} poses={poses} complete={complete} gabaritsAutres={gabaritsAutres} instant={instant} changer={changer} lancer={lancer} occupe={occupe} />
+          <ChoixVignette nom={nom} video={v} detail={detail} poses={poses} complete={complete} changer={changer} lancer={lancer} occupe={occupe} />
           <div className="actions">
             <button className="principal" disabled={!!occupe} onClick={() => void lancer(VERIFICATION, () => api.validerVideo(nom, v.cible))}>
               Valider pour la publication
@@ -144,8 +147,15 @@ export const CartePublication: FC<Props> = ({ nom, video: v, disponible, detail,
           {((validee(v) && d.site !== 'aucun') || retraitAFaire(v)) && (
             <PanneauSite
               key={`site-${d.site}`} nom={nom} video={v} urlSite={detail.urlSite} site={detail.site}
-              changer={changer} synchroniser={synchroniser} executer={executer}
+              changer={changer} synchroniser={synchroniser} executer={executer} ajouterValeur={ajouterValeur}
             />
+          )}
+          {raisonMail(v.nature, disponible.rendue) === null && (
+            <>
+              <PanneauMail key={`mail-${v.cible}`} nom={nom} cible={v.cible} />
+              <PanneauPresentation key={`presentation-${v.cible}`} nom={nom} cible={v.cible} />
+              <PanneauLinkedin key={`linkedin-${v.cible}`} nom={nom} cible={v.cible} />
+            </>
           )}
         </>
       )}

@@ -11,6 +11,14 @@ export const LIBELLES_GABARIT: Record<Gabarit, string> = {
   vitrine: 'Vitrine', demonstration: 'Démonstration', mosaique: 'Mosaïque', classique: 'Classique',
 };
 
+// Ce que montre chaque gabarit et quand il est possible, pour Claude.
+export const DESCRIPTIONS_GABARIT: Record<Gabarit, string> = {
+  vitrine: 'pose au centre sur fond bleu dégradé, jusqu’à trois logos autour de la tête, accroche en bandeau rouge en bas ; possible dès un logo',
+  demonstration: 'première capture en grande carte à gauche, premier logo épinglé dans son coin, pose à droite, accroche en bandeau dessous ; possible dès une capture',
+  mosaique: 'accroche en haut à gauche, deux ou trois captures en éventail dessous, premier logo en tuile, pose à droite ; possible dès deux captures',
+  classique: 'accroche en grand à gauche, pose en grand à droite, sans logo ni capture ; toujours possible',
+};
+
 const CONDITIONS: Record<Gabarit, (e: { logos: number; captures: number }) => boolean> = {
   vitrine: e => e.logos >= 1,
   demonstration: e => e.captures >= 1,
@@ -39,4 +47,23 @@ export function logosSuggeres(logiciels: string[], banque: string[]): string[] {
     if (logo && !resultat.includes(logo)) resultat.push(logo);
   }
   return resultat.slice(0, MAX_ELEMENTS);
+}
+
+// Logos saisis en texte libre (« Excel, Teams ») retrouvés dans la banque. Un nom qui désigne plusieurs fichiers est
+// laissé à Claude, qui voit les logos.
+export function resoudreLogos(texte: string, banque: string[]): { logos: string[]; introuvables: string[]; ambigus: string[] } {
+  const logos: string[] = [];
+  const introuvables: string[] = [];
+  const ambigus: string[] = [];
+  const cles = banque.map(f => ({ f, k: cle(f.replace(/\.[^.]+$/, '')) }));
+  for (const nom of texte.split(/[,;\n]/).map(n => n.trim()).filter(n => n !== '')) {
+    const k = cle(nom);
+    const exact = cles.find(c => c.k === k);
+    const partiels = cles.filter(c => c.k.includes(k));
+    const trouve = exact?.f ?? (partiels.length === 1 ? partiels[0]!.f : undefined);
+    if (trouve) { if (!logos.includes(trouve)) logos.push(trouve); }
+    else if (partiels.length > 1) ambigus.push(nom);
+    else introuvables.push(nom);
+  }
+  return { logos: logos.slice(0, MAX_ELEMENTS), introuvables, ambigus };
 }

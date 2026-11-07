@@ -82,7 +82,7 @@ export const LigneTournage: FC<Props> = ({ t, bloque, onAnalyser, onChangement }
         <div className="discret">{t.nom}</div>
       </td>
       <td>
-        {etat === 'en-cours' && <Attente libelle={LIBELLES_ETAPE[t.etapeAnalyse]} />}
+        {etat === 'en-cours' && <Attente libelle={t.insertionEnCours ? 'Insertion d’un rush' : LIBELLES_ETAPE[t.etapeAnalyse]} />}
         {(etat === 'analyse' || etat === 'erreur') && t.statut && (
           <span className={`statut statut-${t.statut}`}>{LIBELLES_STATUT[t.statut]}</span>
         )}

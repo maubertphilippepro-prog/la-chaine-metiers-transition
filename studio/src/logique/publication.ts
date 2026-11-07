@@ -1,5 +1,5 @@
-import { MAX_ELEMENTS, type Gabarit } from '../../../noyau/gabarits';
-import type { CiblePublication, FondVignette, PoseVignette, Publication, StatutPublication, VideoPubliee, Vignette } from '../../../noyau/publication';
+import { MAX_ELEMENTS } from '../../../noyau/gabarits';
+import type { CiblePublication, PoseVignette, PropositionVignette, Publication, StatutPublication, VideoPubliee, Vignette } from '../../../noyau/publication';
 import { diffusion, memeQualification, type Diffusion, type DiffusionSite, type DiffusionYoutube, type Nature, type Qualification } from '../../../noyau/qualification';
 import type { VisibiliteYoutube } from '../../../noyau/youtube';
 
@@ -57,13 +57,11 @@ export function changerQualificationParDefaut(p: Publication, q: Qualification):
   };
 }
 
-// Pose et fond de départ d’une vignette : les siens, sinon ceux de la vidéo complète, sinon la première pose de la banque et la charte.
-export function baseVignette(
-  vignette: Vignette | null, complete: Vignette | null, premierePose: string | undefined,
-): { pose: PoseVignette | null; fond: FondVignette } {
+// Pose de départ d’une vignette : la sienne, sinon celle de la vidéo complète, sinon la première pose de la banque.
+export function basePose(vignette: Vignette | null, complete: Vignette | null, premierePose: string | undefined): PoseVignette | null {
   const source = vignette ?? complete;
-  if (source) return { pose: source.pose, fond: source.fond };
-  return { pose: premierePose ? { source: 'banque', fichier: premierePose } : null, fond: { source: 'charte' } };
+  if (source) return source.pose;
+  return premierePose ? { source: 'banque', fichier: premierePose } : null;
 }
 
 export const LIBELLES_VISIBILITE: Record<VisibiliteYoutube, string> = {
@@ -84,12 +82,57 @@ export function localDepuisIso(iso: string | null): string {
   return `${d.getFullYear()}-${deux(d.getMonth() + 1)}-${deux(d.getDate())}T${deux(d.getHours())}:${deux(d.getMinutes())}`;
 }
 
-// Logo ou capture coché ou décoché ; au plus MAX_ELEMENTS, dans l'ordre des clics.
-export function basculer(liste: string[], fichier: string): string[] {
+// Logo ou capture coché ou décoché ; au plus `max`, dans l'ordre des clics.
+export function basculer(liste: string[], fichier: string, max = MAX_ELEMENTS): string[] {
   if (liste.includes(fichier)) return liste.filter(f => f !== fichier);
-  return liste.length < MAX_ELEMENTS ? [...liste, fichier] : liste;
+  return liste.length < max ? [...liste, fichier] : liste;
 }
 
-// Gabarits pris par les autres vidéos de la publication : proposés en dernier, pour varier.
-export const gabaritsAutres = (p: Publication, cible: CiblePublication): Gabarit[] =>
-  p.videos.flatMap(v => (v.cible !== cible && v.vignette ? [v.vignette.gabarit] : []));
+// Vignette composée d'après une proposition de Claude.
+export function vignetteDepuisProposition(p: PropositionVignette, fichier: string | null): Vignette {
+  return {
+    pose: { source: 'banque', fichier: p.pose }, accroche: p.accroche, gabarit: p.gabarit, logos: p.logos, captures: p.captures, fichier,
+    ...(p.mise ? { mise: p.mise } : {}),
+  };
+}
+
+// Applique à la vignette la proposition `indice` de la consigne `consigne` et la marque retenue ; le fichier rendu
+// est gardé tel quel (il redevient « à rendre » dès que l'image change, comme pour une retouche à la main).
+export function appliquerProposition(v: VideoPubliee, consigne: number, indice: number): Partial<VideoPubliee> {
+  const p = v.consignesVignette[consigne]?.propositions[indice];
+  if (!p) return {};
+  return {
+    vignette: vignetteDepuisProposition(p, v.vignette?.fichier ?? null),
+    consignesVignette: v.consignesVignette.map((c, i) => (i === consigne ? { ...c, choisie: indice } : c)),
+  };
+}
+
+export interface Formulaire {
+  pose: string; accroche: string; logosTexte: string; captures: string[]; consignes: string;
+  base: { consigne: number; proposition: number } | null;
+}
+
+// Logos en texte : la saisie du tour si elle existe, sinon les noms de fichiers sans extension.
+const texteLogos = (logos: string[]) => logos.map(f => f.replace(/\.[^.]+$/, '')).join(', ');
+
+// Repartir d'une variante : ses éléments et son accroche ; les consignes sont à réécrire.
+export function formulaireDepuisBase(v: VideoPubliee, consigne: number, proposition: number): Formulaire {
+  const tour = v.consignesVignette[consigne]!;
+  const p = tour.propositions[proposition]!;
+  return {
+    pose: p.pose, accroche: p.accroche, logosTexte: tour.elements?.logosTexte ?? texteLogos(p.logos),
+    captures: p.captures, consignes: '', base: { consigne, proposition },
+  };
+}
+
+// Formulaire d'une vignette pas encore générée : la vignette actuelle, sinon la pose de la vidéo complète, les logiciels
+// cités et la première accroche rédigée.
+export function formulaireInitial(v: VideoPubliee, premierePose: string | undefined, complete: Vignette | null): Formulaire {
+  const vi = v.vignette;
+  return {
+    pose: basePose(vi, complete, premierePose)?.fichier ?? '',
+    accroche: vi?.accroche ?? v.accroches[0] ?? '',
+    logosTexte: vi ? texteLogos(vi.logos) : v.logiciels.join(', '),
+    captures: vi?.captures ?? [], consignes: '', base: null,
+  };
+}

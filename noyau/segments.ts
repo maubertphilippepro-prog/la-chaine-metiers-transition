@@ -19,11 +19,33 @@ export function intervalleACouper(coupe: Coupe, r: ReglagesCoupe, duree?: number
   return { debut, fin };
 }
 
+// Écart (s) en dessous duquel deux coupes brutes forment une seule coupe : sinon chaque type applique sa marge et laisse
+// entre elles un micro-segment de quelques dizaines de ms, audible comme un glitch.
+const ECART_FUSION = 0.1;
+
+// Regroupe les coupes actives qui se touchent, quel que soit leur type. Le bloc prend la marge d'entrée de la coupe qui
+// commence en premier et la marge de sortie de celle qui finit en dernier.
+function blocsDeCoupes(coupes: Coupe[], r: ReglagesCoupe, duree: number): Segment[] {
+  const actives = coupes.filter(c => c.active).sort((a, b) => a.debut - b.debut);
+  const ecart = r.ecartFusion ?? ECART_FUSION;
+  const blocs: { entree: Coupe; sortie: Coupe }[] = [];
+  for (const c of actives) {
+    const dernier = blocs[blocs.length - 1];
+    if (dernier && c.debut - dernier.sortie.fin <= ecart) {
+      if (c.fin > dernier.sortie.fin) dernier.sortie = c;
+    } else blocs.push({ entree: c, sortie: c });
+  }
+  return blocs
+    .map(({ entree, sortie }) => {
+      const debut = intervalleACouper({ ...entree, fin: Number.MAX_SAFE_INTEGER }, { ...r, dureeMinCoupe: 0 })!.debut;
+      const fin = intervalleACouper({ ...sortie, debut: -1 }, { ...r, dureeMinCoupe: 0 }, duree)!.fin;
+      return fin - debut < r.dureeMinCoupe ? null : { debut, fin };
+    })
+    .filter((i): i is Segment => i !== null);
+}
+
 export function calculerSegments(duree: number, coupes: Coupe[], r: ReglagesCoupe): Segment[] {
-  const intervalles = coupes
-    .filter(c => c.active)
-    .map(c => intervalleACouper(c, r, duree))
-    .filter((i): i is Segment => i !== null)
+  const intervalles = blocsDeCoupes(coupes, r, duree)
     .map(i => ({ debut: Math.max(0, i.debut), fin: Math.min(duree, i.fin) }))
     .filter(i => i.fin > i.debut)
     .sort((a, b) => a.debut - b.debut);

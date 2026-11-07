@@ -1,27 +1,31 @@
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { Readable } from 'node:stream';
+import type { TypeClassement, ValeurClassement } from '../../noyau/classements';
 import type { CorpsVideoSite } from '../../noyau/relais';
 export interface ReferencesSite {
   categories: { id: number; nom: string }[];
   playlists: { id: number; nom: string; categorieId: number }[];
+  classements: TypeClassement[];
 }
 
 const DELAI = 5000;
 const estObjet = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+const versValeurs = (v: unknown): ValeurClassement[] => (Array.isArray(v) ? v : []).filter(estObjet)
+  .filter(x => typeof x.id === 'number' && typeof x.name === 'string').map(x => ({ id: x.id as number, nom: x.name as string }));
 
-// Catégories et playlists du site, lues sur ses routes publiques (sans clé) ;
+// Catégories, playlists et classements du site, lues sur ses routes publiques (sans clé) ;
 // null si l’adresse manque ou si le site ne répond pas correctement.
 export async function lireReferencesSite(urlSite: string | undefined, recuperer: typeof fetch = fetch): Promise<ReferencesSite | null> {
   if (!urlSite) return null;
   const base = urlSite.replace(/\/+$/, '');
   try {
-    const [categories, playlists] = await Promise.all(['categories', 'playlists'].map(async route => {
+    const [categories, playlists, classifications] = await Promise.all(['categories', 'playlists', 'classifications'].map(async route => {
       const reponse = await recuperer(`${base}/api/${route}`, { signal: AbortSignal.timeout(DELAI) });
       if (!reponse.ok) throw new Error(`${route} : ${reponse.status}`);
       return (await reponse.json()) as unknown;
     }));
-    if (!Array.isArray(categories) || !Array.isArray(playlists)) return null;
+    if (!Array.isArray(categories) || !Array.isArray(playlists) || !Array.isArray(classifications)) return null;
     return {
       categories: categories.filter(estObjet)
         .filter(c => typeof c.id === 'number' && typeof c.name === 'string')
@@ -29,6 +33,9 @@ export async function lireReferencesSite(urlSite: string | undefined, recuperer:
       playlists: playlists.filter(estObjet)
         .filter(p => typeof p.id === 'number' && typeof p.name === 'string' && typeof p.categoryId === 'number')
         .map(p => ({ id: p.id as number, nom: p.name as string, categorieId: p.categoryId as number })),
+      classements: classifications.filter(estObjet)
+        .filter(t => typeof t.key === 'string' && typeof t.label === 'string' && typeof t.multiple === 'boolean' && typeof t.required === 'boolean')
+        .map(t => ({ cle: t.key as string, libelle: t.label as string, multiple: t.multiple as boolean, obligatoire: t.required as boolean, valeurs: versValeurs(t.values) })),
     };
   } catch {
     return null;
@@ -40,6 +47,7 @@ export interface ClientSite {
   envoyerFichier: (chemin: string, typeContenu: string) => Promise<string>;
   enregistrerVideo: (id: number | null, corps: CorpsVideoSite) => Promise<number>;
   supprimerVideo: (id: number) => Promise<void>;
+  creerValeur: (cle: string, nom: string) => Promise<ValeurClassement>;
 }
 
 const RIEN_PERDU = 'le relais reste à faire, rien n’est perdu';
@@ -108,6 +116,14 @@ export function creerClientSite(urlSite: string | undefined, cle: string | undef
       const { statut, json } = await appeler(`/api/videos/${id}`, 'DELETE', undefined, ENCORE_VISIBLE);
       // 404 : la vidéo n’est déjà plus sur le site, rien à retirer.
       if (statut !== 200 && statut !== 204 && statut !== 404) throw refus('Suppression', statut, json, ENCORE_VISIBLE);
+    },
+    async creerValeur(cle, nom) {
+      const { statut, json } = await appeler(`/api/classifications/${encodeURIComponent(cle)}/values`, 'POST', { name: nom }, 'rien n’est perdu');
+      // 200 : une valeur du même nom existait déjà, le site la renvoie.
+      if ((statut !== 200 && statut !== 201) || typeof json.id !== 'number' || typeof json.name !== 'string') {
+        throw refus('Création de valeur', statut, json, 'rien n’est perdu');
+      }
+      return { id: json.id, nom: json.name };
     },
   };
 }

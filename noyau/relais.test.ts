@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import reglagesJson from '../reglages.json';
 import { videoParDefaut, type VideoPubliee } from './publication';
 import { corpsRelais, enregistrerRelais, enregistrerRetrait, problemesRelais, raisonLectureRelais, urlYoutube } from './relais';
+import { CLE_OUTIL, type TypeClassement } from './classements';
 import type { Qualification } from './qualification';
 import type { Reglages } from './types';
 
@@ -9,6 +10,10 @@ const PRO: Qualification = { nature: 'pro', confidentielle: false };
 const PRO_CONF: Qualification = { nature: 'pro', confidentielle: true };
 const PERSO: Qualification = { nature: 'perso', confidentielle: false };
 
+const TYPES: TypeClassement[] = [
+  { cle: 'outil', libelle: 'Par outil', multiple: false, obligatoire: true, valeurs: [{ id: 3, nom: 'Delos' }] },
+  { cle: 'theme', libelle: 'Par thème', multiple: true, obligatoire: false, valeurs: [{ id: 5, nom: 'vibe-coding' }] },
+];
 const R = (reglagesJson as Reglages).publication;
 const ID = 'dQw4w9WgXcQ';
 const video = (changement: Partial<VideoPubliee> = {}): VideoPubliee => ({
@@ -17,14 +22,14 @@ const video = (changement: Partial<VideoPubliee> = {}): VideoPubliee => ({
   titre: ' Le SSO expliqué ',
   description: 'Desc',
   tags: ['sso'],
-  vignette: { pose: { source: 'banque', fichier: 'a.jpg' }, fond: { source: 'charte' }, accroche: 'Un seul mot', gabarit: 'classique', logos: [], captures: [], fichier: 'rendus/vignettes/complete.jpg' },
-  replit: { id: null, categorieId: 3, playlistId: 7 },
+  vignette: { pose: { source: 'banque', fichier: 'a.jpg' }, accroche: 'Un seul mot', gabarit: 'classique', logos: [], captures: [], fichier: 'rendus/vignettes/complete.jpg' },
+  replit: { id: null, classements: { outil: [3], theme: 'aucun' }, playlistId: 7 },
   ...changement,
 });
 const lienEnvoyee = (youtube: Partial<VideoPubliee['youtube']> = {}) => video({
   ...PRO, statut: 'envoyee-youtube', youtube: { id: ID, visibilite: 'non-repertoriee', programmeeLe: null, playlistId: null, ...youtube },
 });
-const ETAT = { rendu: { fichier: 'video-complete.mp4', present: true }, octetsVignette: 1000, siteConfigure: true };
+const ETAT = { rendu: { fichier: 'video-complete.mp4', present: true }, octetsVignette: 1000, siteConfigure: true, classements: TYPES };
 
 describe('problemesRelais', () => {
   it('accepte une vidéo Pro confidentielle prête, envoyée ou déjà relayée', () => {
@@ -38,15 +43,19 @@ describe('problemesRelais', () => {
   it('refuse une vidéo Perso', () => {
     expect(problemesRelais(video({ ...PERSO }), 'Desc', R, ETAT)).toEqual(['Une vidéo Perso n’est pas relayée sur le site.']);
   });
-  it('reprend les contrôles avant envoi, exige la catégorie et un site configuré', () => {
-    expect(problemesRelais(video({ statut: 'a-preparer', replit: { id: null, categorieId: null, playlistId: null } }), 'Desc', R, {
-      rendu: { fichier: 'video-complete.mp4', present: false }, octetsVignette: 1000, siteConfigure: false,
+  it('reprend les contrôles avant envoi, exige chaque classement et un site configuré', () => {
+    expect(problemesRelais(video({ statut: 'a-preparer', replit: { id: null, classements: { outil: [3] }, playlistId: null } }), 'Desc', R, {
+      rendu: { fichier: 'video-complete.mp4', present: false }, octetsVignette: 1000, siteConfigure: false, classements: TYPES,
     })).toEqual([
       'Vidéo pas encore validée pour la publication.',
       'Rendu absent : video-complete.mp4.',
-      'Choisissez la catégorie du site.',
+      'Par thème : choisissez une valeur ou cochez Aucune sélection.',
       'Site non configuré : renseignez REPLIT_SITE_URL et REPLIT_API_KEY dans .env, puis relancez le studio.',
     ]);
+  });
+  it('refuse le relais sans les classements du site', () => {
+    expect(problemesRelais(video(), 'Desc', R, { ...ETAT, classements: null }))
+      .toEqual(['Site injoignable : classements indisponibles, réessayez dans un instant.']);
   });
   it('refuse une mention interdite pour une vidéo Pro non confidentielle, pas pour une vidéo Pro confidentielle', () => {
     const mention = R.mentionsInterdites[0]!;
@@ -70,37 +79,41 @@ describe('raisonLectureRelais', () => {
 describe('corpsRelais', () => {
   it('envoie le fichier d’une vidéo Pro confidentielle, réservée aux comptes autorisés', () => {
     expect(corpsRelais(video(), {
-      dureeSecondes: 312.6, fichier: { videoObject: 'objet-video', videoUrl: null }, thumbnailObject: 'objet-vignette',
+      classements: TYPES, dureeSecondes: 312.6, fichier: { videoObject: 'objet-video', videoUrl: null }, thumbnailObject: 'objet-vignette',
     })).toEqual({
-      title: 'Le SSO expliqué', description: 'Desc', tags: ['sso'], categoryId: 3, playlistId: 7, durationSeconds: 313,
+      title: 'Le SSO expliqué', description: 'Desc', tags: ['sso'], categoryId: 3, classifications: { outil: [3], theme: [] }, playlistId: 7, durationSeconds: 313,
       format: 'long', status: 'published', visibility: 'interne', videoObject: 'objet-video', videoUrl: null, thumbnailObject: 'objet-vignette',
     });
   });
   it('intègre la vidéo YouTube d’une vidéo Pro non confidentielle, visible de tous, sans fichier', () => {
-    const corps = corpsRelais(lienEnvoyee(), { dureeSecondes: 60, fichier: { videoUrl: urlYoutube(ID), videoObject: null }, thumbnailObject: 'v' });
+    const corps = corpsRelais(lienEnvoyee(), { classements: TYPES, dureeSecondes: 60, fichier: { videoUrl: urlYoutube(ID), videoObject: null }, thumbnailObject: 'v' });
     expect(corps).toMatchObject({ visibility: 'public', videoUrl: `https://www.youtube.com/watch?v=${ID}`, videoObject: null, thumbnailObject: 'v' });
   });
-  it('refuse une vidéo sans catégorie', () => {
-    expect(() => corpsRelais(video({ replit: { id: null, categorieId: null, playlistId: null } }),
-      { dureeSecondes: 1, fichier: { videoObject: 'o', videoUrl: null }, thumbnailObject: 'v' })).toThrow('Catégorie du site manquante.');
+  it.each([[[1, 2]], ['aucun']])('refuse une vidéo dont l’outil est %j', (outil) => {
+    expect(() => corpsRelais(video({ replit: { id: null, classements: { [CLE_OUTIL]: outil as never }, playlistId: null } }),
+      { classements: TYPES, dureeSecondes: 1, fichier: { videoObject: 'o', videoUrl: null }, thumbnailObject: 'v' })).toThrow('Outil du site manquant.');
+  });
+  it('refuse une vidéo sans outil', () => {
+    expect(() => corpsRelais(video({ replit: { id: null, classements: {}, playlistId: null } }),
+      { classements: TYPES, dureeSecondes: 1, fichier: { videoObject: 'o', videoUrl: null }, thumbnailObject: 'v' })).toThrow('Outil du site manquant.');
   });
 });
 
 describe('enregistrerRelais', () => {
   it('passe la vidéo à relayée et garde l’identifiant du site', () => {
     expect(enregistrerRelais(video({ statut: 'envoyee-youtube' }), 42)).toEqual({
-      statut: 'relayee', replit: { id: 42, categorieId: 3, playlistId: 7 }, erreur: null,
+      statut: 'relayee', replit: { id: 42, classements: { outil: [3], theme: 'aucun' }, playlistId: 7 }, erreur: null,
     });
   });
 });
 
 describe('enregistrerRetrait', () => {
   const relayee = (youtube: Partial<VideoPubliee['youtube']> = {}) => video({
-    ...PERSO, statut: 'relayee', replit: { id: 42, categorieId: 3, playlistId: 7 }, youtube: { ...video().youtube, ...youtube },
+    ...PERSO, statut: 'relayee', replit: { id: 42, classements: { outil: [3], theme: 'aucun' }, playlistId: 7 }, youtube: { ...video().youtube, ...youtube },
     erreur: { etape: 'replit', message: 'x', le: '2026-10-22T10:00:00.000Z' },
   });
   it('efface la vidéo du site et ramène à prête, ou à envoyée si elle a une URL YouTube', () => {
-    expect(enregistrerRetrait(relayee())).toEqual({ statut: 'prete', replit: { id: null, categorieId: null, playlistId: null }, erreur: null });
+    expect(enregistrerRetrait(relayee())).toEqual({ statut: 'prete', replit: { id: null, classements: { outil: [3], theme: 'aucun' }, playlistId: 7 }, erreur: null });
     expect(enregistrerRetrait(relayee({ id: ID })).statut).toBe('envoyee-youtube');
   });
   it('garde un statut autre que relayée', () => {

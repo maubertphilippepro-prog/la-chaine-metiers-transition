@@ -19,5 +19,11 @@ describe('reglages.json', () => {
     expect(r.modeles.detourage).toBe('birefnet-portrait');
     expect(r.publication).toMatchObject({ titreMax: 100, descriptionMax: 5000, tagsMax: 500, vignetteOctetsMax: 2_000_000 });
     expect(r.publication.mentionsInterdites.length).toBeGreaterThan(0);
+    expect(r.sharepoint).toEqual({
+      dossierLocal: 'C:\\Users\\pmaubert\\INGEROP\\Vitrin3 - Chaîne vidéo interne',
+      site: 'https://ingeropgroup.sharepoint.com/sites/vitrin3',
+      bibliotheque: 'Chane vido interne',
+      dossierTemp: 'C:\\Users\\pmaubert\\OneDrive - INGEROP\\(temp)\\Vidéos PMT',
+    });
   });
 });

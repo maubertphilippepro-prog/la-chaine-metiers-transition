@@ -10,7 +10,7 @@ export const BandeSon: FC<{ duree: number; generique: number }> = ({ duree, gene
   const debutTapis = Math.max(0, generique - fps);
   return (
     <>
-      <Audio src={staticFile(audio.jingle)} volume={audio.volumeJingle} />
+      {generique > 0 && <Audio src={staticFile(audio.jingle)} volume={audio.volumeJingle} />}
       <Sequence from={debutTapis} durationInFrames={Math.max(1, duree - debutTapis)}>
         <Audio
           src={staticFile(audio.tapis)}

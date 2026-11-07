@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readdir, readFile } from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import { createServer as creerVite } from 'vite';
@@ -7,12 +7,19 @@ import { rendreVignette } from '../../remotion/scripts/vignette';
 import { rendreTournage } from '../../remotion/scripts/rendu';
 import { demarrerServeur } from '../../remotion/scripts/serveur-fichiers';
 import { RACINE } from '../../remotion/scripts/tournage';
+import type { Reglages } from '../../noyau/types';
 import { creerApi } from './api';
 import { interpreterConsigne } from './interpretation';
+import { redigerPost } from './linkedin-claude';
+import { redigerPresentation } from './presentation-claude';
+import { redigerMail, retoucherMail } from './mail-claude';
+import { vignetteLecture, capturerMail, construireMail, copierSiDifferent, creerBrouillon, incorporerPochette, DOSSIER_MAILING } from './mail-outils';
 import { requeteAutorisee } from './origine';
-import { analyserTournage, detourerImage, extraireImage } from './pipeline';
+import { analyserTournage, detourerImage, insererRush } from './pipeline';
+import { reduireImage } from './images';
 import { creerApiPublication } from './publication';
 import { redigerPublication } from './redaction';
+import { proposerVignettes } from './vignette-claude';
 import { creerClientSite, lireReferencesSite } from './site-replit';
 import { relancerSuggestions } from './suggestions';
 import { SuiviAnalyse } from './suivi-analyse';
@@ -37,6 +44,7 @@ async function main(): Promise<void> {
     relancerSuggestions,
     suiviAnalyse: new SuiviAnalyse(),
     analyser: analyserTournage,
+    inserer: insererRush,
     interpreterConsigne: d => interpreterConsigne(d),
   });
 
@@ -48,6 +56,8 @@ async function main(): Promise<void> {
   const cheminLogos = path.join(RACINE, 'donnees', 'logos');
   await mkdir(cheminLogos, { recursive: true });
   const serveurLogos = await demarrerServeur(cheminLogos);
+  // Réglages lus comme chargerTournage le fait : SharePoint de Vitrin3 pour le mail de com.
+  const reglages = JSON.parse(await readFile(path.join(RACINE, 'reglages.json'), 'utf-8')) as Reglages;
   const apiPublication = creerApiPublication({
     racineTournages,
     cheminPoses,
@@ -55,17 +65,45 @@ async function main(): Promise<void> {
     urlFichiers: fichiers.url,
     urlPoses: serveurPoses.url,
     urlLogos: serveurLogos.url,
-    // Adresse publiée du site Replit (catégories et playlists), dans .env.
+    // Adresse publiée du site Replit (classements et playlists), dans .env.
     urlSite: process.env.REPLIT_SITE_URL,
     lireSite: url => lireReferencesSite(url),
     rediger: d => redigerPublication(d),
-    extraireImage,
+    proposerVignettes: d => proposerVignettes(d),
+    reduireImage,
     detourer: detourerImage,
     rendreVignette: (props, sortie, octetsMax) => rendreVignette(props, sortie, octetsMax),
     lireVisibiliteYoutube: id => lireVisibiliteYoutube(id),
     ouvrirDossier: ouvrirDansExplorateur,
     // Clé d’API du site (REPLIT_API_KEY dans .env), égale au secret AUTOMATION_API_KEY du site.
     site: creerClientSite(process.env.REPLIT_SITE_URL, process.env.REPLIT_API_KEY),
+    mail: {
+      sharepoint: reglages.sharepoint,
+      copier: copierSiDifferent,
+      incorporerPochette,
+      rediger: d => redigerMail(d),
+      construire: construireMail,
+      retoucher: d => retoucherMail(d),
+      capturer: capturerMail,
+      vignetteLecture,
+      brouillon: creerBrouillon,
+      lireReference: r => readFile(path.join(DOSSIER_MAILING, r), 'utf-8'),
+      logosBandeau: async () => (await readdir(path.join(DOSSIER_MAILING, 'assets', 'logos'))).filter(f => f.endsWith('.png')).map(f => f.slice(0, -4)),
+    },
+    presentation: { rediger: d => redigerPresentation(d) },
+    // Bibliothèque du skill post-linkedin, recopiée dans outils/linkedin.
+    linkedin: {
+      rediger: d => redigerPost(d),
+      lireBibliotheque: async profil => {
+        const assets = path.join(RACINE, 'outils', 'linkedin', 'assets');
+        const fichiers = (await readdir(path.join(assets, profil))).filter(f => f.endsWith('.md')).sort();
+        return {
+          guide: await readFile(path.join(assets, 'guide-style.md'), 'utf-8'),
+          index: await readFile(path.join(assets, 'index.md'), 'utf-8'),
+          exemples: await Promise.all(fichiers.map(async f => ({ fichier: `${profil}/${f}`, texte: await readFile(path.join(assets, profil, f), 'utf-8') }))),
+        };
+      },
+    },
   });
 
   const serveur = http.createServer();

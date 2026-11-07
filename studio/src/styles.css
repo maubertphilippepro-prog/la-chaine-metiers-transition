@@ -113,6 +113,7 @@ button.lien { background: none; border: none; padding: 0; text-align: left; curs
 }
 .depot { border: 2px dashed #9ab2c9; border-radius: 6px; padding: 0.75rem; margin: 0.5rem 0; text-align: center; color: #4b5563; }
 .depot.actif { border-color: #004c99; background: #eef4fb; }
+.consignes-vignette { margin: 0.75rem 0; }
 .gabarits { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
 .gabarit { padding: 2px; border: 3px solid transparent; background: none; text-align: left; cursor: pointer; }
 .gabarit.choisi { border-color: #004c99; }
@@ -120,3 +121,26 @@ button.lien { background: none; border: none; padding: 0; text-align: left; curs
 .encadre h2 { margin-top: 0; color: var(--bleu); font-size: 18px; }
 .champs { display: flex; gap: 16px; flex-wrap: wrap; margin: 8px 0; }
 .champs input { font: inherit; }
+
+.panneau-mail .mail-md { font-family: Consolas, monospace; font-size: 0.85rem; }
+.panneau-linkedin .profils { display: flex; gap: 1rem; }
+.panneau-linkedin .profils label { display: inline-flex; gap: 0.3rem; align-items: center; }
+.apercus-mail { display: flex; gap: 0.5rem; overflow-x: auto; }
+.apercus-mail img { max-height: 420px; border: 1px solid #e5e7eb; }
+
+.base-vignette { max-width: 320px; }
+/* Aperçu détachable */
+.barre-apercu { display: flex; justify-content: space-between; align-items: center; gap: .5rem; margin-bottom: .3rem; }
+.apercu-volant { position: fixed; z-index: 50; width: 480px; min-width: 280px; max-width: 95vw; resize: horizontal; overflow: auto; box-shadow: 0 8px 28px rgba(0,0,0,.35); }
+.apercu-volant .barre-apercu { cursor: move; user-select: none; }
+/* Boutons de décision : choix retenu en vert, alternative estompée */
+button.decision-oui { background: #16a34a; border-color: #16a34a; color: white; }
+button.decision-non { opacity: 0.45; }
+.numero { display: inline-block; min-width: 2.2em; font-weight: 700; color: var(--bleu); }
+.bouton-fichier { font-size: 14px; cursor: pointer; border: 1px solid var(--bleu); color: var(--bleu); background: white; border-radius: 4px; padding: 2px 8px; }
+.panneau-presentation label { display: grid; gap: 4px; margin: 6px 0; }
+.panneau-presentation input, .panneau-presentation textarea { font: inherit; font-size: 14px; width: 100%; box-sizing: border-box; }
+.workflow-onedrive ol { margin: 6px 0; padding-left: 20px; display: grid; gap: 6px; }
+.workflow-onedrive li .actions { display: inline-flex; }
+.choix-habillage { display: inline-flex; gap: 10px; font-size: 13px; white-space: nowrap; }
+.choix-habillage label { display: inline-flex; gap: 3px; align-items: center; cursor: pointer; }

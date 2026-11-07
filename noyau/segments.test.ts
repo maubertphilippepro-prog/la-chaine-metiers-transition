@@ -103,3 +103,35 @@ describe('calculerSegments aux bords', () => {
     expect(arrondir(s)).toEqual([{ debut: 0, fin: 1.06 }, { debut: 1.94, fin: 10 }]);
   });
 });
+
+describe('calculerSegments — coupes de types différents qui se touchent', () => {
+  it("silence puis hésitation contiguës : une seule coupe, sans micro-segment entre les deux", () => {
+    const s = calculerSegments(10, [
+      coupe({ id: 'a', type: 'silence', debut: 2, fin: 3 }),
+      coupe({ id: 'b', type: 'hesitation', debut: 3, fin: 3.4 }),
+    ], r);
+    expect(arrondir(s)).toEqual([{ debut: 0, fin: 2.15 }, { debut: 3.34, fin: 10 }]);
+  });
+  it('hésitation, silence puis prise : un seul bloc', () => {
+    const s = calculerSegments(10, [
+      coupe({ id: 'a', type: 'hesitation', debut: 2, fin: 2.5 }),
+      coupe({ id: 'b', type: 'silence', debut: 2.5, fin: 3.2 }),
+      coupe({ id: 'c', type: 'prise', debut: 3.2, fin: 5 }),
+    ], r);
+    expect(arrondir(s)).toEqual([{ debut: 0, fin: 2.06 }, { debut: 4.85, fin: 10 }]);
+  });
+  it('fusionne deux coupes séparées de 50 ms', () => {
+    const s = calculerSegments(10, [
+      coupe({ id: 'a', type: 'repetition', debut: 2, fin: 2.5 }),
+      coupe({ id: 'b', type: 'silence', debut: 2.55, fin: 3.5 }),
+    ], r);
+    expect(arrondir(s)).toEqual([{ debut: 0, fin: 2 }, { debut: 3.35, fin: 10 }]);
+  });
+  it('garde séparées deux coupes éloignées', () => {
+    const s = calculerSegments(10, [
+      coupe({ id: 'a', type: 'repetition', debut: 2, fin: 2.5 }),
+      coupe({ id: 'b', type: 'repetition', debut: 3, fin: 3.5 }),
+    ], r);
+    expect(arrondir(s)).toEqual([{ debut: 0, fin: 2 }, { debut: 2.5, fin: 3 }, { debut: 3.5, fin: 10 }]);
+  });
+});

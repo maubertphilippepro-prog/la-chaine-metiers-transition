@@ -10,13 +10,18 @@ import { creerClientSite, lireReferencesSite } from './site-replit';
 const reponse = (corps: unknown, ok = true) => ({ ok, status: ok ? 200 : 500, json: async () => corps }) as Response;
 
 describe('lireReferencesSite', () => {
-  it('lit les catégories et les playlists du site', async () => {
-    const recuperer = vi.fn(async (url: string) => reponse(url.endsWith('/api/categories')
-      ? [{ id: 1, name: 'IA & outils numériques' }, { id: 'x' }]
+  it('lit les classements et les playlists du site', async () => {
+    const recuperer = vi.fn(async (url: string) => reponse(
+      url.endsWith('/api/categories') ? [{ id: 1, name: 'IA & outils numériques' }, { id: 'x' }]
+      : url.endsWith('/api/classifications') ? [
+        { key: 'theme', label: 'Par thème', multiple: true, required: false, values: [{ id: 5, name: 'vibe-coding' }, { id: 'y' }] },
+        { key: 'cassé' },
+      ]
       : [{ id: 7, name: 'Bureautique', categoryId: 1 }]));
     expect(await lireReferencesSite('https://site.example/', recuperer as unknown as typeof fetch)).toEqual({
       categories: [{ id: 1, nom: 'IA & outils numériques' }],
       playlists: [{ id: 7, nom: 'Bureautique', categorieId: 1 }],
+      classements: [{ cle: 'theme', libelle: 'Par thème', multiple: true, obligatoire: false, valeurs: [{ id: 5, nom: 'vibe-coding' }] }],
     });
     expect(recuperer).toHaveBeenCalledWith('https://site.example/api/categories', expect.anything());
   });
@@ -32,7 +37,7 @@ describe('lireReferencesSite', () => {
 // Site simulé par un vrai serveur local : l’envoi du fichier passe par un flux, qu’un faux fetch ne vérifierait pas.
 interface Requete { methode: string; chemin: string; entetes: http.IncomingHttpHeaders; corps: Buffer }
 const CORPS: CorpsVideoSite = {
-  title: 'Titre', description: 'Desc', tags: [], categoryId: 1, playlistId: null, durationSeconds: 60,
+  title: 'Titre', description: 'Desc', tags: [], categoryId: 1, classifications: { outil: [1] }, playlistId: null, durationSeconds: 60,
   format: 'long', status: 'published', visibility: 'interne', videoObject: 'abc', videoUrl: null, thumbnailObject: 'def',
 };
 
@@ -124,5 +129,16 @@ describe('creerClientSite', () => {
     await expect(site().supprimerVideo(42)).rejects.toThrow(
       'Clé refusée par le site : vérifiez REPLIT_API_KEY dans .env et AUTOMATION_API_KEY sur le site ; la vidéo y est encore visible.',
     );
+  });
+  it('crée une valeur de classement, ou reprend celle qui existe déjà', async () => {
+    reponse = r => (r.chemin === '/api/classifications/theme/values' ? [201, { id: 9, name: 'IA' }] : [404, { error: 'Unknown classification' }]);
+    expect(await site().creerValeur('theme', 'IA')).toEqual({ id: 9, nom: 'IA' });
+    expect(requetes[0]).toMatchObject({ methode: 'POST', chemin: '/api/classifications/theme/values' });
+    expect(requetes[0]!.entetes['x-api-key']).toBe('cle-secrete');
+    expect(JSON.parse(requetes[0]!.corps.toString())).toEqual({ name: 'IA' });
+    reponse = () => [200, { id: 5, name: 'vibe-coding' }];
+    expect(await site().creerValeur('theme', 'Vibe-Coding')).toEqual({ id: 5, nom: 'vibe-coding' });
+    reponse = () => [404, { error: 'Unknown classification' }];
+    await expect(site().creerValeur('nope', 'x')).rejects.toThrow('Création de valeur refusée par le site (404 : Unknown classification) ; rien n’est perdu.');
   });
 });

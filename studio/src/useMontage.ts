@@ -33,20 +33,35 @@ export function useMontage(nom: string) {
     );
   }, [nom]);
 
+  const enAttente = useRef<{ montage: Montage; version: number } | null>(null);
+  const dernierEnvoi = useRef<Promise<void>>(Promise.resolve());
+
+  const envoyer = useCallback(() => {
+    const a = enAttente.current;
+    if (!a) return;
+    enAttente.current = null;
+    const envoi = file.current.then(() => api.enregistrer(nom, a.montage));
+    dernierEnvoi.current = envoi;
+    file.current = envoi.then(
+      () => { if (a.version === version.current) setEnregistrement('a-jour'); },
+      () => setEnregistrement('erreur'),
+    );
+  }, [nom]);
+
   useEffect(() => {
     if (!montage || montage === charge.current) return;
-    const v = ++version.current;
+    enAttente.current = { montage, version: ++version.current };
     setEnregistrement('en-attente');
     window.clearTimeout(minuteur.current);
-    minuteur.current = window.setTimeout(() => {
-      file.current = file.current
-        .then(() => api.enregistrer(nom, montage))
-        .then(
-          () => { if (v === version.current) setEnregistrement('a-jour'); },
-          () => setEnregistrement('erreur'),
-        );
-    }, DELAI_ENREGISTREMENT);
-  }, [montage, nom]);
+    minuteur.current = window.setTimeout(envoyer, DELAI_ENREGISTREMENT);
+  }, [montage, envoyer]);
+
+  // Avant une insertion : enregistre tout de suite la dernière modification ; échoue si son enregistrement échoue.
+  const enregistrerMaintenant = useCallback(async () => {
+    window.clearTimeout(minuteur.current);
+    envoyer();
+    await dernierEnvoi.current;
+  }, [envoyer]);
 
   useEffect(() => {
     if (enregistrement === 'a-jour') return;
@@ -65,5 +80,5 @@ export function useMontage(nom: string) {
     setMontage(m => (m ? integrerSuggestions(m, d.analyse) : d.montage));
   }, []);
 
-  return { detail, montage, erreur, enregistrement, modifier, remplacerDetail };
+  return { detail, montage, erreur, enregistrement, modifier, remplacerDetail, enregistrerMaintenant };
 }

@@ -1,3 +1,6 @@
+import type { BriefLinkedin, ProfilLinkedin } from '../noyau/linkedin';
+import type { Presentation } from '../noyau/presentation';
+import type { EtatMail } from '../noyau/mail';
 import type { FichierConsignes } from '../noyau/consignes';
 import type { Analyse, Montage, Reglages, StatutEpisode } from '../noyau/types';
 import type { ResultatRendu } from '../remotion/scripts/rendu';
@@ -14,6 +17,17 @@ export const EXTENSIONS_VIDEO = ['.mp4', '.mkv', '.mov', '.webm'];
 // Étape de l'analyse en cours, déduite des fichiers déjà écrits par le pipeline.
 export type EtapeAnalyse = 'preparation' | 'transcription' | 'detections' | 'suggestions';
 
+// Étape de l'insertion d'un rush : celles de l'analyse du rush seul, puis la reconstruction de la vidéo.
+export type EtapeInsertion = EtapeAnalyse | 'reconstruction';
+
+export interface EtatInsertion {
+  enCours: boolean;
+  etape: EtapeInsertion | null;
+  erreur: string | null;
+  // Rush inséré sans suggestions de Claude : la raison.
+  avertissement: string | null;
+}
+
 export interface ResumeTournage {
   nom: string;
   titre: string;
@@ -23,6 +37,7 @@ export interface ResumeTournage {
   // Une vidéo du montage dans bruts/ (l'enregistrement « -camera » ne compte pas).
   videoPresente: boolean;
   analyseEnCours: boolean;
+  insertionEnCours: boolean;
   etapeAnalyse: EtapeAnalyse;
 }
 
@@ -31,6 +46,8 @@ export interface DetailTournage extends ResumeTournage {
   // montage.json, ou le montage par défaut tant qu'il n'a jamais été enregistré.
   montage: Montage;
   montageEnregistre: boolean;
+  // Une vidéo est déjà prête ou envoyée : une insertion obligera à refaire sa publication.
+  publicationEngagee: boolean;
   // consignes.json, ou aucune consigne tant qu'il n'existe pas.
   consignes: FichierConsignes;
   reglages: Reglages;
@@ -61,7 +78,6 @@ export interface Logo { fichier: string; url: string }
 export interface DetailPublication {
   nom: string;
   titre: string;
-  sourceUrl: string;
   urlTournage: string;      // sert le dossier du tournage (images, vignettes)
   urlPoses: string;
   urlLogos: string;
@@ -69,7 +85,6 @@ export interface DetailPublication {
   captures: string[];       // fichiers de captures/ du tournage
   publication: Publication;
   videos: VideoDisponible[];
-  camera: string | null;    // nom du fichier caméra dans bruts/
   site: ReferencesSite | null;
   urlSite: string | null;   // adresse du site, pour ouvrir une vidéo relayée
   reglages: ReglagesPublication;
@@ -84,4 +99,28 @@ export interface VerificationYoutube {
   lecture: LectureYoutube;
   alerte: boolean;
   message: string;
+}
+
+export interface DetailMail {
+  etat: EtatMail;
+  texte: string;          // mail.md, '' si absent
+  notes: string;
+  images: string[];       // fichiers de assets/ hors vignette.jpg
+  apercus: string[];      // build/apercu-*.png, triés
+  urlBuild: string;       // URL servie du dossier build/ (preview.html, apercus)
+  aCompleter: boolean;    // mail.md contient [À COMPLÉTER]
+  brouillonPossible: boolean;
+}
+
+export interface DetailLinkedin {
+  brief: BriefLinkedin;
+  posts: Partial<Record<ProfilLinkedin, string>>;         // post-<profil>.txt, absent si jamais rédigé
+  inspirations: Partial<Record<ProfilLinkedin, string[]>>; // exemples de la bibliothèque retenus par Claude
+}
+
+// Texte de présentation pour la page SharePoint « Chaîne M&T ».
+export interface DetailPresentation {
+  presentation: Presentation;
+  dureeSecondes: number;   // pour la ligne de tags (« 10 minutes »)
+  redigee: boolean;        // presentation.json existe
 }

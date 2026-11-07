@@ -71,8 +71,8 @@ const NOM_WINDOWS_INVALIDE = /[<>:"|?*\x00-\x1f]|[. ]$|^(con|prn|aux|nul|com[1-9
 const envoisEnCours = new Set<string>();
 export const envoiEnCours = (dossier: string) => envoisEnCours.has(dossier);
 
-// Vidéo envoyée par le studio, écrite en flux dans bruts/ ; un envoi interrompu ne laisse rien.
-export async function deposerVideo(req: IncomingMessage, dossier: string): Promise<string> {
+// Nom de la vidéo envoyée (?fichier=…) : sans chemin, accepté par Windows, hors enregistrement « -camera ».
+export function nomVideoDemande(req: IncomingMessage): string {
   const fichier = new URL(req.url ?? '/', 'http://local').searchParams.get('fichier') ?? '';
   if (
     !fichier || path.basename(fichier) !== fichier || fichier.includes('\\') || fichier.startsWith('.') ||
@@ -80,30 +80,47 @@ export async function deposerVideo(req: IncomingMessage, dossier: string): Promi
   ) {
     throw new ErreurHttp(400, `fichier attendu : une vidéo ${EXTENSIONS_VIDEO.join(', ')} (hors enregistrement « -camera »), sans chemin.`);
   }
+  return fichier;
+}
+
+// Un seul envoi à la fois par tournage.
+export async function avecEnvoi<T>(dossier: string, f: () => Promise<T>): Promise<T> {
   if (envoisEnCours.has(dossier)) throw new ErreurHttp(409, 'Une vidéo est déjà en cours d’envoi pour ce tournage.');
   envoisEnCours.add(dossier);
   try {
-    if ((await videosBrutes(dossier)).length > 0) throw new ErreurHttp(409, 'Ce tournage a déjà une vidéo dans bruts/.');
-    const bruts = path.join(dossier, 'bruts');
-    await mkdir(bruts, { recursive: true });
-    const partiel = path.join(bruts, `${fichier}.partiel`);
-    // Un échec du nettoyage ne doit pas masquer l’erreur d’origine.
-    const nettoyer = () => rm(partiel, { force: true }).catch(() => undefined);
-    try {
-      await pipeline(req, createWriteStream(partiel));
-    } catch (e) {
-      await nettoyer();
-      throw new ErreurHttp(500, `Envoi de la vidéo interrompu : ${message(e)}`);
-    }
-    if ((await stat(partiel)).size === 0) {
-      await nettoyer();
-      throw new ErreurHttp(400, 'Vidéo vide.');
-    }
-    await rename(partiel, path.join(bruts, fichier));
-    return fichier;
+    return await f();
   } finally {
     envoisEnCours.delete(dossier);
   }
+}
+
+// Écrit le corps de la requête dans <cible>/<fichier> par un .partiel ; un envoi interrompu ou vide ne laisse rien.
+export async function ecrireEnFlux(req: IncomingMessage, cible: string, fichier: string): Promise<void> {
+  await mkdir(cible, { recursive: true });
+  const partiel = path.join(cible, `${fichier}.partiel`);
+  // Un échec du nettoyage ne doit pas masquer l’erreur d’origine.
+  const nettoyer = () => rm(partiel, { force: true }).catch(() => undefined);
+  try {
+    await pipeline(req, createWriteStream(partiel));
+  } catch (e) {
+    await nettoyer();
+    throw new ErreurHttp(500, `Envoi de la vidéo interrompu : ${message(e)}`);
+  }
+  if ((await stat(partiel)).size === 0) {
+    await nettoyer();
+    throw new ErreurHttp(400, 'Vidéo vide.');
+  }
+  await rename(partiel, path.join(cible, fichier));
+}
+
+// Vidéo envoyée par le studio, écrite en flux dans bruts/.
+export async function deposerVideo(req: IncomingMessage, dossier: string): Promise<string> {
+  const fichier = nomVideoDemande(req);
+  return avecEnvoi(dossier, async () => {
+    if ((await videosBrutes(dossier)).length > 0) throw new ErreurHttp(409, 'Ce tournage a déjà une vidéo dans bruts/.');
+    await ecrireEnFlux(req, path.join(dossier, 'bruts'), fichier);
+    return fichier;
+  });
 }
 
 // Fichiers que le pipeline tire de la vidéo du montage : à refaire avec la nouvelle vidéo.

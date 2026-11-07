@@ -6,7 +6,7 @@ import pytest
 
 from mtpipeline.cli import ecrire, main
 from mtpipeline.erreurs import ErreurEntree
-from mtpipeline.recalage import MARQUE, fonction_recalage, recaler, table_recalage
+from mtpipeline.recalage import MARQUE, decalage_ponctuel, decaler_donnees, fonction_recalage, recaler, table_recalage
 
 
 def lire(chemin):
@@ -102,3 +102,14 @@ def test_recaler_analyse_incomplete(tmp_path):
 def test_commande_recaler(tournage, capsys):
     assert main(["recaler", str(tournage)]) == 0
     assert "recalés" in capsys.readouterr().out
+
+
+def test_decaler_donnees_ne_modifie_pas_l_original():
+    montage = {"coupes": [{"id": "m0", "debut": 1.0, "fin": 2.0}], "chapitres": [{"titre": "A", "debut": 1.0}], "termes": []}
+    lus = {"montage.json": montage, "episode.json": {"titre": "T"}}
+    r = decaler_donnees(lus, decalage_ponctuel(lambda t: t + 1))
+    assert r["montage.json"]["coupes"][0] == {"id": "m0", "debut": 2.0, "fin": 3.0}
+    assert r["montage.json"]["chapitres"] == [{"titre": "A", "debut": 2.0}]
+    assert "elements" not in r["montage.json"]
+    assert r["episode.json"] == {"titre": "T"}
+    assert montage["coupes"][0]["debut"] == 1.0

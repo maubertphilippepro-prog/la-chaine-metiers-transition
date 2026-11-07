@@ -2,6 +2,7 @@ import type { FC } from 'react';
 import { type CalculateMetadataFunction, Composition, Folder, Still } from 'remotion';
 import { dureeEpisode, dureeVideoComplete } from '../noyau/decisions';
 import { enImages } from '../noyau/images';
+import { MISE_PAR_DEFAUT } from '../noyau/mise-en-page';
 import { ApercuElement, ApercuEncart, ApercuLogo, elementDemo } from './apercus';
 import { durees, FPS_HABILLAGE, HAUTEUR, LARGEUR } from './charte';
 import { CartonFin } from './composants/CartonFin';
@@ -66,7 +67,7 @@ export const RemotionRoot: FC = () => (
     <Folder name="Vignettes">
       <Still
         id="Vignette" component={Vignette} width={LARGEUR_VIGNETTE} height={HAUTEUR_VIGNETTE}
-        defaultProps={{ gabarit: 'classique', fondUrl: null, poseUrl: null, logoUrls: [], captureUrls: [], accroche: 'Windows + V : le presse-papiers caché' }}
+        defaultProps={{ gabarit: 'classique', poseUrl: null, logoUrls: [], captureUrls: [], accroche: 'Windows + V : le presse-papiers caché', mise: MISE_PAR_DEFAUT, vedette: null }}
       />
     </Folder>
     <Folder name="Rendus">

@@ -1,6 +1,7 @@
 import type { FC } from 'react';
 import { modifierTerme, type ChangementTerme } from '../../../noyau/edition';
 import type { Montage, StatutTerme, Terme } from '../../../noyau/types';
+import { BoutonsDecision } from './BoutonsDecision';
 
 interface Props {
   termes: Terme[];
@@ -17,12 +18,13 @@ export const PanneauTermes: FC<Props> = ({ termes, definitionMax, modifier, ecou
   <section className="panneau">
     <h3>Termes ({termes.filter(t => t.statut === 'a-valider').length} à valider)</h3>
     {termes.length === 0 && <p className="discret">Aucun terme proposé.</p>}
-    {termes.map(t => {
+    {termes.map((t, index) => {
       const premiere = t.occurrences.length > 0 ? Math.min(...t.occurrences) : null;
       const changer = (changement: ChangementTerme) => modifier(m => modifierTerme(m, t.terme, changement));
       return (
         <div key={t.terme} className="fiche">
           <div>
+            <span className="numero">#{index + 1}</span>
             <strong>{t.terme}</strong> · <span className={t.statut === 'a-valider' ? 'trop-long' : 'discret'}>{LIBELLES[t.statut]}</span>
             <span className="discret"> · {t.occurrences.length} occurrence(s)</span>
           </div>
@@ -36,8 +38,11 @@ export const PanneauTermes: FC<Props> = ({ termes, definitionMax, modifier, ecou
             {t.definition.length} / {definitionMax} caractères
           </div>
           <div className="actions">
-            <button disabled={t.statut === 'valide'} onClick={() => changer({ statut: 'valide' })}>Valider</button>
-            <button disabled={t.statut === 'ecarte'} onClick={() => changer({ statut: 'ecarte' })}>Écarter</button>
+            <BoutonsDecision
+              choix={t.statut === 'valide' ? 'oui' : t.statut === 'ecarte' ? 'non' : null}
+              oui={{ libelle: 'Valider', onClick: () => changer({ statut: 'valide' }) }}
+              non={{ libelle: 'Écarter', onClick: () => changer({ statut: 'ecarte' }) }}
+            />
             <label>
               <input
                 type="checkbox"

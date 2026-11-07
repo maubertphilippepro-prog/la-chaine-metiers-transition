@@ -1,10 +1,12 @@
 import { type FC, useState } from 'react';
+import { classementsManquants, CLE_OUTIL, type ValeurClassement } from '../../../noyau/classements';
 import { retraitAFaire, type Publication, type VideoPubliee } from '../../../noyau/publication';
 import { diffusion } from '../../../noyau/qualification';
 import type { ReferencesSite } from '../../serveur/site-replit';
 import { api, ErreurApi } from '../api';
 import { EXPLICATION_RETRAIT, EXPLICATIONS_RELAIS } from '../logique/publication';
 import { Attente } from './Attente';
+import { ChoixClassement } from './ChoixClassement';
 
 interface Props {
   nom: string;
@@ -14,18 +16,20 @@ interface Props {
   changer: (c: Partial<VideoPubliee>) => void;
   synchroniser: () => Promise<void>;
   executer: (action: () => Promise<Publication>) => Promise<void>;
+  ajouterValeur: (cle: string, v: ValeurClassement) => void;
 }
 
-const idOuNull = (valeur: string) => (valeur === '' ? null : Number(valeur));
-
-// Relais d’une vidéo Pro sur le site (catégorie, playlist), ou retrait d’une vidéo passée en Perso ; le serveur vérifie et explique un refus.
-export const PanneauSite: FC<Props> = ({ nom, video: v, urlSite, site, changer, synchroniser, executer }) => {
+// Relais d’une vidéo Pro sur le site (classements, playlist), ou retrait d’une vidéo passée en Perso ; le serveur vérifie et explique un refus.
+export const PanneauSite: FC<Props> = ({ nom, video: v, urlSite, site, changer, synchroniser, executer, ajouterValeur }) => {
   const [occupe, setOccupe] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [problemes, setProblemes] = useState<string[]>([]);
 
-  // Playlists de la catégorie choisie (toutes tant qu’aucune n’est choisie).
-  const playlists = site?.playlists.filter(p => v.replit.categorieId === null || p.categorieId === v.replit.categorieId) ?? [];
+  // Playlists de l’outil choisi (toutes tant qu’aucun n’est choisi).
+  const outil = v.replit.classements[CLE_OUTIL];
+  const idOutil = Array.isArray(outil) ? outil[0] : undefined;
+  const playlists = site?.playlists.filter(p => idOutil === undefined || p.categorieId === idOutil) ?? [];
+  const manquants = site ? classementsManquants(site.classements, v.replit.classements) : [];
 
   const agir = async (action: () => Promise<Publication>) => {
     setOccupe(true);
@@ -76,33 +80,36 @@ export const PanneauSite: FC<Props> = ({ nom, video: v, urlSite, site, changer, 
       {formeSite !== 'aucun' && <p className="discret">{EXPLICATIONS_RELAIS[formeSite]}</p>}
       {site ? (
         <div className="actions">
-          <label>
-            Catégorie{' '}
-            <select
-              value={v.replit.categorieId ?? ''}
-              onChange={e => changer({ replit: { ...v.replit, categorieId: idOuNull(e.target.value), playlistId: null } })}
-            >
-              <option value="">—</option>
-              {site.categories.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
-            </select>
-          </label>
+          {site.classements.map(t => (
+            <ChoixClassement
+              key={t.cle} type={t} choix={v.replit.classements[t.cle]} ajouterValeur={ajouterValeur}
+              changer={choix => {
+                const { [t.cle]: _, ...autres } = v.replit.classements;
+                const classements = choix === undefined ? autres : { ...autres, [t.cle]: choix };
+                // Changer d’outil vide la playlist, qui en dépend.
+                const playlistId = t.cle === CLE_OUTIL ? null : v.replit.playlistId;
+                changer({ replit: { ...v.replit, classements, playlistId } });
+              }}
+            />
+          ))}
           <label>
             Playlist{' '}
-            <select value={v.replit.playlistId ?? ''} onChange={e => changer({ replit: { ...v.replit, playlistId: idOuNull(e.target.value) } })}>
+            <select value={v.replit.playlistId ?? ''} onChange={e => changer({ replit: { ...v.replit, playlistId: e.target.value === '' ? null : Number(e.target.value) } })}>
               <option value="">— aucune —</option>
               {playlists.map(p => <option key={p.id} value={p.id}>{p.nom}</option>)}
             </select>
           </label>
         </div>
       ) : (
-        <p className="alerte">Site injoignable : catégories et playlists indisponibles, relais impossible pour l’instant.</p>
+        <p className="alerte">Site injoignable : classements et playlists du site indisponibles, relais impossible pour l’instant.</p>
       )}
       <div className="actions">
-        <button className="principal" disabled={occupe} onClick={() => void relayer()}>
+        <button className="principal" disabled={occupe || manquants.length > 0} onClick={() => void relayer()}>
           {v.replit.id ? 'Mettre à jour sur le site' : 'Relayer sur le site'}
         </button>
         {lienSite}
       </div>
+      {manquants.length > 0 && <ul className="discret">{manquants.map(m => <li key={m}>{m}</li>)}</ul>}
       {occupe && (
         <p><Attente libelle={`Relais en cours…${formeSite === 'fichier' ? ' L’envoi du fichier vidéo peut prendre plusieurs minutes.' : ''}`} /></p>
       )}

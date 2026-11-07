@@ -1,5 +1,5 @@
 import { Player, type PlayerRef } from '@remotion/player';
-import { type FC, useEffect, useMemo, useRef } from 'react';
+import { type FC, type PointerEvent as PE, useEffect, useMemo, useRef, useState } from 'react';
 import { instantEpisode, instantVideoComplete } from '../logique/apercu';
 import { dureeEpisode, dureeVideoComplete, type DecisionsEpisode, type DecisionsVideoComplete } from '../../../noyau/decisions';
 import type { Zone } from '../../../noyau/types';
@@ -37,6 +37,15 @@ interface Props {
 }
 
 const STYLE = { width: '100%' };
+const CLE_VOLANT = 'apercu-volant';
+
+function lireVolant(): { actif: boolean; position: { x: number; y: number } } {
+  try {
+    const v = JSON.parse(localStorage.getItem(CLE_VOLANT) ?? 'null');
+    if (v && typeof v.actif === 'boolean' && v.position) return v;
+  } catch { /* stockage indisponible */ }
+  return { actif: false, position: { x: 24, y: 24 } };
+}
 
 // Lecteur Remotion sur les compositions de rendu, recalculé à chaque modification du montage.
 export const Apercu: FC<Props> = ({ episodes, complete, vue, onVue, demande, dessin, largeurMin, validerDessin, onFinDessin, onInstant }) => {
@@ -47,6 +56,34 @@ export const Apercu: FC<Props> = ({ episodes, complete, vue, onVue, demande, des
     if (demande.mode === 'pause') ref.current.pause();
     else if (demande.mode === 'lire') ref.current.play();
   }, [demande]);
+
+  // Espace : lecture/pause, sauf pendant une saisie.
+  useEffect(() => {
+    const surTouche = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || e.repeat) return;
+      const cible = e.target as HTMLElement | null;
+      if (cible && (cible.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(cible.tagName))) return;
+      e.preventDefault();
+      ref.current?.toggle();
+    };
+    window.addEventListener('keydown', surTouche);
+    return () => window.removeEventListener('keydown', surTouche);
+  }, []);
+
+  // Fenêtre volante : position mémorisée dans le navigateur.
+  const [volant, setVolant] = useState<boolean>(() => lireVolant().actif);
+  const [position, setPosition] = useState(() => lireVolant().position);
+  useEffect(() => {
+    try { localStorage.setItem(CLE_VOLANT, JSON.stringify({ actif: volant, position })); } catch { /* stockage indisponible */ }
+  }, [volant, position]);
+  const glisser = (e: PE<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).tagName === 'BUTTON') return;
+    const depart = { x: e.clientX - position.x, y: e.clientY - position.y };
+    const bouger = (m: PointerEvent) => setPosition({ x: Math.max(0, m.clientX - depart.x), y: Math.max(0, m.clientY - depart.y) });
+    const lacher = () => { window.removeEventListener('pointermove', bouger); window.removeEventListener('pointerup', lacher); };
+    window.addEventListener('pointermove', bouger);
+    window.addEventListener('pointerup', lacher);
+  };
 
   const episode = typeof vue === 'number' ? episodes[vue] : undefined;
   const versSource = (image: number) => (episode ? instantEpisode(episode, image) : instantVideoComplete(complete, image));
@@ -70,7 +107,11 @@ export const Apercu: FC<Props> = ({ episodes, complete, vue, onVue, demande, des
   const proprietesEpisode = useMemo(() => (episode ? { decisions: episode } : null), [episode]);
   const proprietesComplete = useMemo(() => ({ decisions: complete }), [complete]);
   return (
-    <section className="panneau">
+    <section className={volant ? 'panneau apercu-volant' : 'panneau'} style={volant ? { left: position.x, top: position.y } : undefined}>
+      <div className="barre-apercu" onPointerDown={volant ? glisser : undefined}>
+        <span className="discret">{volant ? 'Aperçu — glisser pour déplacer' : 'Aperçu'}</span>
+        <button onClick={() => setVolant(v => !v)}>{volant ? 'Ancrer' : 'Détacher'}</button>
+      </div>
       <div className="vues">
         <button className={episode ? '' : 'actif'} onClick={() => onVue('complete')}>Vidéo complète</button>
         {episodes.map((e, i) => (

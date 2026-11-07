@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { accorderPublication, modifierVideo, videoParDefaut } from '../../../noyau/publication';
-import { diffusion, type Qualification } from '../../../noyau/qualification';
+import { MISE_PAR_DEFAUT } from '../../../noyau/mise-en-page';
+import { accorderPublication, modifierVideo, videoParDefaut, type ConsigneVignette } from '../../../noyau/publication';
+import { diffusion, QUALIFICATION_PAR_DEFAUT, type Qualification } from '../../../noyau/qualification';
 import {
-  basculer, baseVignette, changerQualificationParDefaut, EXPLICATIONS_RELAIS, gabaritsAutres, isoDepuisLocal, libelleCible, LIBELLES_VISIBILITE, localDepuisIso,
-  requalificationRetire, resumeDiffusion, tagsDepuisTexte, texteDepuisTags,
+  appliquerProposition, basculer, basePose, changerQualificationParDefaut, EXPLICATIONS_RELAIS, formulaireDepuisBase, formulaireInitial, isoDepuisLocal, libelleCible, LIBELLES_VISIBILITE, localDepuisIso,
+  requalificationRetire, resumeDiffusion, tagsDepuisTexte, texteDepuisTags, vignetteDepuisProposition,
 } from './publication';
 
 const PERSO: Qualification = { nature: 'perso', confidentielle: false };
@@ -28,7 +29,7 @@ describe('changerQualificationParDefaut', () => {
   it('requalifie les vidéos qui suivaient l’ancien défaut, sauf celles déjà sur le site', () => {
     let p = accorderPublication(null, ['complete', 1, 2]);
     p = modifierVideo(p, 1, PRO_CONF);
-    p = modifierVideo(p, 2, { replit: { id: 42, categorieId: 1, playlistId: null } });
+    p = modifierVideo(p, 2, { replit: { id: 42, classements: { outil: [1] }, playlistId: null } });
     const q = changerQualificationParDefaut(p, PRO);
     expect(q.qualificationParDefaut).toEqual(PRO);
     expect(q.videos.map(v => [v.nature, v.confidentielle])).toEqual([['pro', false], ['pro', true], ['perso', false]]);
@@ -36,11 +37,11 @@ describe('changerQualificationParDefaut', () => {
 });
 
 describe('requalificationRetire', () => {
-  const surLeSite = { ...modifierVideo(accorderPublication(null, ['complete']), 'complete', PRO_CONF).videos[0]!, replit: { id: 42, categorieId: 1, playlistId: null } };
+  const surLeSite = { ...modifierVideo(accorderPublication(null, ['complete']), 'complete', PRO_CONF).videos[0]!, replit: { id: 42, classements: { outil: [1] }, playlistId: null } };
   it('demande le retrait d’une vidéo du site passée en Perso', () => {
     expect(requalificationRetire(surLeSite, PERSO)).toBe(true);
     expect(requalificationRetire(surLeSite, PRO)).toBe(false);
-    expect(requalificationRetire({ ...surLeSite, replit: { id: null, categorieId: null, playlistId: null } }, PERSO)).toBe(false);
+    expect(requalificationRetire({ ...surLeSite, replit: { id: null, classements: {}, playlistId: null } }, PERSO)).toBe(false);
   });
 });
 
@@ -53,18 +54,18 @@ describe('resumeDiffusion', () => {
   });
 });
 
-describe('baseVignette', () => {
-  const complete = { pose: { source: 'camera' as const, instant: 4 }, fond: { source: 'ecran' as const, instant: 9 }, accroche: 'Titre', gabarit: 'classique' as const, logos: [], captures: [], fichier: 'x.jpg' };
-  const propre = { pose: { source: 'banque' as const, fichier: 'a.jpg' }, fond: { source: 'charte' as const }, accroche: '', gabarit: 'classique' as const, logos: [], captures: [], fichier: null };
-  it('garde la vignette de l’épisode quand elle existe', () => {
-    expect(baseVignette(propre, complete, 'b.jpg')).toEqual({ pose: propre.pose, fond: propre.fond });
+describe('basePose', () => {
+  const complete = { pose: { source: 'banque' as const, fichier: 'c.jpg' }, accroche: 'Titre', gabarit: 'classique' as const, logos: [], captures: [], fichier: 'x.jpg' };
+  const propre = { pose: { source: 'banque' as const, fichier: 'a.jpg' }, accroche: '', gabarit: 'classique' as const, logos: [], captures: [], fichier: null };
+  it('garde la pose de l’épisode quand il a une vignette', () => {
+    expect(basePose(propre, complete, 'b.jpg')).toEqual(propre.pose);
   });
-  it('reprend pose et fond de la vidéo complète, pas l’accroche', () => {
-    expect(baseVignette(null, complete, 'b.jpg')).toEqual({ pose: complete.pose, fond: complete.fond });
+  it('reprend la pose de la vidéo complète', () => {
+    expect(basePose(null, complete, 'b.jpg')).toEqual(complete.pose);
   });
-  it('retombe sur la première pose de la banque et la charte', () => {
-    expect(baseVignette(null, null, 'b.jpg')).toEqual({ pose: { source: 'banque', fichier: 'b.jpg' }, fond: { source: 'charte' } });
-    expect(baseVignette(null, null, undefined)).toEqual({ pose: null, fond: { source: 'charte' } });
+  it('retombe sur la première pose de la banque, sinon aucune', () => {
+    expect(basePose(null, null, 'b.jpg')).toEqual({ source: 'banque', fichier: 'b.jpg' });
+    expect(basePose(null, null, undefined)).toBeNull();
   });
 });
 
@@ -93,6 +94,10 @@ describe('relais sur le site', () => {
 });
 
 describe('basculer', () => {
+  it('accepte un autre maximum', () => {
+    expect(basculer(['a', 'b', 'c', 'd'], 'e', 5)).toEqual(['a', 'b', 'c', 'd', 'e']);
+    expect(basculer(['a', 'b', 'c', 'd', 'e'], 'f', 5)).toEqual(['a', 'b', 'c', 'd', 'e']);
+  });
   it('coche dans l’ordre des clics, décoche, et s’arrête à trois', () => {
     expect(basculer([], 'a')).toEqual(['a']);
     expect(basculer(['a', 'b'], 'a')).toEqual(['b']);
@@ -100,21 +105,49 @@ describe('basculer', () => {
   });
 });
 
-describe('gabaritsAutres', () => {
-  it('donne les gabarits des autres vidéos qui ont une vignette', () => {
-    const q = { nature: 'perso' as const, confidentielle: false };
-    const vignette = (gabarit: 'vitrine' | 'mosaique') => ({
-      pose: { source: 'banque' as const, fichier: 'a.jpg' }, fond: { source: 'charte' as const }, accroche: '', gabarit, logos: [], captures: [], fichier: null,
+describe('appliquerProposition', () => {
+  const proposition = { pose: 'b.jpg', logos: ['excel.png'], captures: ['a.png'], gabarit: 'demonstration' as const, accroche: 'Planning facile', explication: 'En grand.' };
+  const consigne = { texte: 'Le planning', elements: null, base: null, compris: 'Planning.', pasRealisable: [], introuvables: [], propositions: [proposition, { ...proposition, gabarit: 'classique' as const }], choisie: null };
+  const video = {
+    ...videoParDefaut('complete', PERSO),
+    vignette: { pose: { source: 'banque' as const, fichier: 'a.jpg' }, accroche: 'Ancienne', gabarit: 'classique' as const, logos: [], captures: [], fichier: 'rendus/vignettes/complete.jpg' },
+    consignesVignette: [consigne, { ...consigne, texte: 'Autre', choisie: 0 }],
+  };
+  it('compose la vignette d’après la proposition et la marque retenue', () => {
+    const c = appliquerProposition(video, 0, 1);
+    expect(c.vignette).toEqual({
+      pose: { source: 'banque', fichier: 'b.jpg' }, accroche: 'Planning facile', gabarit: 'classique', logos: ['excel.png'], captures: ['a.png'],
+      fichier: 'rendus/vignettes/complete.jpg',
     });
-    const p = {
-      version: 2 as const, qualificationParDefaut: q,
-      videos: [
-        { ...videoParDefaut('complete', q), vignette: vignette('vitrine') },
-        { ...videoParDefaut(1, q), vignette: vignette('mosaique') },
-        videoParDefaut(2, q),
-      ],
-    };
-    expect(gabaritsAutres(p, 1)).toEqual(['vitrine']);
-    expect(gabaritsAutres(p, 2)).toEqual(['vitrine', 'mosaique']);
+    expect(c.consignesVignette!.map(x => x.choisie)).toEqual([1, 0]);
+  });
+  it('ne change rien pour une proposition inconnue', () => {
+    expect(appliquerProposition(video, 5, 0)).toEqual({});
+    expect(appliquerProposition(video, 0, 7)).toEqual({});
+  });
+  it('compose une vignette sans fichier rendu pour l’aperçu', () => {
+    expect(vignetteDepuisProposition(proposition, null)).toMatchObject({ pose: { source: 'banque', fichier: 'b.jpg' }, fichier: null });
+  });
+});
+
+describe('formulaire de vignette', () => {
+  const tour: ConsigneVignette = {
+    texte: 'Zoome', elements: { pose: 'p.jpg', accroche: 'A', logosTexte: 'Excel, Power', logos: ['excel.png', 'Power BI.png'], captures: ['c.png'] },
+    base: null, compris: '', pasRealisable: [], introuvables: [], choisie: null,
+    propositions: [{ pose: 'p.jpg', logos: ['excel.png', 'Power BI.png'], captures: ['c.png'], gabarit: 'demonstration', accroche: 'B', explication: '', mise: MISE_PAR_DEFAUT }],
+  };
+  const v = { ...videoParDefaut('complete', QUALIFICATION_PAR_DEFAUT), accroches: ['Rédigée'], consignesVignette: [tour] };
+  it('repart d’une variante : ses éléments, son accroche, consignes vides', () => {
+    expect(formulaireDepuisBase(v, 0, 0)).toEqual({
+      pose: 'p.jpg', accroche: 'B', logosTexte: 'Excel, Power', captures: ['c.png'], consignes: '', base: { consigne: 0, proposition: 0 },
+    });
+  });
+  it('part de la vignette actuelle, sinon de la complète, sinon des valeurs rédigées', () => {
+    expect(formulaireInitial({ ...v, consignesVignette: [] }, 'premiere.jpg', null)).toEqual({
+      pose: 'premiere.jpg', accroche: 'Rédigée', logosTexte: '', captures: [], consignes: '', base: null,
+    });
+  });
+  it('garde la mise en appliquant une variante', () => {
+    expect(vignetteDepuisProposition(tour.propositions[0]!, null).mise).toEqual(MISE_PAR_DEFAUT);
   });
 });

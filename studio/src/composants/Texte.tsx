@@ -9,7 +9,9 @@ import { textePrerempli } from '../logique/elements';
 import { duree, horodatage } from '../logique/format';
 import type { Suivi } from '../logique/suivi';
 import { clicSurLaCoupe, construireTexte, type ElementTexte } from '../logique/texte';
+import { pointInsertion, rappelInsertion, type SensInsertion } from '../logique/rush';
 import { ChoixPosition } from './ChoixPosition';
+import { FormulaireRush } from './FormulaireRush';
 
 type Choix = { genre: 'mots'; debut: number; fin: number; rangs: [number, number] } | { genre: 'coupe'; id: string };
 
@@ -34,6 +36,9 @@ interface Props {
   creerElement: (nature: NatureElement, a: Ancrage, saisie?: SaisieTexte) => string | null;
   // Mot sous l'image de l'aperçu.
   motLu: Suivi<number | null>;
+  // Insère un rush à l'instant t de la source (voir EcranMontage).
+  insererRush: (t: number, fichier: File, titre: string, onProgression: (part: number) => void) => Promise<void>;
+  publicationEngagee: boolean;
 }
 
 export const LIBELLES_COUPE: Record<TypeCoupe, string> = {
@@ -52,7 +57,7 @@ function classeCoupe(c: Coupe | null): string {
 
 // Texte horodaté : clic sur un mot ou un trou pour le choisir, glisser pour choisir un passage.
 export const Texte: FC<Props> = props => {
-  const { analyse, montage, texteMax, modifier, ecouter, lireDansApercu, calerApercu, consignerPassage, surSelection, creerElement } = props;
+  const { analyse, montage, texteMax, modifier, ecouter, lireDansApercu, calerApercu, consignerPassage, surSelection, creerElement, insererRush, publicationEngagee } = props;
   const motLu = useSyncExternalStore(props.motLu.abonner, props.motLu.lire);
   const blocs = useMemo(() => construireTexte(analyse, montage), [analyse, montage]);
   const rangs = useMemo(() => new Map(analyse.mots.map((m, i) => [m.id, i])), [analyse]);
@@ -64,6 +69,7 @@ export const Texte: FC<Props> = props => {
   const [choix, setChoix] = useState<Choix | null>(null);
   const [saisie, setSaisie] = useState<SaisieTexte | null>(null);
   const [alerte, setAlerte] = useState<string | null>(null);
+  const [sens, setSens] = useState<SensInsertion | null>(null);
   const coupe = choix?.genre === 'coupe' ? montage.coupes.find(c => c.id === choix.id) ?? null : null;
   const paroles = coupe ? analyse.detections.find(d => d.id === coupe.id)?.paroles : undefined;
   // Coupe rétablie qui contient le passage choisi : on peut la recouper d'un bouton.
@@ -83,6 +89,7 @@ export const Texte: FC<Props> = props => {
     surSelection(ancrage);
     setSaisie(null);
     setAlerte(null);
+    setSens(null);
   }, [ancrage, surSelection]);
 
   // Chaque choix cale l'aperçu sur son début ; un passage coupé y donne la suite conservée.
@@ -185,6 +192,20 @@ export const Texte: FC<Props> = props => {
               Ajouter un texte
             </button>
             <button onClick={() => creer('camera')}>Caméra en grand</button>
+            <button onClick={() => setSens('avant')}>Insérer un rush avant</button>
+            <button onClick={() => setSens('apres')}>Insérer un rush après</button>
+            {sens && (() => {
+              const p = pointInsertion(analyse.mots, choix.rangs, sens);
+              return (
+                <FormulaireRush
+                  key={sens}
+                  rappel={rappelInsertion(analyse.mots, p)}
+                  publicationEngagee={publicationEngagee}
+                  inserer={(fichier, titre, onProgression) => insererRush(p.t, fichier, titre, onProgression)}
+                  onAnnuler={() => setSens(null)}
+                />
+              );
+            })()}
             {retablie && (
               <button
                 title={`Passage rétabli : ${LIBELLES_COUPE[retablie.type]} · ${duree(retablie.fin - retablie.debut)}`}

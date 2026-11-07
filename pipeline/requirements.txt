@@ -9,3 +9,4 @@ numpy>=1.26
 pillow>=10.0
 rembg[cpu]>=2.0.60
 pytest>=8.0
+pymupdf>=1.24

@@ -1,13 +1,15 @@
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import exemple from '../../fixtures/analyse-exemple.json';
+import { MISE_PAR_DEFAUT } from '../../noyau/mise-en-page';
 import { videoParDefaut, type Publication } from '../../noyau/publication';
 import type { Qualification } from '../../noyau/qualification';
+import { ErreurInterpretation } from './consignes';
 import { creerApiPublication, type ConfigPublication } from './publication';
 
 const MONTAGE = {
@@ -18,7 +20,20 @@ const MONTAGE = {
 };
 const RENDU = { version: 1, titre: 'Essai', statut: 'rendu', message: null };
 const PROPOSITION = { titre: 'Le SSO expliqué', variantesTitre: ['A', 'B'], description: 'Desc', tags: ['sso'], accroches: ['Un seul mot de passe'], logiciels: ['Excel'] };
-const SITE = { categories: [{ id: 1, nom: 'IA' }], playlists: [] };
+const PROPOSITION_VIGNETTE = {
+  pose: 'surpris.jpg', logos: ['excel.png', 'inconnu.png'], captures: ['a.png', 'b.png'], gabarit: 'mosaique' as const, accroche: 'Planning facile', explication: 'Les captures en éventail.',
+  mise: { cotePose: 'gauche' as const, tailleAccroche: 'grande' as const, recadrages: [{ x: 10, y: 10, largeur: 50, hauteur: 50 }], logoVedette: null },
+};
+const REPONSE_VIGNETTE = {
+  compris: 'Le planning en avant.', pasRealisable: [' Un fond vert — le fond est celui de la charte ', ''], logosAjoutes: [], propositions: [PROPOSITION_VIGNETTE],
+};
+const SITE = {
+  categories: [{ id: 1, nom: 'IA' }], playlists: [],
+  classements: [
+    { cle: 'outil', libelle: 'Par outil', multiple: false, obligatoire: true, valeurs: [{ id: 1, nom: 'Claude' }] },
+    { cle: 'theme', libelle: 'Par thème', multiple: true, obligatoire: false, valeurs: [{ id: 5, nom: 'vibe-coding' }] },
+  ],
+};
 
 let racine: string;
 let url: string;
@@ -56,10 +71,8 @@ beforeEach(async () => {
     urlSite: 'https://site.example',
     lireSite: vi.fn(async () => SITE),
     rediger: vi.fn(async () => PROPOSITION),
-    extraireImage: vi.fn(async (_video: string, _instant: number, sortie: string) => {
-      await mkdir(path.dirname(sortie), { recursive: true });
-      await writeFile(sortie, 'png');
-    }),
+    proposerVignettes: vi.fn(async () => REPONSE_VIGNETTE),
+    reduireImage: vi.fn(async (chemin: string) => ({ nom: path.basename(chemin), media_type: 'image/jpeg' as const, data: 'AAAA' })),
     detourer: vi.fn(async (_entree: string, sortie: string) => { await writeFile(sortie, 'png'); }),
     rendreVignette: vi.fn(async (_props, sortie: string) => {
       await mkdir(path.dirname(sortie), { recursive: true });
@@ -72,6 +85,32 @@ beforeEach(async () => {
       envoyerFichier: vi.fn(async (chemin: string) => (chemin.endsWith('.mp4') ? 'objet-video' : 'objet-vignette')),
       enregistrerVideo: vi.fn(async () => 42),
       supprimerVideo: vi.fn(async () => {}),
+      creerValeur: vi.fn(async (_c: string, nom: string) => ({ id: 99, nom })),
+    },
+    mail: {
+      sharepoint: { dossierLocal: path.join(racine, 'sharepoint'), site: 'https://sp.example/sites/vitrin3', bibliotheque: 'Bib' },
+      copier: vi.fn(async () => true),
+      incorporerPochette: vi.fn(async () => ''),
+      rediger: vi.fn(async () => '---\nobjet: Essai\n---\n## Titre\n\n[À COMPLÉTER]\n'),
+      construire: vi.fn(async (dossier: string) => {
+        await mkdir(path.join(dossier, 'build'), { recursive: true });
+        await writeFile(path.join(dossier, 'build', 'apercu-bureau.png'), 'png');
+        return 'ok';
+      }),
+      retoucher: vi.fn(async () => ({ remplacements: [], resume: '' })),
+      vignetteLecture: vi.fn(async (_source: string, cible: string) => writeFile(cible, 'jpg-lecture')),
+      capturer: vi.fn(async () => 'ok'),
+      brouillon: vi.fn(async () => 'Brouillon Outlook cree'),
+      lireReference: vi.fn(async (r: string) => `contenu de ${r}`),
+      logosBandeau: vi.fn(async () => ['there']),
+    },
+    presentation: {
+      rediger: vi.fn(async () => ({ titre: 'Accroche', tags: ['Outil'], description: 'Cette vidéo présente…' })),
+    },
+    linkedin: {
+      rediger: vi.fn(async d => ({ post: `Post ${d.profil} [Nom]
+`, inspirations: [`${d.profil}/exemple.md`] })),
+      lireBibliotheque: vi.fn(async profil => ({ guide: 'GUIDE', index: 'INDEX', exemples: [{ fichier: `${profil}/exemple.md`, texte: 'EXEMPLE' }] })),
     },
   };
   const api = creerApiPublication(config);
@@ -106,11 +145,11 @@ describe('détail de la publication', () => {
     ]);
     expect(d.videos[0].chapitres).toEqual([]);
     expect(d.publication.videos.map((v: { publier: boolean }) => v.publier)).toEqual([true, false, false]);
-    expect(d.sourceUrl).toBe('http://127.0.0.1:9999/a/source.mp4');
     expect(d.urlTournage).toBe('http://127.0.0.1:9999/a');
     expect(d.site).toEqual(SITE);
     expect(d.urlSite).toBe('https://site.example');
-    expect(d.camera).toBeNull();
+    expect(d).not.toHaveProperty('camera');
+    expect(d).not.toHaveProperty('sourceUrl');
     expect(d.reglages.titreMax).toBe(100);
   });
   it('liste la banque de logos et les captures du tournage', async () => {
@@ -126,15 +165,6 @@ describe('détail de la publication', () => {
     expect(d.logos).toEqual([{ fichier: 'excel.png', url: 'http://127.0.0.1:9997/excel.png' }]);
     expect(d.captures).toEqual(['a.png', 'b.jpg', 'c.svg']);
     expect(await (await fetch(`${url}/api/tournages/a/publication/captures`)).json()).toEqual(['a.png', 'b.jpg', 'c.svg']);
-  });
-  it('repère un enregistrement caméra séparé s’il accompagne un seul autre enregistrement', async () => {
-    const dossier = await tournage('a');
-    await mkdir(path.join(dossier, 'bruts'));
-    await writeFile(path.join(dossier, 'bruts', 'prise.mp4'), '');
-    await writeFile(path.join(dossier, 'bruts', 'prise-camera.mp4'), '');
-    expect((await (await fetch(`${url}/api/tournages/a/publication`)).json()).camera).toBe('prise-camera.mp4');
-    await writeFile(path.join(dossier, 'bruts', 'prise2.mp4'), '');
-    expect((await (await fetch(`${url}/api/tournages/a/publication`)).json()).camera).toBeNull();
   });
 });
 
@@ -170,6 +200,28 @@ describe('enregistrement', () => {
     const enregistree = JSON.parse(await readFile(path.join(dossier, 'publication.json'), 'utf-8')) as Publication;
     expect(enregistree.videos[1]).toMatchObject({ publier: true, titre: 'X', statut: 'a-preparer' });
   });
+  it('ignore le fond d’une vignette envoyée par un ancien studio', async () => {
+    const dossier = await tournage('a');
+    const p = await lirePublication('a');
+    const vignette = { pose: { source: 'banque', fichier: 'surpris.jpg' }, fond: { source: 'ecran', instant: 2 }, accroche: 'A', fichier: null };
+    expect((await envoyer('a', { ...p, videos: p.videos.map(v => (v.cible === 'complete' ? { ...v, vignette } : v)) })).status).toBe(200);
+    const enregistree = JSON.parse(await readFile(path.join(dossier, 'publication.json'), 'utf-8')) as Publication;
+    expect(enregistree.videos[0]!.vignette).not.toHaveProperty('fond');
+  });
+  it('refuse de lire une publication dont la vignette a une pose caméra', async () => {
+    const dossier = await tournage('a');
+    const p = await lirePublication('a');
+    const vignette = { pose: { source: 'camera', instant: 2 }, accroche: 'A', gabarit: 'classique', logos: [], captures: [], fichier: null };
+    await writeFile(path.join(dossier, 'publication.json'), JSON.stringify({ ...p, videos: p.videos.map(v => (v.cible === 'complete' ? { ...v, vignette } : v)) }));
+    const r = await fetch(`${url}/api/tournages/a/publication`);
+    expect(r.status).toBe(409);
+    expect((await r.json()).erreur).toContain('pose caméra plus prise en charge, choisissez une pose de la banque');
+  });
+  it('ne connaît plus la route des images', async () => {
+    await tournage('a');
+    // Hors de l'expression des routes : l'API de publication laisse passer, le serveur de test répond 418.
+    expect((await action('a', 'image', { source: 'ecran', instant: 1 })).status).toBe(418);
+  });
 });
 
 describe('rédaction', () => {
@@ -188,7 +240,7 @@ describe('rédaction', () => {
   it('met la première accroche proposée dans la vignette déjà composée, à rendre de nouveau', async () => {
     await tournage('a');
     const p = await lirePublication('a');
-    const vignette = { pose: { source: 'banque', fichier: 'surpris.jpg' }, fond: { source: 'charte' }, accroche: 'Ancienne', fichier: 'rendus/vignettes/complete.jpg' };
+    const vignette = { pose: { source: 'banque', fichier: 'surpris.jpg' }, accroche: 'Ancienne', fichier: 'rendus/vignettes/complete.jpg' };
     await envoyer('a', { ...p, videos: p.videos.map(v => (v.cible === 'complete' ? { ...v, vignette } : v)) });
     const r = await action('a', 'redaction', { cible: 'complete' });
     expect(((await r.json()) as Publication).videos[0]!.vignette).toMatchObject({ accroche: 'Un seul mot de passe', fichier: null });
@@ -197,7 +249,7 @@ describe('rédaction', () => {
     await tournage('a');
     await writeFile(path.join(racine, 'logos', 'excel.png'), 'png');
     const p = await lirePublication('a');
-    const vignette = { pose: { source: 'banque', fichier: 'surpris.jpg' }, fond: { source: 'charte' }, accroche: 'Ancienne', fichier: null };
+    const vignette = { pose: { source: 'banque', fichier: 'surpris.jpg' }, accroche: 'Ancienne', fichier: null };
     await envoyer('a', { ...p, videos: p.videos.map(v => (v.cible === 'complete' ? { ...v, vignette } : v)) });
     const r = await action('a', 'redaction', { cible: 'complete' });
     const video = ((await r.json()) as Publication).videos[0]!;
@@ -210,38 +262,13 @@ describe('rédaction', () => {
   });
 });
 
-describe('images', () => {
-  it('extrait l’image de l’écran une seule fois', async () => {
-    const dossier = await tournage('a');
-    const r = await action('a', 'image', { source: 'ecran', instant: 1.5 });
-    expect(await r.json()).toEqual({ chemin: 'publication/images/ecran-1500.png' });
-    expect(config.extraireImage).toHaveBeenCalledWith(path.join(dossier, 'source.mp4'), 1.5, path.join(dossier, 'publication', 'images', 'ecran-1500.png'));
-    await action('a', 'image', { source: 'ecran', instant: 1.5 });
-    expect(config.extraireImage).toHaveBeenCalledTimes(1);
-  });
-  it('extrait et détoure l’image de la caméra séparée', async () => {
-    const dossier = await tournage('a');
-    await mkdir(path.join(dossier, 'bruts'));
-    await writeFile(path.join(dossier, 'bruts', 'prise.mp4'), '');
-    await writeFile(path.join(dossier, 'bruts', 'prise-camera.mp4'), '');
-    const r = await action('a', 'image', { source: 'camera', instant: 2 });
-    expect(await r.json()).toEqual({ chemin: 'publication/images/camera-2000.detoure.png' });
-    expect(config.detourer).toHaveBeenCalledTimes(1);
-  });
-  it('refuse la caméra sans enregistrement séparé, et un instant hors de la vidéo', async () => {
-    await tournage('a');
-    expect((await action('a', 'image', { source: 'camera', instant: 2 })).status).toBe(409);
-    expect((await action('a', 'image', { source: 'ecran', instant: 999 })).status).toBe(400);
-  });
-});
-
 describe('vignette et validation', () => {
   async function preparer() {
     const dossier = await tournage('a');
     await writeFile(path.join(racine, 'poses', 'surpris.jpg'), 'jpg');
     await writeFile(path.join(racine, 'poses', 'surpris.detoure.png'), 'png');
     const p = await lirePublication('a');
-    const vignette = { pose: { source: 'banque', fichier: 'surpris.jpg' }, fond: { source: 'charte' }, accroche: 'Un seul mot de passe', fichier: null };
+    const vignette = { pose: { source: 'banque', fichier: 'surpris.jpg' }, accroche: 'Un seul mot de passe', fichier: null };
     await envoyer('a', { ...p, videos: p.videos.map(v => (v.cible === 'complete' ? { ...v, titre: 'Titre', description: 'Desc', vignette } : v)) });
     return dossier;
   }
@@ -250,11 +277,33 @@ describe('vignette et validation', () => {
     const r = await action('a', 'vignette', { cible: 'complete' });
     expect(r.status).toBe(200);
     expect(config.rendreVignette).toHaveBeenCalledWith(
-      { gabarit: 'classique', fondUrl: null, poseUrl: 'http://127.0.0.1:9998/surpris.detoure.png', logoUrls: [], captureUrls: [], accroche: 'Un seul mot de passe' },
+      {
+        gabarit: 'classique', poseUrl: 'http://127.0.0.1:9998/surpris.detoure.png', logoUrls: [], captureUrls: [], accroche: 'Un seul mot de passe',
+        mise: MISE_PAR_DEFAUT, vedette: null,
+      },
       path.join(dossier, 'rendus', 'vignettes', 'complete.jpg'),
       2_000_000,
     );
     expect(((await r.json()) as Publication).videos[0]!.vignette!.fichier).toBe('rendus/vignettes/complete.jpg');
+  });
+  it('archive la vignette précédente dans le même dossier avant d’en rendre une nouvelle', async () => {
+    const dossier = await preparer();
+    await action('a', 'vignette', { cible: 'complete' });
+    const vignettes = path.join(dossier, 'rendus', 'vignettes');
+    await writeFile(path.join(vignettes, 'complete.jpg'), 'ancienne');
+    expect((await action('a', 'vignette', { cible: 'complete' })).status).toBe(200);
+    const fichiers = (await readdir(vignettes)).sort();
+    expect(fichiers).toHaveLength(2);
+    expect(fichiers[0]).toMatch(/^complete-\d{8}-\d{6}\.jpg$/);
+    expect(await readFile(path.join(vignettes, fichiers[0]!), 'utf8')).toBe('ancienne');
+    expect(fichiers[1]).toBe('complete.jpg');
+  });
+  it('ouvre le dossier des vignettes, et refuse un dossier inconnu', async () => {
+    const dossier = await preparer();
+    await action('a', 'vignette', { cible: 'complete' });
+    expect((await action('a', 'ouvrir', { dossier: 'vignettes' })).status).toBe(200);
+    expect(config.ouvrirDossier).toHaveBeenCalledWith(path.join(dossier, 'rendus', 'vignettes'));
+    expect((await action('a', 'ouvrir', { dossier: 'C:\Windows' })).status).toBe(400);
   });
   it('refuse une vignette dont l’image manque', async () => {
     await preparer();
@@ -310,6 +359,19 @@ describe('banque de poses', () => {
     await fetch(`${url}/api/poses`);
     expect(config.detourer).toHaveBeenCalledTimes(1);
   });
+  it('ajoute une pose envoyée depuis le studio, sous un nom libre', async () => {
+    await writeFile(path.join(racine, 'poses', 'moi.jpg'), 'jpg');
+    const r = await fetch(`${url}/api/poses?fichier=moi.jpg`, { method: 'POST', body: 'photo' });
+    expect(r.status).toBe(200);
+    const { fichier, poses } = await r.json();
+    expect(fichier).toBe('moi-2.jpg');
+    expect(await readFile(path.join(racine, 'poses', 'moi-2.jpg'), 'utf8')).toBe('photo');
+    expect(poses.map((p: { fichier: string }) => p.fichier)).toEqual(['moi-2.jpg', 'moi.jpg']);
+  });
+  it('refuse une pose qui n’est pas une photo', async () => {
+    expect((await fetch(`${url}/api/poses?fichier=..%2Fx.jpg`, { method: 'POST', body: 'x' })).status).toBe(400);
+    expect((await fetch(`${url}/api/poses?fichier=x.gif`, { method: 'POST', body: 'x' })).status).toBe(400);
+  });
   it('partage un seul détourage entre des appels simultanés', async () => {
     await writeFile(path.join(racine, 'poses', 'souriant.jpg'), 'jpg');
     const reponses = await Promise.all([fetch(`${url}/api/poses`), fetch(`${url}/api/poses`)]);
@@ -323,14 +385,14 @@ const PERSO: Qualification = { nature: 'perso', confidentielle: false };
 const PERSO_CONF: Qualification = { nature: 'perso', confidentielle: true };
 const PRO: Qualification = { nature: 'pro', confidentielle: false };
 const PRO_CONF: Qualification = { nature: 'pro', confidentielle: true };
-const SITE_CHOISI = { replit: { id: null, categorieId: 1, playlistId: null } };
+const SITE_CHOISI = { replit: { id: null, classements: { outil: [1], theme: 'aucun' }, playlistId: null } };
 // Vidéo complète validée, vignette rendue ; `changement` complète ses champs (catégorie du site…).
 async function prete(q: Qualification = PERSO, changement: Record<string, unknown> = {}) {
   const dossier = await tournage('a');
   await writeFile(path.join(racine, 'poses', 'surpris.jpg'), 'jpg');
   await writeFile(path.join(racine, 'poses', 'surpris.detoure.png'), 'png');
   const p = await lirePublication('a');
-  const vignette = { pose: { source: 'banque', fichier: 'surpris.jpg' }, fond: { source: 'charte' }, accroche: 'Un seul mot de passe', fichier: null };
+  const vignette = { pose: { source: 'banque', fichier: 'surpris.jpg' }, accroche: 'Un seul mot de passe', fichier: null };
   await envoyer('a', {
     ...p,
     videos: p.videos.map(v => (v.cible === 'complete'
@@ -445,7 +507,7 @@ describe('relais sur le site', () => {
     const dossier = await prete(PRO_CONF, SITE_CHOISI);
     const r = await relayer();
     expect(r.status).toBe(200);
-    expect(((await r.json()) as Publication).videos[0]).toMatchObject({ statut: 'relayee', replit: { id: 42, categorieId: 1 }, erreur: null });
+    expect(((await r.json()) as Publication).videos[0]).toMatchObject({ statut: 'relayee', replit: { id: 42, classements: { outil: [1] } }, erreur: null });
     expect(site().envoyerFichier).toHaveBeenCalledWith(path.join(dossier, 'rendus', 'vignettes', 'complete.jpg'), 'image/jpeg');
     expect(site().envoyerFichier).toHaveBeenCalledWith(path.join(dossier, 'rendus', 'video-complete.mp4'), 'video/mp4');
     expect(site().enregistrerVideo).toHaveBeenCalledWith(null, expect.objectContaining({
@@ -467,9 +529,17 @@ describe('relais sur le site', () => {
     const perso = await relayer();
     expect(perso.status).toBe(422);
     expect((await perso.json()).problemes).toEqual(['Une vidéo Perso n’est pas relayée sur le site.']);
-    await prete(PRO_CONF);
-    expect((await (await relayer()).json()).problemes).toEqual(['Choisissez la catégorie du site.']);
     expect(site().enregistrerVideo).not.toHaveBeenCalled();
+  });
+  it('refuse le relais tant qu’un classement n’est pas décidé', async () => {
+    await prete(PRO_CONF, { replit: { id: null, classements: { outil: [1] }, playlistId: null } });
+    expect((await (await relayer()).json()).problemes).toEqual(['Par thème : choisissez une valeur ou cochez Aucune sélection.']);
+    expect(site().enregistrerVideo).not.toHaveBeenCalled();
+  });
+  it('relaie avec les classements du site', async () => {
+    await prete(PRO_CONF, SITE_CHOISI);
+    await relayer();
+    expect(site().enregistrerVideo).toHaveBeenCalledWith(null, expect.objectContaining({ categoryId: 1, classifications: { outil: [1], theme: [] } }));
   });
   it('refuse tant que le site n’est pas configuré', async () => {
     await prete(PRO_CONF, SITE_CHOISI);
@@ -505,6 +575,26 @@ describe('relais sur le site', () => {
   });
 });
 
+describe('valeurs de classement', () => {
+  const creer = (cle: string, corps: unknown) =>
+    fetch(`${url}/api/site/classements/${cle}/valeurs`, { method: 'POST', headers: json, body: JSON.stringify(corps) });
+  it('crée la valeur sur le site', async () => {
+    const r = await creer('theme', { nom: ' IA ' });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ id: 99, nom: 'IA' });
+    expect(config.site!.creerValeur).toHaveBeenCalledWith('theme', 'IA');
+  });
+  it('répond 400 à une clé mal encodée', async () => {
+    expect((await creer('%E0%A4%A', { nom: 'IA' })).status).toBe(400);
+    expect(config.site!.creerValeur).not.toHaveBeenCalled();
+  });
+  it('refuse un nom vide, et sans site configuré', async () => {
+    expect((await creer('theme', { nom: '  ' })).status).toBe(400);
+    config.site = null;
+    expect((await creer('theme', { nom: 'IA' })).status).toBe(422);
+  });
+});
+
 describe('lecture d’un publication.json en version 1', () => {
   it('convertit les profils et réécrit le fichier en version 2 au prochain enregistrement', async () => {
     const dossier = await tournage('a');
@@ -532,7 +622,7 @@ describe('retrait du site', () => {
     const r = await retirer();
     expect(r.status).toBe(200);
     expect(((await r.json()) as Publication).videos[0]).toMatchObject({
-      ...PERSO, statut: 'prete', replit: { id: null, categorieId: null, playlistId: null }, erreur: null,
+      ...PERSO, statut: 'prete', replit: { id: null, classements: { outil: [1] }, playlistId: null }, erreur: null,
     });
     expect(site().supprimerVideo).toHaveBeenCalledWith(42);
     const enregistree = JSON.parse(await readFile(path.join(dossier, 'publication.json'), 'utf-8')) as Publication;
@@ -579,5 +669,85 @@ describe('retrait du site', () => {
     expect((await (await action('a', 'youtube/preparer', { cible: 'complete' })).json()).problemes).toContain('Retirez d’abord la vidéo du site.');
     expect((await envoi()).status).toBe(422);
     expect(((await (await retirer()).json()) as Publication).videos[0]).toMatchObject({ statut: 'prete', replit: { id: null }, erreur: null });
+  });
+});
+
+describe('génération de vignette', () => {
+  async function preparer() {
+    const dossier = await tournage('a');
+    await writeFile(path.join(racine, 'poses', 'surpris.jpg'), 'jpg');
+    await writeFile(path.join(racine, 'poses', 'surpris.detoure.png'), 'png');
+    await writeFile(path.join(racine, 'logos', 'excel.png'), 'png');
+    await mkdir(path.join(dossier, 'captures'));
+    await writeFile(path.join(dossier, 'captures', 'a.png'), 'png');
+    await writeFile(path.join(dossier, 'captures', 'b.png'), 'png');
+    return dossier;
+  }
+  const generer = (corps: unknown) => action('a', 'vignette/generer', corps);
+  const CORPS = { cible: 'complete', pose: 'surpris.jpg', accroche: 'Planning sans effort', logosTexte: 'excel, word', captures: ['b.png'], consignes: ' Zoome ', base: null };
+
+  it('génère 3 variantes à partir des éléments du formulaire', async () => {
+    const dossier = await preparer();
+    const r = await generer(CORPS);
+    expect(r.status).toBe(200);
+    expect(config.proposerVignettes).toHaveBeenCalledWith(expect.objectContaining({
+      elements: { pose: 'surpris.jpg', accroche: 'Planning sans effort', logosTexte: 'excel, word', logos: ['excel.png'], captures: ['b.png'] },
+      consignes: 'Zoome', base: null, ambigus: [],
+    }));
+    expect(config.reduireImage).toHaveBeenCalledWith(expect.stringMatching(/surpris\.detoure\.png$/));
+    const tour = ((await r.json()) as Publication).videos[0]!.consignesVignette.at(-1)!;
+    expect(tour).toMatchObject({ texte: 'Zoome', introuvables: ['word'], base: null, choisie: null });
+    expect(tour.elements!.logos).toEqual(['excel.png']);
+    // Éléments de l'auteur rétablis, mise bornée sur l'unique capture.
+    expect(tour.propositions[0]).toMatchObject({ pose: 'surpris.jpg', logos: ['excel.png'], captures: ['b.png'], gabarit: 'vitrine' });
+    expect(tour.propositions[0]!.mise!.recadrages).toHaveLength(1);
+    expect(tour.pasRealisable).toContain('Un fond vert — le fond est celui de la charte');
+    const enregistree = JSON.parse(await readFile(path.join(dossier, 'publication.json'), 'utf-8')) as Publication;
+    expect(enregistree.videos[0]!.consignesVignette).toHaveLength(1);
+  });
+  it('passe la variante de départ', async () => {
+    await preparer();
+    await generer(CORPS);
+    await generer({ ...CORPS, base: { consigne: 0, proposition: 0 } });
+    expect(config.proposerVignettes).toHaveBeenLastCalledWith(expect.objectContaining({ base: expect.objectContaining({ gabarit: expect.any(String) }) }));
+  });
+  it('refuse une pose ou une capture inconnue et une accroche vide', async () => {
+    await preparer();
+    expect((await generer({ ...CORPS, pose: 'x.jpg' })).status).toBe(400);
+    expect((await generer({ ...CORPS, captures: ['absente.png'] })).status).toBe(400);
+    expect((await generer({ ...CORPS, accroche: ' ' })).status).toBe(400);
+    expect(config.proposerVignettes).not.toHaveBeenCalled();
+  });
+  it('garde les tours du disque quand le studio enregistre une publication qui n’en a pas', async () => {
+    const dossier = await preparer();
+    await generer(CORPS);
+    const p = await lirePublication('a');
+    const perimee = { ...p, videos: p.videos.map(v => ({ ...v, consignesVignette: [] })) };
+    expect((await envoyer('a', perimee)).status).toBe(200);
+    const enregistree = JSON.parse(await readFile(path.join(dossier, 'publication.json'), 'utf-8')) as Publication;
+    expect(enregistree.videos[0]!.consignesVignette.map(c => c.texte)).toEqual(['Zoome']);
+  });
+  it('refuse une seconde génération pendant qu’une première est en cours, puis réaccepte', async () => {
+    await preparer();
+    let echouer!: (e: Error) => void;
+    vi.mocked(config.proposerVignettes).mockImplementationOnce(() => new Promise((_, rejeter) => { echouer = rejeter; }));
+    const a = generer(CORPS);
+    await vi.waitFor(() => expect(config.proposerVignettes).toHaveBeenCalledTimes(1));
+    const b = await generer(CORPS);
+    expect(b.status).toBe(409);
+    expect((await b.json()).erreur).toBe('Une génération est déjà en cours pour cette vignette.');
+    echouer(new Error('boum'));
+    expect((await a).status).toBe(500);
+    expect((await generer(CORPS)).status).toBe(200);
+  });
+  it('n’enregistre rien quand Claude échoue ou ne propose rien', async () => {
+    const dossier = await preparer();
+    vi.mocked(config.proposerVignettes).mockRejectedValueOnce(new ErreurInterpretation(503, 'Connexion à l’API Claude impossible : hors ligne'));
+    const r = await generer(CORPS);
+    expect(r.status).toBe(503);
+    expect((await r.json()).erreur).toContain('Connexion à l’API Claude impossible');
+    vi.mocked(config.proposerVignettes).mockResolvedValueOnce({ ...REPONSE_VIGNETTE, propositions: [] });
+    expect((await generer(CORPS)).status).toBe(422);
+    expect(existsSync(path.join(dossier, 'publication.json'))).toBe(false);
   });
 });

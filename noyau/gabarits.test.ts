@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gabaritRetenu, gabaritsCompatibles, logosSuggeres } from './gabarits';
+import { DESCRIPTIONS_GABARIT, GABARITS, gabaritRetenu, gabaritsCompatibles, logosSuggeres, resoudreLogos } from './gabarits';
 
 describe('gabaritsCompatibles', () => {
   it('ne propose que le classique sans logo ni capture', () => {
@@ -33,5 +33,29 @@ describe('logosSuggeres', () => {
   it('ignore les logiciels sans logo et les doublons, et s’arrête à trois', () => {
     expect(logosSuggeres(['Word', 'excel', 'Excel'], banque)).toEqual(['excel.png']);
     expect(logosSuggeres(['excel', 'notion', 'chatgpt', 'power bi'], banque)).toEqual(['excel.png', 'notion.png', 'chatgpt.svg']);
+  });
+});
+
+describe('DESCRIPTIONS_GABARIT', () => {
+  it('décrit chaque gabarit avec sa condition', () => {
+    expect(Object.keys(DESCRIPTIONS_GABARIT).sort()).toEqual([...GABARITS].sort());
+    expect(DESCRIPTIONS_GABARIT.mosaique).toContain('dès deux captures');
+  });
+});
+
+const BANQUE = ['Excel.png', 'Microsoft Teams.svg', 'SharePoint.png', 'Power BI.png', 'Power Automate.png'];
+
+describe('resoudreLogos', () => {
+  it('trouve par nom exact, sans casse ni accents', () => {
+    expect(resoudreLogos('excel, sharepoint', BANQUE)).toEqual({ logos: ['Excel.png', 'SharePoint.png'], introuvables: [], ambigus: [] });
+  });
+  it('trouve par morceau de nom quand il est unique', () => {
+    expect(resoudreLogos('Teams', BANQUE).logos).toEqual(['Microsoft Teams.svg']);
+  });
+  it('signale les noms ambigus et introuvables', () => {
+    expect(resoudreLogos('Power; Word\nExcel', BANQUE)).toEqual({ logos: ['Excel.png'], introuvables: ['Word'], ambigus: ['Power'] });
+  });
+  it('garde 3 logos au plus, sans doublon', () => {
+    expect(resoudreLogos('Excel, excel, Teams, SharePoint, Power BI', BANQUE).logos).toHaveLength(3);
   });
 });

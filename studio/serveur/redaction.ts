@@ -28,12 +28,15 @@ export interface PropositionRedaction {
 
 export type Rediger = (d: DemandeRedaction) => Promise<PropositionRedaction>;
 
+// Ton des textes selon la diffusion : tout ce qui part sur YouTube, même privé, ne cite aucune organisation.
+export const consigneDeTon = (q: Qualification) => (diffusion(q).youtube === 'aucun'
+  ? 'Cette vidéo est destinée à un usage interne : ton sobre et professionnel.'
+  : 'Cette vidéo part sur YouTube : ne mentionne aucun employeur, client ni organisation, même si la transcription en cite.');
+
 export function construirePromptRedaction(d: DemandeRedaction): string {
   const chapitres = d.chapitres.length > 0 ? `\nChapitres de la vidéo :\n${d.chapitres.map(c => `- ${c}`).join('\n')}\n` : '';
   const termes = d.termes.length > 0 ? `\nTermes définis à l’écran :\n${d.termes.map(t => `- ${t.terme} : ${t.definition}`).join('\n')}\n` : '';
-  const ton = diffusion(d.qualification).youtube === 'aucun'
-    ? 'Cette vidéo est destinée à un usage interne : ton sobre et professionnel.'
-    : 'Cette vidéo part sur YouTube : ne mentionne aucun employeur, client ni organisation, même si la transcription en cite.';
+  const ton = consigneDeTon(d.qualification);
   return `Tu aides l’auteur de la chaîne YouTube « PMT » (astuces et outils numériques expliqués simplement à un public non spécialiste) à publier une vidéo tournée face caméra, en français. À partir de ce qu’il dit, propose les textes de publication ; il les relira et les corrigera.
 
 Titre de travail : ${d.titreVideo}
