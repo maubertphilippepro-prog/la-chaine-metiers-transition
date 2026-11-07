@@ -6,6 +6,8 @@ import type { Reglages } from './types';
 export interface EtatMail {
   urlSharepoint: string | null;
   copieLe: string | null;
+  // Dépôt dans le dossier OneDrive temporaire, le temps de changer la miniature dans Office.
+  onedriveLe?: string | null;
   redigeLe: string | null;
   construitLe: string | null;
   brouillonLe: string | null;

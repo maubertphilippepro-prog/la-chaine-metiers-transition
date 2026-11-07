@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -81,7 +82,7 @@ beforeEach(async () => {
       creerValeur: vi.fn(async (_c: string, nom: string) => ({ id: 99, nom })),
     },
     mail: {
-      sharepoint: { dossierLocal: path.join(racine, 'sharepoint'), site: 'https://sp.example/sites/vitrin3', bibliotheque: 'Bib' },
+      sharepoint: { dossierLocal: path.join(racine, 'sharepoint'), site: 'https://sp.example/sites/vitrin3', bibliotheque: 'Bib', dossierTemp: path.join(racine, 'onedrive') },
       copier: vi.fn(async () => true),
       incorporerPochette: vi.fn(async () => ''),
       rediger: vi.fn(async () => '---\nobjet: Essai\n---\n## Titre\n\n[À COMPLÉTER]\n'),
@@ -145,6 +146,38 @@ describe('mail de com', () => {
     );
     expect(d.etat.urlSharepoint).toContain('/_layouts/15/stream.aspx?id=%2Fsites%2Fvitrin3%2FBib%2FEssai%2Emp4');
     expect(d.etat.copieLe).not.toBeNull();
+  });
+  it('dépose la vidéo et sa vignette sur OneDrive, puis la déplace vers la chaîne', async () => {
+    await tournage('a');
+    await qualifier('a', 'pro');
+    await mkdir(path.join(racine, 'sharepoint'));
+    await mkdir(path.join(racine, 'onedrive'));
+    await mkdir(path.join(racine, 'tournages', 'a', 'rendus', 'vignettes'), { recursive: true });
+    await writeFile(path.join(racine, 'tournages', 'a', 'rendus', 'vignettes', 'complete.jpg'), 'jpg');
+    const depot = await (await mail('a', 'onedrive', { cible: 'complete' })).json();
+    expect(config.mail.copier).toHaveBeenCalledWith(
+      path.join(racine, 'tournages', 'a', 'publication', 'complete', 'mail', 'video-sharepoint.mp4'), path.join(racine, 'onedrive', 'Essai.mp4'),
+    );
+    expect(await readFile(path.join(racine, 'onedrive', 'Essai.jpg'), 'utf-8')).toBe('jpg');
+    expect(depot.etat.onedriveLe).not.toBeNull();
+    expect(depot.etat.urlSharepoint).toBeNull();
+    // La copie est simulée : on pose le fichier comme OneDrive l'aurait fait.
+    await writeFile(path.join(racine, 'onedrive', 'Essai.mp4'), 'video');
+    const d = await (await mail('a', 'deplacer', { cible: 'complete' })).json();
+    expect(await readFile(path.join(racine, 'sharepoint', 'Essai.mp4'), 'utf-8')).toBe('video');
+    expect(existsSync(path.join(racine, 'onedrive', 'Essai.mp4'))).toBe(false);
+    expect(existsSync(path.join(racine, 'onedrive', 'Essai.jpg'))).toBe(false);
+    expect(d.etat.urlSharepoint).toContain('Essai%2Emp4');
+    expect(d.etat.copieLe).not.toBeNull();
+  });
+  it('refuse de déplacer une vidéo absente du dossier OneDrive', async () => {
+    await tournage('a');
+    await qualifier('a', 'pro');
+    await mkdir(path.join(racine, 'sharepoint'));
+    await mkdir(path.join(racine, 'onedrive'));
+    const r = await mail('a', 'deplacer', { cible: 'complete' });
+    expect(r.status).toBe(409);
+    expect((await r.json()).erreur).toContain('Essai.mp4');
   });
   it('signale un dossier OneDrive absent', async () => {
     await tournage('a');

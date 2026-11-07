@@ -610,7 +610,7 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
 
   return async function traiter(req, res) {
     const chemin = new URL(req.url ?? '/', 'http://local').pathname;
-    const route = /^\/api\/tournages\/([^/]+)\/publication(?:\/(redaction|vignette\/generer|vignette|ouvrir|captures|valider|relais|site\/retirer|youtube\/(?:preparer|ouvrir|envoi|verifier)|mail(?:\/(?:copie|images|redaction|construire|retouche|brouillon))?|linkedin(?:\/redaction)?|presentation(?:\/redaction)?))?$/
+    const route = /^\/api\/tournages\/([^/]+)\/publication(?:\/(redaction|vignette\/generer|vignette|ouvrir|captures|valider|relais|site\/retirer|youtube\/(?:preparer|ouvrir|envoi|verifier)|mail(?:\/(?:copie|onedrive|deplacer|images|redaction|construire|retouche|brouillon))?|linkedin(?:\/redaction)?|presentation(?:\/redaction)?))?$/
       .exec(chemin);
     const valeur = /^\/api\/site\/classements\/([^/]+)\/valeurs$/.exec(chemin);
     if (valeur) {
@@ -661,6 +661,8 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
           const v = videoMail(ctx, lireCible(corps, ctx.cibles));
           if (req.method === 'PUT' && action === 'mail') repondre(res, 200, await mail.enregistrer(v, corps));
           else if (req.method === 'POST' && action === 'mail/copie') repondre(res, 200, await mail.copier(v));
+          else if (req.method === 'POST' && action === 'mail/onedrive') repondre(res, 200, await mail.deposerOnedrive(v));
+          else if (req.method === 'POST' && action === 'mail/deplacer') repondre(res, 200, await mail.deplacer(v));
           else if (req.method === 'POST' && action === 'mail/redaction') repondre(res, 200, await mail.rediger(v));
           else if (req.method === 'POST' && action === 'mail/construire') repondre(res, 200, await mail.construire(v));
           else if (req.method === 'POST' && action === 'mail/retouche') repondre(res, 200, await mail.retoucher(v, typeof corps.consigne === 'string' ? corps.consigne : ''));

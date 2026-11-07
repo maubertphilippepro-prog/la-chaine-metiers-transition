@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { appendFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { appendFile, copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import type { IncomingMessage } from 'node:http';
 import path from 'node:path';
 import {
@@ -101,22 +101,66 @@ export function creerMail(o: OutilsMail) {
     };
   }
 
+  function dossierExistant(d: string | undefined, quoi: string): string {
+    if (!d) throw new ErreurHttp(409, `${quoi} : dossier non configuré dans reglages.json.`);
+    if (!existsSync(d)) throw new ErreurHttp(409, `Dossier OneDrive introuvable : ${d}. Vérifiez la synchronisation (${quoi}).`);
+    return d;
+  }
+  const nomFichier = (v: VideoMail) => fichierSharepoint(v.video.titre || v.disponible.titre);
+  const nomVignette = (fichier: string) => `${fichier.slice(0, -path.extname(fichier).length)}.jpg`;
+
+  // Rendu avec la vignette incorporée comme pochette, quand elle existe.
+  async function videoAvecPochette(v: VideoMail): Promise<string> {
+    const source = path.join(v.dossierTournage, 'rendus', v.disponible.fichier);
+    const vignette = path.join(v.dossierTournage, fichierVignette(v.cible));
+    if (!existsSync(vignette)) return source;
+    await mkdir(dossier(v), { recursive: true });
+    const avecPochette = path.join(dossier(v), 'video-sharepoint.mp4');
+    await o.incorporerPochette(source, vignette, avecPochette);
+    return avecPochette;
+  }
+
+  // Copie directe vers la chaîne, sans passer par OneDrive (la miniature reste celle que choisit Stream).
   async function copier(v: VideoMail): Promise<DetailMail> {
     verifier(v);
-    if (!existsSync(o.sharepoint.dossierLocal)) {
-      throw new ErreurHttp(409, `Dossier OneDrive introuvable : ${o.sharepoint.dossierLocal}. Vérifiez la synchronisation de Vitrin3.`);
-    }
-    const fichier = fichierSharepoint(v.video.titre || v.disponible.titre);
+    const chaine = dossierExistant(o.sharepoint.dossierLocal, 'Vitrin3');
+    const fichier = nomFichier(v);
     await exclusif(v, 'Copie sur SharePoint', async () => {
-      let source = path.join(v.dossierTournage, 'rendus', v.disponible.fichier);
+      await o.copier(await videoAvecPochette(v), path.join(chaine, fichier));
+      await noter(v, { urlSharepoint: urlSharepoint(o.sharepoint, fichier), copieLe: new Date().toISOString() });
+    });
+    return detail(v);
+  }
+
+  // Étape 1 : vidéo et vignette (même nom, en .jpg) dans le OneDrive perso, pour y changer la miniature dans Office.
+  async function deposerOnedrive(v: VideoMail): Promise<DetailMail> {
+    verifier(v);
+    const temp = dossierExistant(o.sharepoint.dossierTemp, 'OneDrive perso');
+    const fichier = nomFichier(v);
+    await exclusif(v, 'Dépôt sur OneDrive', async () => {
+      await o.copier(await videoAvecPochette(v), path.join(temp, fichier));
       const vignette = path.join(v.dossierTournage, fichierVignette(v.cible));
-      if (existsSync(vignette)) {
-        await mkdir(dossier(v), { recursive: true });
-        const avecPochette = path.join(dossier(v), 'video-sharepoint.mp4');
-        await o.incorporerPochette(source, vignette, avecPochette);
-        source = avecPochette;
-      }
-      await o.copier(source, path.join(o.sharepoint.dossierLocal, fichier));
+      if (existsSync(vignette)) await copyFile(vignette, path.join(temp, nomVignette(fichier)));
+      await noter(v, { onedriveLe: new Date().toISOString() });
+    });
+    return detail(v);
+  }
+
+  // Étape 3 : déplace la vidéo (miniature changée) du OneDrive perso vers la chaîne. La source n'est supprimée
+  // qu'une fois la copie vérifiée (même taille).
+  async function deplacer(v: VideoMail): Promise<DetailMail> {
+    verifier(v);
+    const temp = dossierExistant(o.sharepoint.dossierTemp, 'OneDrive perso');
+    const chaine = dossierExistant(o.sharepoint.dossierLocal, 'Vitrin3');
+    const fichier = nomFichier(v);
+    const source = path.join(temp, fichier);
+    if (!existsSync(source)) throw new ErreurHttp(409, `${fichier} absent de ${temp} : déposez d’abord la vidéo sur OneDrive.`);
+    await exclusif(v, 'Déplacement vers la chaîne', async () => {
+      const cible = path.join(chaine, fichier);
+      await copyFile(source, cible);
+      if ((await stat(cible)).size !== (await stat(source)).size) throw new Error('la copie n’a pas la taille de l’original.');
+      await rm(source);
+      await rm(path.join(temp, nomVignette(fichier)), { force: true });
       await noter(v, { urlSharepoint: urlSharepoint(o.sharepoint, fichier), copieLe: new Date().toISOString() });
     });
     return detail(v);
@@ -220,5 +264,5 @@ export function creerMail(o: OutilsMail) {
     return detail(v);
   }
 
-  return { detail, copier, enregistrer, deposerImage, rediger, construire, retoucher, brouillon };
+  return { detail, copier, deposerOnedrive, deplacer, enregistrer, deposerImage, rediger, construire, retoucher, brouillon };
 }

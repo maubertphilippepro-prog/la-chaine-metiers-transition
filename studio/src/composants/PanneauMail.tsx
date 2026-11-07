@@ -10,6 +10,8 @@ interface Props {
 }
 
 const COPIE = 'Copie sur SharePoint…';
+const DEPOT_ONEDRIVE = 'Dépôt sur OneDrive…';
+const DEPLACEMENT = 'Déplacement vers la chaîne…';
 const REDACTION = 'Rédaction par Claude…';
 const CONSTRUCTION = 'Construction et aperçus…';
 const RETOUCHE = 'Retouche par Claude…';
@@ -56,7 +58,7 @@ export const PanneauMail: FC<Props> = ({ nom, cible }) => {
   if (!d) return erreur ? <p className="alerte">{erreur}</p> : null;
 
   const e = d.etat;
-  const bouton = (libelle: string, quoi: 'copie' | 'redaction' | 'construire' | 'brouillon', texteBouton: string, actif = true) => (
+  const bouton = (libelle: string, quoi: Parameters<typeof api.actionMail>[2], texteBouton: string, actif = true) => (
     <div className="actions">
       <button disabled={!!occupe || !actif} onClick={() => void lancer(libelle, () => api.actionMail(nom, cible, quoi))}>{texteBouton}</button>
       {occupe === libelle && <Attente libelle={libelle} />}
@@ -84,7 +86,26 @@ export const PanneauMail: FC<Props> = ({ nom, cible }) => {
   return (
     <section className="panneau panneau-mail">
       <h4>Mail de com</h4>
-      {bouton(COPIE, 'copie', e.copieLe ? 'Recopier sur SharePoint' : 'Copier sur SharePoint')}
+      <div className="workflow-onedrive">
+        <strong>Dépôt sur la chaîne, en passant par OneDrive pour la miniature</strong>
+        <ol>
+          <li>
+            {bouton(DEPOT_ONEDRIVE, 'onedrive', e.onedriveLe ? 'Redéposer sur OneDrive' : 'Déposer vidéo et vignette sur OneDrive')}
+            <button className="lien" onClick={() => api.ouvrirDossier(nom, 'onedrive').catch(err => setErreur(message(err)))}>Ouvrir le dossier OneDrive</button>
+          </li>
+          <li className={e.onedriveLe ? '' : 'discret'}>
+            Dans OneDrive (navigateur ou Office), ouvrez la vidéo, puis « Modifier la miniature » et choisissez le .jpg du même nom.
+          </li>
+          <li>
+            {bouton(DEPLACEMENT, 'deplacer', 'Déplacer vers la chaîne M&T', !!e.onedriveLe)}
+            <button className="lien" onClick={() => api.ouvrirDossier(nom, 'sharepoint').catch(err => setErreur(message(err)))}>Ouvrir le dossier de la chaîne</button>
+          </li>
+        </ol>
+        <details>
+          <summary className="discret">Copie directe, sans changer la miniature</summary>
+          {bouton(COPIE, 'copie', e.copieLe ? 'Recopier sur SharePoint' : 'Copier sur SharePoint')}
+        </details>
+      </div>
       {e.urlSharepoint && (
         <p className="discret">
           Adresse de la vidéo : <a href={e.urlSharepoint} target="_blank" rel="noreferrer">SharePoint</a>{' '}

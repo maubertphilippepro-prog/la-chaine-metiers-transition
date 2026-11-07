@@ -39,7 +39,7 @@ export const api = {
   mail: (nom: string, cible: CiblePublication) => appeler<DetailMail>(`${chemin(nom)}/publication/mail?cible=${cible}`),
   enregistrerMail: (nom: string, cible: CiblePublication, champs: { texte?: string; notes?: string }) =>
     appeler<DetailMail>(`${chemin(nom)}/publication/mail`, enJson('PUT', { cible, ...champs })),
-  actionMail: (nom: string, cible: CiblePublication, quoi: 'copie' | 'redaction' | 'construire' | 'brouillon') =>
+  actionMail: (nom: string, cible: CiblePublication, quoi: 'copie' | 'onedrive' | 'deplacer' | 'redaction' | 'construire' | 'brouillon') =>
     appeler<DetailMail>(`${chemin(nom)}/publication/mail/${quoi}`, enJson('POST', { cible })),
   presentation: (nom: string, cible: CiblePublication) => appeler<DetailPresentation>(`${chemin(nom)}/publication/presentation?cible=${cible}`),
   enregistrerPresentation: (nom: string, cible: CiblePublication, presentation: Presentation) =>

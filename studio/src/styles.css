@@ -140,3 +140,5 @@ button.decision-non { opacity: 0.45; }
 .bouton-fichier { font-size: 14px; cursor: pointer; border: 1px solid var(--bleu); color: var(--bleu); background: white; border-radius: 4px; padding: 2px 8px; }
 .panneau-presentation label { display: grid; gap: 4px; margin: 6px 0; }
 .panneau-presentation input, .panneau-presentation textarea { font: inherit; font-size: 14px; width: 100%; box-sizing: border-box; }
+.workflow-onedrive ol { margin: 6px 0; padding-left: 20px; display: grid; gap: 6px; }
+.workflow-onedrive li .actions { display: inline-flex; }
