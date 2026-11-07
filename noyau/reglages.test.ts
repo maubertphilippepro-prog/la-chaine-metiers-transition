@@ -23,6 +23,7 @@ describe('reglages.json', () => {
       dossierLocal: 'C:\\Users\\pmaubert\\INGEROP\\Vitrin3 - Chaîne vidéo interne',
       site: 'https://ingeropgroup.sharepoint.com/sites/vitrin3',
       bibliotheque: 'Chane vido interne',
+      dossierTemp: 'C:\\Users\\pmaubert\\OneDrive - INGEROP\\(temp)\\Vidéos PMT',
     });
   });
 });
