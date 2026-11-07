@@ -2,7 +2,7 @@ import { decouperSegments, placerEncarts, plagesEpisodes } from './episodes';
 import { dureeImages, enImages, segmentsEnImages, versImages, type SegmentImages } from './images';
 import { calculerSegments } from './segments';
 import { plageMontee } from './temps';
-import type { Analyse, ElementEcran, Montage, PositionEncart, PositionTexte, Reglages, Terme, Zone } from './types';
+import { HABILLAGE_COMPLET, type Habillage, type Analyse, type ElementEcran, type Montage, type PositionEncart, type PositionTexte, type Reglages, type Terme, type Zone } from './types';
 
 // Toutes les positions et durées sont en images.
 export interface EncartImages {
@@ -55,11 +55,12 @@ export interface DecisionsVideoComplete {
   durees: DureesHabillage;
 }
 
-export function dureesHabillage(r: Reglages, fps: number): DureesHabillage {
+// Un élément d'habillage désactivé dure 0 image : l'enchaînement le saute et les durées se recalent d'elles-mêmes.
+export function dureesHabillage(r: Reglages, fps: number, h: Habillage = HABILLAGE_COMPLET): DureesHabillage {
   return {
-    generique: enImages(r.durees.generique, fps),
-    intertitre: enImages(r.durees.intertitre, fps),
-    cartonFin: enImages(r.durees.cartonFin, fps),
+    generique: h.generique ? enImages(r.durees.generique, fps) : 0,
+    intertitre: h.intertitres ? enImages(r.durees.intertitre, fps) : 0,
+    cartonFin: h.cartonFin ? enImages(r.durees.cartonFin, fps) : 0,
     fonduAudio: Math.max(1, enImages(r.coupe.fonduAudio, fps)),
   };
 }
@@ -118,7 +119,7 @@ export function decisionsEpisodes(
   analyse: Analyse, montage: Montage, r: Reglages, sourceUrl: string,
 ): DecisionsEpisode[] {
   const fps = analyse.fps;
-  const durees = dureesHabillage(r, fps);
+  const durees = dureesHabillage(r, fps, montage.habillage);
   const dureeEncart = enImages(r.durees.encart, fps);
   return segmentsParChapitre(analyse, montage, r)
     .map(c => construirePartie(c.titre, c.segments, montage.termes, dureeEncart, fps, montage.elements))
@@ -140,7 +141,7 @@ export function decisionsVideoComplete(
     partie.encarts.forEach(e => dejaDefinis.add(e.terme));
     parties.push(partie);
   }
-  return { fps, sourceUrl, titre: montage.titre, parties, durees: dureesHabillage(r, fps) };
+  return { fps, sourceUrl, titre: montage.titre, parties, durees: dureesHabillage(r, fps, montage.habillage) };
 }
 
 export function dureeEpisode(d: DecisionsEpisode): number {

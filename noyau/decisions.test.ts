@@ -26,6 +26,14 @@ const montage: Montage = {
   elements: [],
 };
 
+describe('dureesHabillage — habillage désactivé', () => {
+  it('met à 0 la durée du générique, des intertitres ou du carton de fin désactivés', () => {
+    expect(dureesHabillage(r, FPS, { generique: false, intertitres: true, cartonFin: false }))
+      .toEqual({ generique: 0, intertitre: 20, cartonFin: 0, fonduAudio: 1 });
+    expect(dureesHabillage(r, FPS, { generique: true, intertitres: false, cartonFin: true }).intertitre).toBe(0);
+  });
+});
+
 describe('dureesHabillage', () => {
   it('convertit les durées des réglages en images, fondu d\'au moins une image', () => {
     expect(dureesHabillage(r, FPS)).toEqual({ generique: 40, intertitre: 20, cartonFin: 50, fonduAudio: 1 });

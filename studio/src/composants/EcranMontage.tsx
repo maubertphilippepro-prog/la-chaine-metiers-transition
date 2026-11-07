@@ -10,6 +10,7 @@ import { imageEpisode, imageVideoComplete, motA, positionDansParties } from '../
 import { creerSuivi } from '../logique/suivi';
 import { useConsignes } from '../useConsignes';
 import { type EtatEnregistrement, useMontage } from '../useMontage';
+import { ChoixHabillage } from './ChoixHabillage';
 import { Apercu, type DemandeLecture, type ModeLecture, type Vue } from './Apercu';
 import { BandeauSuggestions } from './BandeauSuggestions';
 import { PanneauConsignes } from './PanneauConsignes';
@@ -165,6 +166,7 @@ export const EcranMontage: FC<{ nom: string }> = ({ nom }) => {
           aria-label="Titre de la vidéo complète"
           onChange={e => { const titre = e.target.value; modifier(m => ({ ...m, titre })); }}
         />
+        <ChoixHabillage montage={montage} modifier={modifier} />
         {enregistrement === 'en-attente'
           ? <Attente libelle={LIBELLES_ENREGISTREMENT[enregistrement]} />
           : <span className="discret">{LIBELLES_ENREGISTREMENT[enregistrement]}</span>}

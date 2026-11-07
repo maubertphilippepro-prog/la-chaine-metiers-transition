@@ -142,3 +142,5 @@ button.decision-non { opacity: 0.45; }
 .panneau-presentation input, .panneau-presentation textarea { font: inherit; font-size: 14px; width: 100%; box-sizing: border-box; }
 .workflow-onedrive ol { margin: 6px 0; padding-left: 20px; display: grid; gap: 6px; }
 .workflow-onedrive li .actions { display: inline-flex; }
+.choix-habillage { display: inline-flex; gap: 10px; font-size: 13px; white-space: nowrap; }
+.choix-habillage label { display: inline-flex; gap: 3px; align-items: center; cursor: pointer; }

@@ -121,7 +121,17 @@ export interface Montage {
   chapitres: Chapitre[];
   termes: Terme[];
   elements: ElementEcran[];
+  // Motion design : absent = tout est affiché (montages enregistrés avant l'option).
+  habillage?: Habillage;
 }
+
+export interface Habillage {
+  generique: boolean;
+  intertitres: boolean;
+  cartonFin: boolean;
+}
+
+export const HABILLAGE_COMPLET: Habillage = { generique: true, intertitres: true, cartonFin: true };
 
 export type StatutEpisode = 'analyse' | 'en-validation' | 'valide' | 'rendu' | 'erreur';
 
