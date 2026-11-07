@@ -61,6 +61,9 @@ export const ChoixVignette: FC<Props> = ({ nom, video: v, detail, poses, complet
       <div className="actions">
         <span className="discret">{captures.length} capture(s) dans captures/ du tournage.</span>
         <button onClick={() => void actualiser()}>Actualiser</button>
+        <button title="Vignettes rendues et leurs archives" onClick={() => api.ouvrirDossier(nom, 'vignettes').catch(e => setErreur(e instanceof Error ? e.message : String(e)))}>
+          Ouvrir le dossier des vignettes
+        </button>
       </div>
       <div
         className={depot ? 'depot actif' : 'depot'}

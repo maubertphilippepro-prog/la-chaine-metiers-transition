@@ -137,3 +137,4 @@ button.lien { background: none; border: none; padding: 0; text-align: left; curs
 button.decision-oui { background: #16a34a; border-color: #16a34a; color: white; }
 button.decision-non { opacity: 0.45; }
 .numero { display: inline-block; min-width: 2.2em; font-weight: 700; color: var(--bleu); }
+.bouton-fichier { font-size: 14px; cursor: pointer; border: 1px solid var(--bleu); color: var(--bleu); background: white; border-radius: 4px; padding: 2px 8px; }

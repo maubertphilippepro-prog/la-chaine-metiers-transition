@@ -1,5 +1,5 @@
 import { Thumbnail } from '@remotion/player';
-import { type FC, useState } from 'react';
+import { type FC, useEffect, useState } from 'react';
 import { LIBELLES_GABARIT, MAX_ELEMENTS } from '../../../noyau/gabarits';
 import { DOSSIER_CAPTURES, proprietesVignette, type BasesImages, type ConsigneVignette, type Publication, type Vignette, type VideoPubliee } from '../../../noyau/publication';
 import { HAUTEUR_VIGNETTE, LARGEUR_VIGNETTE, Vignette as CompositionVignette } from '../../../remotion/composants/Vignette';
@@ -32,6 +32,25 @@ const apercu = (v: Vignette, bases: BasesImages) => (
 // la base du tour suivant et remplit le formulaire.
 export const FormulaireVignette: FC<Props> = ({ nom, video: v, detail, poses, captures, complete, bases, changer, lancer, occupe }) => {
   const [f, setF] = useState<Formulaire>(() => formulaireInitial(v, poses[0]?.fichier, complete));
+  // Poses connues, complétées par celles chargées depuis ce formulaire.
+  const [liste, setListe] = useState(poses);
+  useEffect(() => setListe(poses), [poses]);
+  const [chargement, setChargement] = useState(false);
+  const [erreurPose, setErreurPose] = useState<string | null>(null);
+  const chargerPose = async (photo: File | undefined) => {
+    if (!photo) return;
+    setChargement(true);
+    setErreurPose(null);
+    try {
+      const r = await api.deposerPose(photo.name, photo);
+      setListe(r.poses);
+      modifier({ pose: r.fichier });
+    } catch (e) {
+      setErreurPose(e instanceof Error ? e.message : String(e));
+    } finally {
+      setChargement(false);
+    }
+  };
   const [historique, setHistorique] = useState(false);
   const modifier = (c: Partial<Formulaire>) => setF(a => ({ ...a, ...c }));
   const urlCapture = (fichier: string) => `${detail.urlTournage}/${DOSSIER_CAPTURES}/${encodeURIComponent(fichier)}`;
@@ -69,11 +88,16 @@ export const FormulaireVignette: FC<Props> = ({ nom, video: v, detail, poses, ca
     <div className="consignes-vignette">
       <div className="actions">
         <span>Pose :</span>
-        {poses.map(p => (
+        {liste.map(p => (
           <button key={p.fichier} className={f.pose === p.fichier ? 'pose choisie' : 'pose'} title={p.fichier} onClick={() => modifier({ pose: p.fichier })}>
             <img src={p.url} alt={p.fichier} />
           </button>
         ))}
+        <label className="bouton-fichier" title="Ajoute une photo à donnees/poses/ (détourée automatiquement)">
+          {chargement ? 'Détourage…' : 'Charger une pose…'}
+          <input type="file" accept="image/jpeg,image/png" hidden disabled={chargement} onChange={e => { void chargerPose(e.target.files?.[0]); e.target.value = ''; }} />
+        </label>
+        {erreurPose && <span className="trop-long">{erreurPose}</span>}
       </div>
       <label>
         Accroche (3 à 5 mots)

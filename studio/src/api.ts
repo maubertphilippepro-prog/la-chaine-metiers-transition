@@ -112,6 +112,9 @@ export const api = {
   validerVideo: (nom: string, cible: CiblePublication) => appeler<Publication>(`${chemin(nom)}/publication/valider`, enJson('POST', { cible })),
   preparerYoutube: (nom: string, cible: CiblePublication) =>
     appeler<DossierYoutube>(`${chemin(nom)}/publication/youtube/preparer`, enJson('POST', { cible })),
+  ouvrirDossier: async (nom: string, dossier: 'vignettes' | 'sharepoint' | 'onedrive') => {
+    await appeler<{ ok: true }>(`${chemin(nom)}/publication/ouvrir`, enJson('POST', { dossier }));
+  },
   ouvrirDossierYoutube: async (nom: string, cible: CiblePublication) => {
     await appeler<{ ok: true }>(`${chemin(nom)}/publication/youtube/ouvrir`, enJson('POST', { cible }));
   },
@@ -121,4 +124,8 @@ export const api = {
     appeler<VerificationYoutube>(`${chemin(nom)}/publication/youtube/verifier`, enJson('POST', { cible })),
   relayer: (nom: string, cible: CiblePublication) => appeler<Publication>(`${chemin(nom)}/publication/relais`, enJson('POST', { cible })),
   poses: () => appeler<Pose[]>('/api/poses'),
+  deposerPose: (fichier: string, contenu: Blob) => appeler<{ fichier: string; poses: Pose[] }>(
+    `/api/poses?fichier=${encodeURIComponent(fichier)}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: contenu },
+  ),
 };

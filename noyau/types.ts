@@ -182,7 +182,8 @@ export interface Reglages {
     mentionsInterdites: string[];
   };
   // Dossier OneDrive synchronisé avec la bibliothèque SharePoint des vidéos internes (mail de com).
-  sharepoint: { dossierLocal: string; site: string; bibliotheque: string };
+  // dossierTemp : dossier OneDrive perso où la vidéo transite pour qu'on y change la miniature dans Office.
+  sharepoint: { dossierLocal: string; site: string; bibliotheque: string; dossierTemp?: string };
   modeles: { whisper: string; claude: string; detourage: string };
   definitionMaxCaracteres: number;
 }

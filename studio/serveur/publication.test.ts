@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import os from 'node:os';
@@ -283,6 +283,25 @@ describe('vignette et validation', () => {
     );
     expect(((await r.json()) as Publication).videos[0]!.vignette!.fichier).toBe('rendus/vignettes/complete.jpg');
   });
+  it('archive la vignette précédente dans le même dossier avant d’en rendre une nouvelle', async () => {
+    const dossier = await preparer();
+    await action('a', 'vignette', { cible: 'complete' });
+    const vignettes = path.join(dossier, 'rendus', 'vignettes');
+    await writeFile(path.join(vignettes, 'complete.jpg'), 'ancienne');
+    expect((await action('a', 'vignette', { cible: 'complete' })).status).toBe(200);
+    const fichiers = (await readdir(vignettes)).sort();
+    expect(fichiers).toHaveLength(2);
+    expect(fichiers[0]).toMatch(/^complete-\d{8}-\d{6}\.jpg$/);
+    expect(await readFile(path.join(vignettes, fichiers[0]!), 'utf8')).toBe('ancienne');
+    expect(fichiers[1]).toBe('complete.jpg');
+  });
+  it('ouvre le dossier des vignettes, et refuse un dossier inconnu', async () => {
+    const dossier = await preparer();
+    await action('a', 'vignette', { cible: 'complete' });
+    expect((await action('a', 'ouvrir', { dossier: 'vignettes' })).status).toBe(200);
+    expect(config.ouvrirDossier).toHaveBeenCalledWith(path.join(dossier, 'rendus', 'vignettes'));
+    expect((await action('a', 'ouvrir', { dossier: 'C:\Windows' })).status).toBe(400);
+  });
   it('refuse une vignette dont l’image manque', async () => {
     await preparer();
     await rm(path.join(racine, 'poses', 'surpris.detoure.png'));
@@ -336,6 +355,19 @@ describe('banque de poses', () => {
     expect(existsSync(path.join(racine, 'poses', 'souriant.detoure.png'))).toBe(true);
     await fetch(`${url}/api/poses`);
     expect(config.detourer).toHaveBeenCalledTimes(1);
+  });
+  it('ajoute une pose envoyée depuis le studio, sous un nom libre', async () => {
+    await writeFile(path.join(racine, 'poses', 'moi.jpg'), 'jpg');
+    const r = await fetch(`${url}/api/poses?fichier=moi.jpg`, { method: 'POST', body: 'photo' });
+    expect(r.status).toBe(200);
+    const { fichier, poses } = await r.json();
+    expect(fichier).toBe('moi-2.jpg');
+    expect(await readFile(path.join(racine, 'poses', 'moi-2.jpg'), 'utf8')).toBe('photo');
+    expect(poses.map((p: { fichier: string }) => p.fichier)).toEqual(['moi-2.jpg', 'moi.jpg']);
+  });
+  it('refuse une pose qui n’est pas une photo', async () => {
+    expect((await fetch(`${url}/api/poses?fichier=..%2Fx.jpg`, { method: 'POST', body: 'x' })).status).toBe(400);
+    expect((await fetch(`${url}/api/poses?fichier=x.gif`, { method: 'POST', body: 'x' })).status).toBe(400);
   });
   it('partage un seul détourage entre des appels simultanés', async () => {
     await writeFile(path.join(racine, 'poses', 'souriant.jpg'), 'jpg');

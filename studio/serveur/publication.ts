@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import path from 'node:path';
 import { logosSuggeres, MAX_ELEMENTS, resoudreLogos } from '../../noyau/gabarits';
@@ -58,6 +58,16 @@ export interface ConfigPublication {
 }
 
 const EXTENSIONS_PHOTO = new Set(['.jpg', '.jpeg', '.png']);
+
+// Garde une copie horodatée (complete-AAAAMMJJ-HHmmss.jpg) de la vignette avant qu'un nouveau rendu ne l'écrase.
+async function archiverVignette(fichier: string): Promise<void> {
+  if (!existsSync(fichier)) return;
+  const d = new Date();
+  const n = (x: number) => String(x).padStart(2, '0');
+  const horodatage = `${d.getFullYear()}${n(d.getMonth() + 1)}${n(d.getDate())}-${n(d.getHours())}${n(d.getMinutes())}${n(d.getSeconds())}`;
+  const extension = path.extname(fichier);
+  await copyFile(fichier, `${fichier.slice(0, -extension.length)}-${horodatage}${extension}`);
+}
 const EXTENSIONS_LOGO = new Set(['.png', '.svg']);
 const EXTENSIONS_CAPTURE = new Set(['.png', '.jpg', '.jpeg', '.svg']);
 
@@ -320,6 +330,24 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
     return { fichier, captures: await captures(ctx.dossier) };
   }
 
+  // Photo envoyée depuis le studio : copiée dans donnees/poses/ (suffixe -2, -3… si le nom est pris), détourée à la liste.
+  async function deposerPose(req: IncomingMessage): Promise<{ fichier: string; poses: Pose[] }> {
+    const demande = new URL(req.url ?? '/', 'http://local').searchParams.get('fichier') ?? '';
+    const extension = path.extname(demande).toLowerCase();
+    if (!demande || path.basename(demande) !== demande || demande.startsWith('.') || !EXTENSIONS_PHOTO.has(extension)
+      || demande.toLowerCase().endsWith('.detoure.png')) {
+      throw new ErreurHttp(400, 'fichier attendu : une photo JPEG ou PNG, sans chemin.');
+    }
+    const octets = await lireOctets(req);
+    if (octets.length === 0) throw new ErreurHttp(400, 'Image vide.');
+    await mkdir(c.cheminPoses, { recursive: true });
+    const base = demande.slice(0, -extension.length);
+    let fichier = demande;
+    for (let n = 2; existsSync(path.join(c.cheminPoses, fichier)); n++) fichier = `${base}-${n}${path.extname(demande)}`;
+    await writeFile(path.join(c.cheminPoses, fichier), octets);
+    return { fichier, poses: await poses() };
+  }
+
   async function vignette(req: IncomingMessage, ctx: Contexte): Promise<Publication> {
     const cible = lireCible(await lireCorps(req), ctx.cibles);
     const v = videoDe(ctx.publication, cible).vignette;
@@ -335,6 +363,7 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
     const cle = cleVignette(v);
     const chemin = fichierVignette(cible);
     try {
+      await archiverVignette(path.join(ctx.dossier, chemin));
       const bases = { tournage: urlTournage(ctx.dossier), poses: c.urlPoses, logos: c.urlLogos };
       await c.rendreVignette(proprietesVignette(v, bases), path.join(ctx.dossier, chemin), ctx.tournage.reglages.publication.vignetteOctetsMax);
     } catch (e) {
@@ -392,6 +421,25 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
     const textes = textesYoutube(video, descriptionFinale, { playlist: plusieurs ? ctx.tournage.titre : null, cheminRendu: aTeleverser });
     await ecrireDossierYoutube(dossier, textes, vignette, rendu);
     return { dossier, rendu: aTeleverser, textes };
+  }
+
+  // Ouvre dans l'explorateur un dossier connu du serveur : jamais un chemin envoyé par le navigateur.
+  async function ouvrir(req: IncomingMessage, ctx: Contexte): Promise<{ ok: true }> {
+    const quoi = objet(await lireCorps(req)).dossier;
+    const dossiers: Record<string, string | undefined> = {
+      vignettes: path.join(ctx.dossier, path.dirname(fichierVignette('complete'))),
+      sharepoint: c.mail.sharepoint.dossierLocal,
+      onedrive: c.mail.sharepoint.dossierTemp,
+    };
+    const dossier = typeof quoi === 'string' && Object.hasOwn(dossiers, quoi) ? dossiers[quoi] : undefined;
+    if (!dossier) throw new ErreurHttp(400, 'dossier attendu : vignettes, sharepoint ou onedrive.');
+    if (!existsSync(dossier)) throw new ErreurHttp(409, `Dossier introuvable : ${dossier}.`);
+    try {
+      await c.ouvrirDossier(dossier);
+    } catch (e) {
+      throw new ErreurHttp(500, `Ouverture du dossier impossible : ${message(e)}`);
+    }
+    return { ok: true };
   }
 
   async function ouvrirYoutube(req: IncomingMessage, ctx: Contexte): Promise<{ ok: true }> {
@@ -558,7 +606,7 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
 
   return async function traiter(req, res) {
     const chemin = new URL(req.url ?? '/', 'http://local').pathname;
-    const route = /^\/api\/tournages\/([^/]+)\/publication(?:\/(redaction|vignette\/generer|vignette|captures|valider|relais|site\/retirer|youtube\/(?:preparer|ouvrir|envoi|verifier)|mail(?:\/(?:copie|images|redaction|construire|retouche|brouillon))?|linkedin(?:\/redaction)?))?$/
+    const route = /^\/api\/tournages\/([^/]+)\/publication(?:\/(redaction|vignette\/generer|vignette|ouvrir|captures|valider|relais|site\/retirer|youtube\/(?:preparer|ouvrir|envoi|verifier)|mail(?:\/(?:copie|images|redaction|construire|retouche|brouillon))?|linkedin(?:\/redaction)?))?$/
       .exec(chemin);
     const valeur = /^\/api\/site\/classements\/([^/]+)\/valeurs$/.exec(chemin);
     if (valeur) {
@@ -575,8 +623,9 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
     if (!route && chemin !== '/api/poses') return false;
     try {
       if (!route) {
-        if (req.method !== 'GET') throw new ErreurHttp(405, 'Méthode non permise.');
-        repondre(res, 200, await poses());
+        if (req.method === 'POST') repondre(res, 200, await deposerPose(req));
+        else if (req.method === 'GET') repondre(res, 200, await poses());
+        else throw new ErreurHttp(405, 'Méthode non permise.');
         return true;
       }
       const ctx = await contexte(dossierTournage(c.racineTournages, route[1]!));
@@ -590,6 +639,7 @@ export function creerApiPublication(c: ConfigPublication): (req: IncomingMessage
       else if (action === 'captures' && req.method === 'POST') repondre(res, 200, await deposerCapture(req, ctx));
       else if (action === 'valider' && req.method === 'POST') repondre(res, 200, await valider(req, ctx));
       else if (action === 'youtube/preparer' && req.method === 'POST') repondre(res, 200, await preparerYoutube(req, ctx));
+      else if (action === 'ouvrir' && req.method === 'POST') repondre(res, 200, await ouvrir(req, ctx));
       else if (action === 'youtube/ouvrir' && req.method === 'POST') repondre(res, 200, await ouvrirYoutube(req, ctx));
       else if (action === 'youtube/envoi' && req.method === 'POST') repondre(res, 200, await envoiYoutube(req, ctx));
       else if (action === 'youtube/verifier' && req.method === 'POST') repondre(res, 200, await verifierYoutube(req, ctx));
